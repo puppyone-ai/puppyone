@@ -7,7 +7,10 @@ import {
   type Workspace,
   type WorkspaceContentChange,
 } from "@puppyone/shared-ui";
-import { appendWorkbenchWorkspaceContentChange } from "../../../../src/features/data-workspace/workbenchWorkspaceContentChange";
+import {
+  appendWorkbenchResourceContentChange,
+  appendWorkbenchWorkspaceContentChange,
+} from "../../../../src/features/data-workspace/workbenchWorkspaceContentChange";
 
 describe("Workbench Workspace mutation journal", () => {
   const workbench = createWorkbenchWorkspace([
@@ -98,6 +101,40 @@ describe("Workbench Workspace mutation journal", () => {
     expect(journal.entries).toHaveLength(MAX_WORKSPACE_CONTENT_CHANGE_ENTRIES);
     expect(workspaceContentChangeMatchesResource(journal, betaReadme, 0)).toBe(true);
     expect(workspaceContentChangeMatchesResource(journal, betaReadme, journal.sequence - 1)).toBe(false);
+  });
+});
+
+describe("Explorer action changes", () => {
+  const workbench = createWorkbenchWorkspace([
+    workspace("alpha", "/workspaces/alpha"),
+    workspace("beta", "/workspaces/beta"),
+  ]);
+  const [alpha, beta] = workbench.folders;
+
+  it("records the resources an action changed as one scoped entry per owning Folder", () => {
+    const journal = appendWorkbenchResourceContentChange(emptyJournal(), workbench, [
+      createWorkspaceResourceUri(alpha!.uri, "notes/old.md"),
+      createWorkspaceResourceUri(alpha!.uri, "notes/new.md"),
+      createWorkspaceResourceUri(beta!.uri, "copied.md"),
+    ]);
+
+    expect(journal.sequence).toBe(2);
+    expect(journal.entries).toEqual([
+      { sequence: 1, rootUri: alpha!.uri, paths: ["notes/old.md", "notes/new.md"] },
+      { sequence: 2, rootUri: beta!.uri, paths: ["copied.md"] },
+    ]);
+    expect(workspaceContentChangeMatchesResource(journal, createWorkspaceResourceUri(beta!.uri, "notes/old.md"), 0)).toBe(false);
+  });
+
+  it.each([
+    ["no resources", undefined],
+    ["an empty list", []],
+    ["a resource outside the Workbench", ["puppyone-local://workspace/detached/a.md"]],
+    ["a Folder root itself", [String(alpha!.uri)]],
+    ["a bare provider path", ["notes/a.md"]],
+  ])("refreshes everything when an action reports %s", (_label, resources) => {
+    const journal = appendWorkbenchResourceContentChange(emptyJournal(), workbench, resources as readonly string[] | undefined);
+    expect(journal.entries).toEqual([{ sequence: 1, rootUri: null, paths: null }]);
   });
 });
 

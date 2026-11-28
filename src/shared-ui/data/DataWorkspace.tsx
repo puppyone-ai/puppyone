@@ -71,6 +71,7 @@ import type { FileIconThemeId } from "../file/fileIcons";
 import { DataWorkspaceFrame } from "./DataWorkspaceFrame";
 import { getRendererPerformanceTracker } from "../performance/rendererPerformance";
 import { reconcileFolderChildren } from "./explorer/explorerTreeReconciliation";
+import { planExplorerRefresh } from "./explorer/explorerRefreshScope";
 import { useStableEventCallback } from "../primitives/useStableEventCallback";
 import {
   collectDataResourceAncestors,
@@ -357,8 +358,12 @@ export function DataWorkspace({
   expandedFolderPathsRef.current = expandedFolderPaths;
   const folderLoadRequestsRef = useRef(new Map<string, Readonly<{
     generation: number;
+    sequence: number;
     promise: Promise<DataNode[] | null>;
   }>>());
+  // Per-folder request order: a fresh revalidation supersedes an older listing
+  // of the same folder without cancelling unrelated folders.
+  const folderLoadSequenceRef = useRef(new Map<string, number>());
   const fileOpenTraceRef = useRef<{ id: string; documentId: string } | null>(null);
   const markdownLinkIndexCoordinatorRef = useRef<MarkdownLinkIndexCoordinator | null>(null);
   markdownLinkIndexCoordinatorRef.current ??= new MarkdownLinkIndexCoordinator({
@@ -418,11 +423,15 @@ export function DataWorkspace({
   );
 
   const loadFolderChildren = useCallback(
-    (folderPath: string | null): Promise<DataNode[] | null> => {
+    (folderPath: string | null, fresh = false): Promise<DataNode[] | null> => {
       const loadingKey = getLoadingKey(folderPath);
       const requestGeneration = loadGenerationRef.current;
       const existingRequest = folderLoadRequestsRef.current.get(loadingKey);
-      if (existingRequest?.generation === requestGeneration) return existingRequest.promise;
+      if (!fresh && existingRequest?.generation === requestGeneration) return existingRequest.promise;
+      const sequence = (folderLoadSequenceRef.current.get(loadingKey) ?? 0) + 1;
+      folderLoadSequenceRef.current.set(loadingKey, sequence);
+      const isLatest = () => requestGeneration === loadGenerationRef.current
+        && folderLoadSequenceRef.current.get(loadingKey) === sequence;
 
       const promise = (async () => {
         setFolderFailed(folderPath, false);
@@ -441,7 +450,7 @@ export function DataWorkspace({
           // Only the first read needs a loading row/skeleton.
           setFolderLoading(folderPath, !dataPort.getCachedChildren || !isFolderLoaded(folderPath));
           const children = await dataPort.listChildren(folderPath);
-          if (requestGeneration !== loadGenerationRef.current) return null;
+          if (!isLatest()) return null;
           setTree((current) => reconcileFolderChildren(current, folderPath, children));
           setFolderFailed(folderPath, false);
           if (!folderPath) {
@@ -450,7 +459,7 @@ export function DataWorkspace({
           }
           return children;
         } catch (error) {
-          if (requestGeneration === loadGenerationRef.current) {
+          if (isLatest()) {
             if (dataPort.getCachedChildren && error && typeof error === "object"
               && "status" in error && (error.status === 401 || error.status === 403)) {
               loadGenerationRef.current++;
@@ -468,16 +477,16 @@ export function DataWorkspace({
           return null;
         } finally {
           const activeRequest = folderLoadRequestsRef.current.get(loadingKey);
-          if (activeRequest?.generation === requestGeneration) {
+          if (activeRequest?.generation === requestGeneration && activeRequest.sequence === sequence) {
             folderLoadRequestsRef.current.delete(loadingKey);
           }
-          if (requestGeneration === loadGenerationRef.current) {
+          if (isLatest()) {
             setFolderLoading(folderPath, false);
           }
         }
       })();
 
-      folderLoadRequestsRef.current.set(loadingKey, { generation: requestGeneration, promise });
+      folderLoadRequestsRef.current.set(loadingKey, { generation: requestGeneration, sequence, promise });
       return promise;
     },
     [dataPort, isFolderLoaded, setFolderFailed, setFolderLoading, setRootLoaded, setTree],
@@ -604,9 +613,20 @@ export function DataWorkspace({
       return;
     }
 
+    const previousRefreshKey = lastRefreshKeyRef.current;
     lastRefreshKeyRef.current = refreshKey;
     const pendingAtomicRefreshKey = atomicRefreshKey;
     const atomicRefresh = completedAtomicRefreshKey !== pendingAtomicRefreshKey;
+    const scope = atomicRefresh || !rootLoadedRef.current
+      ? { kind: "all" as const }
+      : planExplorerRefresh(refreshKey, previousRefreshKey?.sequence ?? Number.NEGATIVE_INFINITY, treeRef.current);
+    if (scope.kind === "none") return;
+    if (scope.kind === "folders") {
+      // Named changes re-list only the folders they can affect; every other
+      // folder, its rows and in-flight loads stay untouched.
+      for (const folderPath of scope.folders) void loadFolderChildren(folderPath, true);
+      return;
+    }
     if (atomicRefresh || dataPort.getCachedChildren) {
       loadGenerationRef.current += 1;
       folderLoadRequestsRef.current.clear();
@@ -637,6 +657,7 @@ export function DataWorkspace({
     completedAtomicRefreshKey,
     dataPort,
     loadFolder,
+    loadFolderChildren,
     revalidateFolders,
     refreshKey,
     resolvedActivePath,

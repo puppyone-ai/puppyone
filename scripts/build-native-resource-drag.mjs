@@ -4,8 +4,8 @@ import { mkdtempSync, renameSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Every macOS window module: resource drag, and title bar scrolling.
-const MODULES = ["resource-drag", "title-bar-scroll"];
+// Every macOS window module.
+const MODULES = ["resource-drag"];
 
 if (process.platform === "darwin") {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");

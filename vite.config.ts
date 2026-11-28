@@ -119,5 +119,8 @@ export default defineConfig({
   server: {
     strictPort: true,
     port: 5173,
+    // The GPUI app (sources and its multi-GB Cargo target) is not part of
+    // this renderer; Vite adds this to its own .git/node_modules ignores.
+    watch: { ignored: ["**/puppy-one-rust/**"] },
   },
 });

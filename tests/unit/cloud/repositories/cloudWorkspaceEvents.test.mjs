@@ -87,3 +87,57 @@ describe('workspace subscription recovery', () => {
     expect(owner.send).toHaveBeenCalledWith('cloud-workspace:event', {id: 'sub', type: 'unavailable', message: 'revoked'});
   });
 });
+
+describe('workspace file event paths', () => {
+  const change = (value) => `event: change\ndata: ${JSON.stringify({ generation: 'one', ...value })}\n\n`;
+  const parse = async (...frames) => {
+    const emit = vi.fn();
+    await readCloudWorkspaceEvents(response([...frames, 'event: unavailable\ndata: {}\n\n']), emit);
+    return emit.mock.calls.map(([event]) => event).filter((event) => event.type === 'change');
+  };
+
+  it('forwards the workspace-relative paths a change names, once each', async () => {
+    expect(await parse(change({ reset: true, paths: ['docs/a.md', 'b.md', 'docs/a.md'] }))).toEqual([
+      { type: 'change', generation: 'one', paths: ['docs/a.md', 'b.md'] },
+    ]);
+  });
+
+  it('accepts a scoped change without the legacy reset flag only when it names paths', async () => {
+    expect(await parse(change({ paths: ['notes.md'] }))).toEqual([{ type: 'change', generation: 'one', paths: ['notes.md'] }]);
+    await expect(parse(change({ reset: false }))).rejects.toThrow(/Invalid Cloud file notification/);
+    await expect(parse(change({ reset: false, paths: ['../escape'] }))).rejects.toThrow(/Invalid Cloud file notification/);
+  });
+
+  it.each([
+    ['an empty list', []],
+    ['the overflow marker', ['docs/a.md', '']],
+    ['a parent segment', ['docs/../secret']],
+    ['a current segment', ['./a.md']],
+    ['an absolute path', ['/etc/passwd']],
+    ['an empty segment', ['docs//a.md']],
+    ['a backslash', ['docs\\a.md']],
+    ['a NUL byte', ['a\u0000.md']],
+    ['a non-string', [42]],
+    ['an over-long path', ['a'.repeat(4097)]],
+    ['too many paths', Array.from({ length: 257 }, (_, index) => `f${index}.md`)],
+  ])('treats %s as a change of unknown scope', async (_label, paths) => {
+    expect(await parse(change({ reset: true, paths }))).toEqual([{ type: 'change', generation: 'one' }]);
+  });
+
+  it('delivers path hints to the subscribing window', async () => {
+    const handlers = new Map();
+    const owner = Object.assign(new EventEmitter(), { id: 5, send: vi.fn(), isDestroyed: () => false });
+    let emit;
+    const auth = { readSession: async () => ({ user_id: 'actor', session_generation: 'session', api_base_url: 'https://cloud-fixture.puppyone.ai/api/v1' }),
+      requestSessionApi: vi.fn(async (_base, _path, options) => {
+        emit = options.onWorkspaceEvent;
+        await new Promise(resolve => options.signal.addEventListener('abort', resolve, { once: true }));
+      }) };
+    registerCloudWorkspaceEvents({ handle: (name, handler) => handlers.set(name, handler) }, auth);
+    await handlers.get('cloud-workspace:watch')({ sender: owner }, { id: 'paths', projectId: 'project', generation: 'one',
+      apiBaseUrl: 'https://cloud-fixture.puppyone.ai/api/v1', expectedSession: { userId: 'actor', generation: 'session' } });
+    await emit({ type: 'change', generation: 'one', paths: ['docs/a.md'] });
+    expect(owner.send).toHaveBeenCalledWith('cloud-workspace:event', { id: 'paths', type: 'change', generation: 'one', paths: ['docs/a.md'] });
+    handlers.get('cloud-workspace:stop')({ sender: owner }, { id: 'paths' });
+  });
+});

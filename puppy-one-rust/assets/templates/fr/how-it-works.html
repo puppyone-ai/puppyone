@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Comment fonctionne puppyone</title>
+  <style>
+    :root { color-scheme: light dark; --text: #1f2328; --muted: #656d76; --surface: #ffffff; --raised: #f6f8fa; --line: #d8dee4; --accent: #1f2328; }
+    @media (prefers-color-scheme: dark) { :root { --text: #e6edf3; --muted: #9198a1; --surface: #16181d; --raised: #1f232a; --line: #30363d; --accent: #e6edf3; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--surface); color: var(--text); font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", "Noto Sans", sans-serif; }
+    main { max-width: 760px; margin: 0 auto; padding: 40px 24px 56px; }
+    .eyebrow { margin: 0 0 6px; color: var(--muted); font-size: 13px; font-weight: 600; }
+    h1 { margin: 0; font-size: 28px; line-height: 1.25; }
+    .lead { margin: 10px 0 28px; color: var(--muted); }
+    [role="tablist"] { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    [role="tab"] { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+    [role="tab"] span { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--raised); font-size: 12px; font-weight: 600; }
+    [role="tab"]:hover { background: var(--raised); }
+    [role="tab"][aria-selected="true"] { border-color: var(--accent); background: var(--accent); color: var(--surface); }
+    [role="tab"][aria-selected="true"] span { background: var(--surface); color: var(--text); }
+    .step { padding: 24px 28px; border: 1px solid var(--line); border-radius: 12px; background: var(--raised); }
+    .step + .step { margin-top: 12px; }
+    .step[hidden] { display: none; }
+    .count { margin: 0; color: var(--muted); font-size: 13px; }
+    .step h2 { margin: 4px 0 8px; font-size: 20px; }
+    .step p { margin: 0; }
+    .step ul { margin: 14px 0 0; padding-left: 20px; }
+    .step li + li { margin-top: 6px; }
+    nav { display: flex; justify-content: space-between; margin-top: 16px; }
+    nav button { padding: 7px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+    nav button:hover:not(:disabled) { background: var(--raised); }
+    nav button:disabled { opacity: .4; cursor: default; }
+    footer { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">puppyone</p>
+    <h1>Comment fonctionne puppyone</h1>
+    <p class="lead">Quatre choses à savoir avant de commencer.</p>
+    <div role="tablist" aria-label="Comment fonctionne puppyone">
+      <button type="button" role="tab" id="tab-1" aria-controls="step-1" aria-selected="true"><span>1</span>Vos fichiers restent dans votre dossier</button>
+      <button type="button" role="tab" id="tab-2" aria-controls="step-2" aria-selected="false"><span>2</span>Chaque fichier s’ouvre comme il faut</button>
+      <button type="button" role="tab" id="tab-3" aria-controls="step-3" aria-selected="false"><span>3</span>Travaillez avec votre agent</button>
+      <button type="button" role="tab" id="tab-4" aria-controls="step-4" aria-selected="false"><span>4</span>Apportez ce que vous avez déjà</button>
+    </div>
+    <section class="step" role="tabpanel" id="step-1" aria-labelledby="tab-1">
+      <p class="count">Étape 1 sur 4</p>
+      <h2>Vos fichiers restent dans votre dossier</h2>
+      <p>Un projet est un dossier sur votre ordinateur, et puppyone enregistre votre travail sous forme de fichiers ordinaires à l’intérieur.</p>
+      <ul>
+        <li>D’autres applications, comme Obsidian ou un éditeur de code, peuvent ouvrir les mêmes fichiers.</li>
+        <li>La création d’un projet ne téléverse rien.</li>
+        <li>Les fichiers supprimés ne sont pas recréés.</li>
+      </ul>
+    </section>
+    <section class="step" role="tabpanel" id="step-2" aria-labelledby="tab-2">
+      <p class="count">Étape 2 sur 4</p>
+      <h2>Chaque fichier s’ouvre comme il faut</h2>
+      <p>puppyone choisit une vue adaptée à chaque fichier : inutile d’avoir une application différente pour chaque format.</p>
+      <ul>
+        <li>Des notes Markdown avec mise en forme en direct</li>
+        <li>Des tableaux CSV modifiables comme dans un tableur</li>
+        <li>Des pages web, des tableaux blancs, des PDF et des documents Office</li>
+      </ul>
+    </section>
+    <section class="step" role="tabpanel" id="step-3" aria-labelledby="tab-3">
+      <p class="count">Étape 3 sur 4</p>
+      <h2>Travaillez avec votre agent</h2>
+      <p>Choisissez et configurez un agent dans le panneau Agent ou dans les réglages. Il travaille sur les fichiers de ce projet.</p>
+      <ul>
+        <li>Demandez-lui d’organiser des notes, de résumer un tableau ou de rédiger un document.</li>
+        <li>Vérifiez les modifications proposées avant de les conserver.</li>
+        <li>Avec un modèle cloud, ce que vous envoyez peut être traité par son fournisseur.</li>
+      </ul>
+    </section>
+    <section class="step" role="tabpanel" id="step-4" aria-labelledby="tab-4">
+      <p class="count">Étape 4 sur 4</p>
+      <h2>Apportez ce que vous avez déjà</h2>
+      <p>Partez de vos fichiers existants plutôt que d’une page blanche.</p>
+      <ul>
+        <li>Faites glisser des fichiers dans la liste des fichiers.</li>
+        <li>Ouvrez un dossier existant ou un coffre Obsidian comme projet.</li>
+        <li>Importez Notion (export Markdown et CSV) et Airtable (export CSV).</li>
+      </ul>
+    </section>
+    <nav hidden>
+      <button type="button" data-move="-1">Précédent</button>
+      <button type="button" data-move="1">Suivant</button>
+    </nav>
+    <footer>Cette page est un fichier HTML ordinaire de votre projet. Passez en mode édition pour modifier son texte, ou demandez à votre agent de la repenser.</footer>
+  </main>
+  <script>
+    const tabs = [...document.querySelectorAll("[role=tab]")];
+    const steps = [...document.querySelectorAll(".step")];
+    const [previous, next] = document.querySelectorAll("[data-move]");
+    let current = 0;
+    function show(index) {
+      current = Math.max(0, Math.min(steps.length - 1, index));
+      steps.forEach((step, position) => { step.hidden = position !== current; });
+      tabs.forEach((tab, position) => tab.setAttribute("aria-selected", String(position === current)));
+      previous.disabled = current === 0;
+      next.disabled = current === steps.length - 1;
+    }
+    tabs.forEach((tab, index) => tab.addEventListener("click", () => show(index)));
+    for (const button of [previous, next]) button.addEventListener("click", () => show(current + Number(button.dataset.move)));
+    document.querySelector("nav").hidden = false;
+    show(0);
+  </script>
+</body>
+</html>

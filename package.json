@@ -1,7 +1,7 @@
 {
   "name": "@puppyone/desktop",
   "private": true,
-  "version": "0.4.4",
+  "version": "0.5.1",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -220,6 +220,7 @@
     "@formatjs/icu-messageformat-parser": "3.5.5",
     "@lezer/highlight": "^1.2.3",
     "@lezer/markdown": "^1.6.4",
+    "@novnc/novnc": "1.7.0",
     "@types/react": "^18.3.8",
     "@types/react-dom": "^18.3.0",
     "@typescript-eslint/parser": "^8.62.1",

@@ -1,0 +1,159 @@
+//! The Agent Chat recipes of local Agents (`localAgentCatalog.ts`'s
+//! `localAgentIdForAgentChatRuntime` and `agentChatCreationRecipes.ts`): which
+//! chat runtime a detected installation starts, and which runtimes hiding a
+//! local Agent hides.
+use crate::agent::connections::legacy_local_agent_inventory::Installation;
+
+/// `BUILT_IN_AGENT_RUNTIME_ID`.
+const BUILT_IN_AGENT_RUNTIME_ID: &str = "puppyone-agent";
+
+/// One entry of `LOCAL_AGENT_CHAT_RECIPES` (`localAgentCatalog.ts`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct LocalAgentChatRecipe {
+    pub id: &'static str,
+    pub label: &'static str,
+    pub icon_key: &'static str,
+}
+
+/// `LOCAL_AGENT_CHAT_RECIPES` in canonical label order.
+pub const LOCAL_AGENT_CHAT_RECIPES: [LocalAgentChatRecipe; 8] = [
+    LocalAgentChatRecipe {
+        id: "claude",
+        label: "Claude Code",
+        icon_key: "claude",
+    },
+    LocalAgentChatRecipe {
+        id: "codex",
+        label: "Codex",
+        icon_key: "codex",
+    },
+    LocalAgentChatRecipe {
+        id: "cursor",
+        label: "Cursor",
+        icon_key: "cursor",
+    },
+    LocalAgentChatRecipe {
+        id: "hermes",
+        label: "Hermes Agent",
+        icon_key: "hermes",
+    },
+    LocalAgentChatRecipe {
+        id: "opencode-native",
+        label: "OpenCode",
+        icon_key: "opencode",
+    },
+    LocalAgentChatRecipe {
+        id: "pi",
+        label: "Pi",
+        icon_key: "pi",
+    },
+    LocalAgentChatRecipe {
+        id: "workbuddy-china",
+        label: "WorkBuddy (China)",
+        icon_key: "workbuddy",
+    },
+    LocalAgentChatRecipe {
+        id: "workbuddy-international",
+        label: "WorkBuddy (International)",
+        icon_key: "workbuddy",
+    },
+];
+
+/// `LOCAL_AGENT_CHAT_RECIPES`' runtime ids.
+const LOCAL_AGENT_CHAT_RUNTIME_IDS: [&str; 8] = [
+    "claude",
+    "codex",
+    "cursor",
+    "hermes",
+    "opencode-native",
+    "pi",
+    "workbuddy-china",
+    "workbuddy-international",
+];
+
+/// `localAgentIdForAgentChatRuntime(runtimeId)`.
+pub fn local_agent_id_for_agent_chat_runtime(runtime_id: &str) -> &str {
+    match runtime_id {
+        "opencode-native" => "opencode",
+        id => id,
+    }
+}
+
+/// The Chat recipe (runtime id) of a detected installation.
+pub fn agent_chat_runtime_id(installation: &Installation) -> String {
+    if installation.bundled() {
+        return BUILT_IN_AGENT_RUNTIME_ID.into();
+    }
+    LOCAL_AGENT_CHAT_RUNTIME_IDS
+        .into_iter()
+        .find(|id| local_agent_id_for_agent_chat_runtime(id) == installation.id)
+        .unwrap_or(installation.id)
+        .into()
+}
+
+/// `resolveAgentChatRuntimeVisibility(...).hiddenRuntimeIds`: the Built-in
+/// Agent is never hidden.
+pub fn hidden_agent_chat_runtime_ids(hidden_local_agent_ids: &[String]) -> Vec<String> {
+    LOCAL_AGENT_CHAT_RUNTIME_IDS
+        .into_iter()
+        .filter(|id| {
+            hidden_local_agent_ids
+                .iter()
+                .any(|hidden| hidden == local_agent_id_for_agent_chat_runtime(id))
+        })
+        .map(str::to_string)
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        BUILT_IN_AGENT_RUNTIME_ID, LOCAL_AGENT_CHAT_RECIPES, hidden_agent_chat_runtime_ids,
+        local_agent_id_for_agent_chat_runtime,
+    };
+
+    /// `keeps local recipes alphabetized while Built-in Agent stays last and
+    /// independent of discovery`: the recipes are the local Agents in label
+    /// order, each naming the local Agent it starts.
+    #[test]
+    fn recipes_are_alphabetical_and_name_their_local_agent() {
+        assert_eq!(
+            LOCAL_AGENT_CHAT_RECIPES.map(|r| r.id),
+            [
+                "claude",
+                "codex",
+                "cursor",
+                "hermes",
+                "opencode-native",
+                "pi",
+                "workbuddy-china",
+                "workbuddy-international",
+            ]
+        );
+        let labels = LOCAL_AGENT_CHAT_RECIPES.map(|r| r.label.to_lowercase());
+        let mut sorted = labels.clone();
+        sorted.sort();
+        assert_eq!(labels, sorted);
+        assert_eq!(
+            local_agent_id_for_agent_chat_runtime("opencode-native"),
+            "opencode"
+        );
+        assert_eq!(local_agent_id_for_agent_chat_runtime("codex"), "codex");
+    }
+    #[test]
+    fn hidden_local_agents_hide_their_chat_runtimes_but_never_the_built_in() {
+        assert_eq!(
+            hidden_agent_chat_runtime_ids(&[
+                "opencode".into(),
+                "codex".into(),
+                BUILT_IN_AGENT_RUNTIME_ID.into()
+            ]),
+            ["codex", "opencode-native"]
+        );
+        assert!(hidden_agent_chat_runtime_ids(&[]).is_empty());
+        assert_eq!(
+            local_agent_id_for_agent_chat_runtime("workbuddy-china"),
+            "workbuddy-china"
+        );
+    }
+}

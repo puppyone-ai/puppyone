@@ -1,0 +1,27 @@
+[package]
+name = "po-contracts"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+path = "lib.rs"
+doctest = false
+
+[dependencies]
+async-channel = "2"
+base64 = "0.22"
+chrono = { version = "=0.4.45", default-features = false, features = ["std"] }
+icu_collator = "=2.3.0"
+regex = "1.13.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+url = "2.5"
+
+[dev-dependencies]
+tempfile = "3"
+
+[features]
+# Test doubles and snapshots for the dependent crates' tests.
+test-support = []

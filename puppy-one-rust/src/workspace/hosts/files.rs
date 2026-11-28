@@ -1,0 +1,1079 @@
+//! The host's file service (`host-file-service.mjs`): a root-closed service
+//! for one registered folder at a time. Every call loads the folder's
+//! current registration; a transport-supplied root is never accepted. It
+//! is deliberately not a shell, Git or general file bridge.
+//!
+//! The folder is opened as a capability (`cap_std::fs::Dir`), so no path,
+//! symbolic link or swapped directory can reach outside it, and every
+//! segment is checked to be a real directory or file: links and the Git
+//! metadata are refused, a missing name is "not found" only when its parent
+//! is inside the folder.
+use super::protocol::{
+    Capability, Entry, Kind, MAX_DIRECTORY_ENTRIES, MAX_FILE_BYTES, Request, relative_path,
+};
+use base64::{Engine, engine::general_purpose::STANDARD};
+use cap_std::{ambient_authority, fs::Dir};
+use serde_json::{Value, json};
+use sha2::Digest;
+use std::{
+    collections::HashMap,
+    io::{Read, Write},
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+    time::{Duration, UNIX_EPOCH},
+};
+
+/// Writes go through a temporary name the listing never shows.
+pub const TEMP_PREFIX: &str = ".puppyone-write-";
+const MAX_EVENT_PATHS: usize = 256;
+const COALESCE: Duration = Duration::from_millis(100);
+/// `WATCH_RECONCILE_MS`: directory event streams can silently omit changes.
+const RECONCILE: Duration = Duration::from_secs(2);
+
+/// One folder as the host registered it now.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Grant {
+    pub root: PathBuf,
+    pub active: bool,
+    pub capabilities: Vec<Capability>,
+}
+/// The host's registry: `None` for a folder it does not serve.
+pub trait Folders: Send + Sync {
+    fn resolve(&self, folder: &str) -> Option<Grant>;
+}
+
+pub type Outcome = Result<Value, &'static str>;
+
+/// `revision`: lowercase sha256 hex of the bytes.
+pub fn revision(bytes: &[u8]) -> String {
+    sha2::Sha256::digest(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+fn code(error: &std::io::Error) -> &'static str {
+    use std::io::ErrorKind::*;
+    match error.kind() {
+        NotFound | NotADirectory => "not_found",
+        AlreadyExists => "already_exists",
+        DirectoryNotEmpty => "not_empty",
+        // cap-std's refusal of a path that leads out of the folder.
+        PermissionDenied if error.to_string().contains("outside") => "invalid_path",
+        _ => "file_operation_failed",
+    }
+}
+fn io(error: std::io::Error) -> &'static str {
+    code(&error)
+}
+#[cfg(test)]
+thread_local! {
+    /// Tests: what happens between a name's check and its use.
+    static BEFORE_IO: std::cell::RefCell<Option<Box<dyn FnOnce()>>> = Default::default();
+}
+/// Between a name's check and the call that uses it; the call itself never
+/// leaves the folder, whatever the name has become by then.
+fn before_io() {
+    #[cfg(test)]
+    BEFORE_IO.with(|hook| {
+        if let Some(hook) = hook.borrow_mut().take() {
+            hook();
+        }
+    });
+}
+fn split(name: &str) -> (&str, &str) {
+    match name.rfind('/') {
+        Some(slash) => (&name[..slash], &name[slash + 1..]),
+        None => ("", name),
+    }
+}
+fn at(name: &str) -> &Path {
+    if name.is_empty() {
+        Path::new(".")
+    } else {
+        Path::new(name)
+    }
+}
+fn modified_ns(metadata: &cap_std::fs::Metadata) -> String {
+    metadata
+        .modified()
+        .ok()
+        .and_then(|m| m.into_std().duration_since(UNIX_EPOCH).ok())
+        .map_or_else(|| "0".into(), |d| d.as_nanos().to_string())
+}
+fn describe(name: &str, metadata: &cap_std::fs::Metadata) -> Entry {
+    Entry {
+        name: name.to_owned(),
+        kind: if metadata.is_dir() {
+            Kind::Directory
+        } else {
+            Kind::File
+        },
+        size: metadata.len(),
+        modified_ns: modified_ns(metadata),
+    }
+}
+/// `decodeContent`: standard base64, canonical, at most the file limit.
+fn decode(content: &str) -> Result<Vec<u8>, &'static str> {
+    if content.len() > (MAX_FILE_BYTES as usize).div_ceil(3) * 4 + 4 {
+        return Err("invalid_content");
+    }
+    let bytes = STANDARD.decode(content).map_err(|_| "invalid_content")?;
+    if bytes.len() as u64 > MAX_FILE_BYTES || STANDARD.encode(&bytes) != content {
+        return Err("invalid_content");
+    }
+    Ok(bytes)
+}
+
+/// The folder, admitted for `capability` and still at its registered
+/// place.
+fn admit(folders: &dyn Folders, folder: &str, capability: Capability) -> Result<Dir, &'static str> {
+    let grant = folders.resolve(folder).ok_or("folder_unavailable")?;
+    if !grant.active || !grant.capabilities.contains(&capability) {
+        return Err("folder_unavailable");
+    }
+    let canonical = grant.root.canonicalize().map_err(|_| "root_changed")?;
+    if canonical != grant.root {
+        return Err("root_changed");
+    }
+    Dir::open_ambient_dir(&canonical, ambient_authority()).map_err(|_| "root_changed")
+}
+
+/// `snapshot`: each file and directory's metadata, `.git`, write
+/// temporaries and links left out, never the contents; at most
+/// [`MAX_DIRECTORY_ENTRIES`] entries.
+fn snapshot(dir: &Dir) -> Result<HashMap<String, String>, &'static str> {
+    let mut state = HashMap::new();
+    let mut pending = vec![String::new()];
+    while let Some(name) = pending.pop() {
+        for item in dir.read_dir(at(&name)).map_err(io)? {
+            let item = item.map_err(io)?;
+            let child = item.file_name().to_string_lossy().into_owned();
+            if child.eq_ignore_ascii_case(".git") || child.starts_with(TEMP_PREFIX) {
+                continue;
+            }
+            if state.len() >= MAX_DIRECTORY_ENTRIES {
+                return Err("too_many_entries");
+            }
+            let path = if name.is_empty() {
+                child
+            } else {
+                format!("{name}/{child}")
+            };
+            let Ok(metadata) = dir.symlink_metadata(&path) else {
+                continue;
+            };
+            if metadata.file_type().is_symlink() || !(metadata.is_file() || metadata.is_dir()) {
+                continue;
+            }
+            state.insert(path.clone(), version(&metadata));
+            if metadata.is_dir() {
+                pending.push(path);
+            }
+        }
+    }
+    Ok(state)
+}
+fn version(metadata: &cap_std::fs::Metadata) -> String {
+    crate::platform::fs::cap_version_token(metadata)
+}
+
+pub struct FileService {
+    folders: Arc<dyn Folders>,
+    /// One write, move or remove of a name at a time.
+    locks: Mutex<HashMap<String, Arc<Mutex<()>>>>,
+}
+impl FileService {
+    pub fn new(folders: Arc<dyn Folders>) -> Self {
+        Self {
+            folders,
+            locks: Mutex::default(),
+        }
+    }
+    fn lock(&self, key: String) -> Arc<Mutex<()>> {
+        self.locks.lock().unwrap().entry(key).or_default().clone()
+    }
+    /// The folder, admitted for `capability` and still at its registered
+    /// place.
+    fn admit(&self, folder: &str, capability: Capability) -> Result<Dir, &'static str> {
+        admit(self.folders.as_ref(), folder, capability)
+    }
+    /// An existing name: every segment a real directory, the last a real
+    /// file or directory, none a link.
+    fn entry(dir: &Dir, name: &str) -> Result<cap_std::fs::Metadata, &'static str> {
+        let checked = Self::check(dir, name);
+        before_io();
+        checked
+    }
+    fn check(dir: &Dir, name: &str) -> Result<cap_std::fs::Metadata, &'static str> {
+        if name.is_empty() {
+            return dir.symlink_metadata(".").map_err(io);
+        }
+        let segments: Vec<&str> = name.split('/').collect();
+        let mut prefix = String::new();
+        for (index, segment) in segments.iter().enumerate() {
+            if !prefix.is_empty() {
+                prefix.push('/');
+            }
+            prefix.push_str(segment);
+            let metadata = dir.symlink_metadata(&prefix).map_err(io)?;
+            let last = index + 1 == segments.len();
+            if metadata.file_type().is_symlink() {
+                return Err("invalid_path");
+            }
+            if !last && !metadata.is_dir() {
+                return Err("not_found");
+            }
+            if last {
+                if !(metadata.is_file() || metadata.is_dir()) {
+                    return Err("unsupported_file");
+                }
+                return Ok(metadata);
+            }
+        }
+        Err("invalid_path")
+    }
+    /// A name to create: its parent exists inside the folder as a directory.
+    fn new_entry(dir: &Dir, name: &str) -> Result<(), &'static str> {
+        let (parent, _) = split(name);
+        let metadata = Self::entry(dir, parent)?;
+        if !metadata.is_dir() {
+            return Err("not_found");
+        }
+        Ok(())
+    }
+    /// `readBounded`: the bytes of a file that did not change while read.
+    fn read_bytes(dir: &Dir, name: &str) -> Result<(Vec<u8>, cap_std::fs::Metadata), &'static str> {
+        let before = Self::entry(dir, name)?;
+        if !before.is_file() || before.len() > MAX_FILE_BYTES {
+            return Err("unsupported_file");
+        }
+        let mut file = dir.open(name).map_err(io)?;
+        let mut bytes = Vec::with_capacity(before.len() as usize);
+        Read::by_ref(&mut file)
+            .take(MAX_FILE_BYTES + 1)
+            .read_to_end(&mut bytes)
+            .map_err(io)?;
+        let after = file.metadata().map_err(io)?;
+        if bytes.len() as u64 > MAX_FILE_BYTES {
+            return Err("unsupported_file");
+        }
+        if before.len() != after.len() || modified_ns(&before) != modified_ns(&after) {
+            return Err("conflict");
+        }
+        Ok((bytes, after))
+    }
+
+    /// `runHostFileOperation`: one request for `folder`. Unknown actions
+    /// fail closed (they do not parse).
+    pub fn run(&self, folder: &str, request: &Request) -> Outcome {
+        match request {
+            Request::List { path } => self.list(folder, path),
+            Request::Read { path } => self.read(folder, path),
+            Request::Write {
+                path,
+                content_base64,
+                expected_revision,
+            } => match expected_revision {
+                None => Err("revision_required"),
+                Some(expected) => self.write(folder, path, content_base64, expected.as_deref()),
+            },
+            Request::Mkdir { path } => self.mkdir(folder, path),
+            Request::Move { path, destination } => self.move_entry(folder, path, destination),
+            Request::Remove { path } => self.remove(folder, path),
+            // Git is the host's Git service's, never the file service's.
+            Request::Git(_) => Err("folder_unavailable"),
+        }
+    }
+    /// The folder's root, while it is shared with `capability`.
+    pub fn root(&self, folder: &str, capability: Capability) -> Result<PathBuf, &'static str> {
+        self.admit(folder, capability)?;
+        let grant = self.folders.resolve(folder).ok_or("folder_unavailable")?;
+        grant.root.canonicalize().map_err(|_| "root_changed")
+    }
+    pub fn list(&self, folder: &str, requested: &str) -> Outcome {
+        let dir = self.admit(folder, Capability::Read)?;
+        let name = relative_path(requested, true)?;
+        if !Self::entry(&dir, &name)?.is_dir() {
+            return Err("not_found");
+        }
+        let mut entries = Vec::new();
+        for (count, item) in dir.read_dir(at(&name)).map_err(io)?.enumerate() {
+            if count >= MAX_DIRECTORY_ENTRIES {
+                return Err("too_many_entries");
+            }
+            let item = item.map_err(io)?;
+            let child = item.file_name().to_string_lossy().into_owned();
+            if child.eq_ignore_ascii_case(".git") || child.starts_with(TEMP_PREFIX) {
+                continue;
+            }
+            let path = if name.is_empty() {
+                child.clone()
+            } else {
+                format!("{name}/{child}")
+            };
+            let Ok(metadata) = dir.symlink_metadata(&path) else {
+                continue;
+            };
+            if metadata.file_type().is_symlink() || !(metadata.is_file() || metadata.is_dir()) {
+                continue;
+            }
+            entries.push(describe(&child, &metadata));
+        }
+        // Directories first, then by code point (the same on every host).
+        entries.sort_by(|a, b| {
+            (a.kind == Kind::File, a.name.as_bytes())
+                .cmp(&(b.kind == Kind::File, b.name.as_bytes()))
+        });
+        Ok(json!({ "entries": entries }))
+    }
+    pub fn read(&self, folder: &str, requested: &str) -> Outcome {
+        let dir = self.admit(folder, Capability::Read)?;
+        let name = relative_path(requested, false)?;
+        let (bytes, metadata) = Self::read_bytes(&dir, &name)?;
+        let mut value = serde_json::to_value(describe(split(&name).1, &metadata))
+            .map_err(|_| "file_operation_failed")?;
+        value["content_base64"] = json!(STANDARD.encode(&bytes));
+        value["revision"] = json!(revision(&bytes));
+        Ok(value)
+    }
+    pub fn write(
+        &self,
+        folder: &str,
+        requested: &str,
+        content: &str,
+        expected: Option<&str>,
+    ) -> Outcome {
+        let dir = self.admit(folder, Capability::Write)?;
+        let name = relative_path(requested, false)?;
+        let bytes = decode(content)?;
+        if expected.is_some_and(|r| {
+            r.len() != 64
+                || !r
+                    .bytes()
+                    .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+        }) {
+            return Err("revision_required");
+        }
+        let lock = self.lock(format!("{folder}:{name}"));
+        let _held = lock.lock().unwrap();
+        match expected {
+            None => Self::new_entry(&dir, &name)?,
+            Some(expected) => {
+                let metadata = Self::entry(&dir, &name)?;
+                if !metadata.is_file() {
+                    return Err("unsupported_file");
+                }
+                if crate::platform::fs::cap_has_multiple_links(&metadata) {
+                    return Err("unsupported_file");
+                }
+                if revision(&Self::read_bytes(&dir, &name)?.0) != expected {
+                    return Err("conflict");
+                }
+            }
+        }
+        let (parent, _) = split(&name);
+        let temp = if parent.is_empty() {
+            format!("{TEMP_PREFIX}{}", uuid::Uuid::new_v4())
+        } else {
+            format!("{parent}/{TEMP_PREFIX}{}", uuid::Uuid::new_v4())
+        };
+        let result = (|| -> Outcome {
+            let mut file = dir
+                .open_with(
+                    &temp,
+                    cap_std::fs::OpenOptions::new().write(true).create_new(true),
+                )
+                .map_err(io)?;
+            file.write_all(&bytes).map_err(io)?;
+            file.sync_all().map_err(io)?;
+            drop(file);
+            match expected {
+                // No-clobber creation: a link fails if anything appeared.
+                None => dir
+                    .hard_link(&temp, &dir, &name)
+                    .map_err(|e| match code(&e) {
+                        "already_exists" => "conflict",
+                        other => other,
+                    })?,
+                // The person on the host may edit too: never overwrite that.
+                Some(expected) => {
+                    if revision(&Self::read_bytes(&dir, &name)?.0) != expected {
+                        return Err("conflict");
+                    }
+                    dir.rename(&temp, &dir, &name).map_err(io)?;
+                }
+            }
+            Ok(json!({ "revision": revision(&bytes), "size": bytes.len() }))
+        })();
+        let _ = dir.remove_file(&temp);
+        result
+    }
+    pub fn mkdir(&self, folder: &str, requested: &str) -> Outcome {
+        let dir = self.admit(folder, Capability::Write)?;
+        let name = relative_path(requested, false)?;
+        Self::new_entry(&dir, &name)?;
+        dir.create_dir(&name).map_err(io)?;
+        Ok(json!({}))
+    }
+    pub fn move_entry(&self, folder: &str, requested: &str, destination: &str) -> Outcome {
+        let dir = self.admit(folder, Capability::Write)?;
+        let from = relative_path(requested, false)?;
+        let to = relative_path(destination, false)?;
+        if to == from || to.starts_with(&format!("{from}/")) {
+            return Err("invalid_path");
+        }
+        let lock = self.lock(format!("{folder}:{from}"));
+        let _held = lock.lock().unwrap();
+        let source = Self::entry(&dir, &from)?;
+        Self::new_entry(&dir, &to)?;
+        if source.is_file() {
+            // A hard link refuses an existing target: a move never overwrites.
+            dir.hard_link(&from, &dir, &to).map_err(io)?;
+            dir.remove_file(&from).map_err(io)?;
+        } else {
+            if dir.symlink_metadata(&to).is_ok() {
+                return Err("already_exists");
+            }
+            dir.rename(&from, &dir, &to).map_err(io)?;
+        }
+        Ok(json!({}))
+    }
+    pub fn remove(&self, folder: &str, requested: &str) -> Outcome {
+        let dir = self.admit(folder, Capability::Write)?;
+        let name = relative_path(requested, false)?;
+        let lock = self.lock(format!("{folder}:{name}"));
+        let _held = lock.lock().unwrap();
+        let metadata = Self::entry(&dir, &name)?;
+        if metadata.is_dir() {
+            let mut budget = MAX_DIRECTORY_ENTRIES;
+            count(&dir, &name, &mut budget)?;
+            dir.remove_dir_all(&name).map_err(io)?;
+        } else {
+            dir.remove_file(&name).map_err(io)?;
+        }
+        Ok(json!({}))
+    }
+
+    /// Coalesced change notifications for one folder: `{paths, reset}`, a
+    /// reset first and whenever too much changed at once. Every 2 s the
+    /// folder's metadata is compared with the last look, for what the
+    /// system's events missed; a folder no longer served or moved ends the
+    /// watch with a reset. Ends when the returned watch is dropped.
+    pub fn watch(
+        &self,
+        folder: &str,
+        on_event: impl Fn(Vec<String>, bool) + Send + 'static,
+    ) -> Result<Watch, &'static str> {
+        use notify::Watcher;
+        let grant = self.folders.resolve(folder).ok_or("folder_unavailable")?;
+        self.admit(folder, Capability::Read)?;
+        let root = grant.root;
+        let folders = self.folders.clone();
+        let folder = folder.to_owned();
+        // The baseline is taken before the watch answers.
+        let mut previous = admit(folders.as_ref(), &folder, Capability::Read)
+            .and_then(|dir| snapshot(&dir))
+            .ok();
+        let (tx, rx) = std::sync::mpsc::channel::<Option<String>>();
+        let events = tx.clone();
+        let base = root.clone();
+        let mut watcher =
+            notify::recommended_watcher(move |event: notify::Result<notify::Event>| match event {
+                Ok(event) => {
+                    for path in event.paths {
+                        let relative = path
+                            .strip_prefix(&base)
+                            .map(|p| p.to_string_lossy().replace(std::path::MAIN_SEPARATOR, "/"))
+                            .ok();
+                        let _ = events.send(relative);
+                    }
+                }
+                Err(_) => {
+                    let _ = events.send(None);
+                }
+            })
+            .map_err(|_| "file_operation_failed")?;
+        watcher
+            .watch(&root, notify::RecursiveMode::Recursive)
+            .map_err(|_| "file_operation_failed")?;
+        on_event(Vec::new(), true);
+        std::thread::Builder::new()
+            .name("puppyone-host-watch".into())
+            .spawn(move || {
+                let mut reconcile_at = std::time::Instant::now() + RECONCILE;
+                loop {
+                    let wait = reconcile_at.saturating_duration_since(std::time::Instant::now());
+                    let first = match rx.recv_timeout(wait) {
+                        Ok(first) => first,
+                        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                            reconcile_at = std::time::Instant::now() + RECONCILE;
+                            let current = admit(folders.as_ref(), &folder, Capability::Read)
+                                .and_then(|dir| snapshot(&dir));
+                            match current {
+                                Err("folder_unavailable" | "root_changed") => {
+                                    on_event(Vec::new(), true);
+                                    break;
+                                }
+                                Err(_) => on_event(Vec::new(), true),
+                                Ok(current) => {
+                                    if let Some(paths) =
+                                        previous.as_ref().map(|p| differences(p, &current))
+                                    {
+                                        if paths.len() > MAX_EVENT_PATHS {
+                                            on_event(Vec::new(), true);
+                                        } else if !paths.is_empty() {
+                                            on_event(paths, false);
+                                        }
+                                    } else {
+                                        on_event(Vec::new(), true);
+                                    }
+                                    previous = Some(current);
+                                }
+                            }
+                            continue;
+                        }
+                    };
+                    let mut changed: Vec<String> = Vec::new();
+                    let mut reset = false;
+                    let mut take = |relative: Option<String>| match relative {
+                        None => reset = true,
+                        Some(name) => {
+                            let parts: Vec<&str> = name.split('/').collect();
+                            if parts.iter().any(|p| p.eq_ignore_ascii_case(".git"))
+                                || parts.last().is_some_and(|p| p.starts_with(TEMP_PREFIX))
+                            {
+                                return;
+                            }
+                            if name.is_empty() || changed.len() >= MAX_EVENT_PATHS {
+                                reset = true;
+                            } else if !changed.contains(&name) {
+                                changed.push(name);
+                            }
+                        }
+                    };
+                    take(first);
+                    let deadline = std::time::Instant::now() + COALESCE;
+                    while let Ok(next) = rx
+                        .recv_timeout(deadline.saturating_duration_since(std::time::Instant::now()))
+                    {
+                        take(next);
+                    }
+                    if reset {
+                        on_event(Vec::new(), true);
+                    } else if !changed.is_empty() {
+                        on_event(changed, false);
+                    }
+                }
+            })
+            .map_err(|_| "file_operation_failed")?;
+        Ok(Watch {
+            _watcher: Box::new(watcher),
+            _stop: tx,
+        })
+    }
+}
+/// The names added, changed or gone between two looks, sorted.
+fn differences(
+    previous: &HashMap<String, String>,
+    current: &HashMap<String, String>,
+) -> Vec<String> {
+    let mut paths: Vec<String> = current
+        .iter()
+        .filter(|(name, version)| previous.get(*name) != Some(*version))
+        .map(|(name, _)| name.clone())
+        .chain(
+            previous
+                .keys()
+                .filter(|n| !current.contains_key(*n))
+                .cloned(),
+        )
+        .collect();
+    paths.sort();
+    paths
+}
+/// A running watch; dropping it ends it.
+pub struct Watch {
+    _watcher: Box<dyn notify::Watcher + Send>,
+    _stop: std::sync::mpsc::Sender<Option<String>>,
+}
+/// Counts the entries a recursive remove would take, within `budget`.
+fn count(dir: &Dir, name: &str, budget: &mut usize) -> Result<(), &'static str> {
+    for item in dir.read_dir(name).map_err(io)? {
+        let item = item.map_err(io)?;
+        *budget = budget.checked_sub(1).ok_or("too_many_entries")?;
+        let child = format!("{name}/{}", item.file_name().to_string_lossy());
+        let metadata = dir.symlink_metadata(&child).map_err(io)?;
+        if metadata.is_dir() {
+            count(dir, &child, budget)?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    struct One(Grant);
+    impl Folders for One {
+        fn resolve(&self, folder: &str) -> Option<Grant> {
+            (folder == "f").then(|| self.0.clone())
+        }
+    }
+    fn service(root: &Path, capabilities: Vec<Capability>) -> FileService {
+        FileService::new(Arc::new(One(Grant {
+            root: root.canonicalize().unwrap(),
+            active: true,
+            capabilities,
+        })))
+    }
+
+    /// `conformance`: the contract's fifteen cases, each in a folder of its
+    /// own beside an `outside.md` the folder must never reach.
+    #[test]
+    fn the_host_file_service_meets_the_protocols_conformance_cases() {
+        let contract: Value = serde_json::from_str(super::super::protocol::CONTRACT).unwrap();
+        let cases = contract["conformance"].as_array().unwrap();
+        assert_eq!(cases.len(), 15);
+        for case in cases {
+            let name = case["name"].as_str().unwrap();
+            let temp = tempfile::tempdir().unwrap();
+            std::fs::write(temp.path().join("outside.md"), "outside").unwrap();
+            let root = temp.path().join("folder");
+            std::fs::create_dir(&root).unwrap();
+            for (path, body) in case["files"].as_object().into_iter().flatten() {
+                let path = root.join(path);
+                std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+                std::fs::write(path, body.as_str().unwrap()).unwrap();
+            }
+            #[cfg(not(unix))]
+            if case["symlinks"].as_object().is_some_and(|m| !m.is_empty()) {
+                continue;
+            }
+            #[cfg(unix)]
+            for (path, target) in case["symlinks"].as_object().into_iter().flatten() {
+                std::os::unix::fs::symlink(target.as_str().unwrap(), root.join(path)).unwrap();
+            }
+            let files = service(&root, vec![Capability::Read, Capability::Write]);
+            let request: Request = serde_json::from_value(case["request"].clone()).unwrap();
+            let outcome = files.run("f", &request);
+            match case.get("error") {
+                Some(error) => assert_eq!(outcome, Err(error.as_str().unwrap()), "{name}"),
+                None => {
+                    let result = outcome.unwrap_or_else(|e| panic!("{name}: {e}"));
+                    for (key, expected) in case["expect"].as_object().unwrap() {
+                        if key == "entries" {
+                            let got: Vec<(Value, Value)> = result["entries"]
+                                .as_array()
+                                .unwrap()
+                                .iter()
+                                .map(|e| (e["name"].clone(), e["kind"].clone()))
+                                .collect();
+                            let want: Vec<(Value, Value)> = expected
+                                .as_array()
+                                .unwrap()
+                                .iter()
+                                .map(|e| (e["name"].clone(), e["kind"].clone()))
+                                .collect();
+                            assert_eq!(got, want, "{name}");
+                        } else {
+                            assert_eq!(&result[key], expected, "{name}: {key}");
+                        }
+                    }
+                }
+            }
+            for (path, body) in case["after"].as_object().into_iter().flatten() {
+                assert_eq!(
+                    std::fs::read_to_string(root.join(path)).unwrap(),
+                    body.as_str().unwrap(),
+                    "{name}: {path}"
+                );
+            }
+            for path in case["absent"].as_array().into_iter().flatten() {
+                assert!(!root.join(path.as_str().unwrap()).exists(), "{name}");
+            }
+            // Nothing outside the folder ever changes.
+            assert_eq!(
+                std::fs::read_to_string(temp.path().join("outside.md")).unwrap(),
+                "outside",
+                "{name}"
+            );
+            // No temporary file is left behind.
+            assert!(
+                std::fs::read_dir(&root)
+                    .unwrap()
+                    .flatten()
+                    .all(|e| !e.file_name().to_string_lossy().starts_with(TEMP_PREFIX)),
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_folder_is_served_only_as_granted() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::write(temp.path().join("a.md"), "a").unwrap();
+        let reader = service(temp.path(), vec![Capability::Read]);
+        assert!(
+            reader
+                .run(
+                    "f",
+                    &Request::Read {
+                        path: "a.md".into()
+                    }
+                )
+                .is_ok()
+        );
+        assert_eq!(
+            reader.run("f", &Request::Mkdir { path: "b".into() }),
+            Err("folder_unavailable")
+        );
+        assert_eq!(
+            reader.run(
+                "other",
+                &Request::List {
+                    path: String::new()
+                }
+            ),
+            Err("folder_unavailable")
+        );
+        // A write must say what it replaces, or that it creates.
+        let writer = service(temp.path(), vec![Capability::Read, Capability::Write]);
+        assert_eq!(
+            writer.run(
+                "f",
+                &Request::Write {
+                    path: "a.md".into(),
+                    content_base64: "YQ==".into(),
+                    expected_revision: None
+                }
+            ),
+            Err("revision_required")
+        );
+        assert_eq!(
+            writer.write("f", "a.md", "not base64!", Some(&revision(b"a"))),
+            Err("invalid_content")
+        );
+        // A folder moved away from its registration is not served.
+        let moved = FileService::new(Arc::new(One(Grant {
+            root: temp.path().join("gone"),
+            active: true,
+            capabilities: vec![Capability::Read],
+        })));
+        assert_eq!(moved.list("f", ""), Err("root_changed"));
+    }
+
+    #[test]
+    fn the_metadata_reconcile_names_what_changed_and_ends_with_its_folder() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir(temp.path().join("docs")).unwrap();
+        std::fs::write(temp.path().join("docs/a.md"), "a").unwrap();
+        std::fs::create_dir(temp.path().join(".git")).unwrap();
+        let dir = Dir::open_ambient_dir(temp.path(), ambient_authority()).unwrap();
+        let before = snapshot(&dir).unwrap();
+        assert_eq!(before.len(), 2, "{before:?}");
+        std::fs::write(temp.path().join("docs/a.md"), "changed").unwrap();
+        std::fs::write(temp.path().join("b.md"), "b").unwrap();
+        std::fs::write(temp.path().join(format!("{TEMP_PREFIX}x")), "t").unwrap();
+        let after = snapshot(&dir).unwrap();
+        assert_eq!(differences(&before, &after), ["b.md", "docs/a.md"]);
+        std::fs::remove_file(temp.path().join("b.md")).unwrap();
+        assert_eq!(differences(&after, &snapshot(&dir).unwrap()), ["b.md"]);
+
+        let root = temp.path().canonicalize().unwrap().join("shared");
+        std::fs::create_dir(&root).unwrap();
+        let files = FileService::new(Arc::new(One(Grant {
+            root: root.clone(),
+            active: true,
+            capabilities: vec![Capability::Read],
+        })));
+        let (tx, rx) = std::sync::mpsc::channel();
+        let watch = files
+            .watch("f", move |paths, reset| {
+                let _ = tx.send((paths, reset));
+            })
+            .unwrap();
+        std::fs::remove_dir(&root).unwrap();
+        let deadline = std::time::Instant::now() + Duration::from_secs(8);
+        loop {
+            match rx.recv_timeout(deadline.saturating_duration_since(std::time::Instant::now())) {
+                Ok(_) => continue,
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => panic!("the watch went on"),
+            }
+        }
+        drop(watch);
+    }
+
+    /// One registered root lists and reads without its Git metadata or
+    /// links; nothing outside it, nor another folder, is reached. A missing
+    /// name inside it is not_found, but a name behind a link says nothing
+    /// (invalid_path).
+    #[cfg(unix)]
+    #[test]
+    fn a_root_is_read_without_git_or_links_and_names_behind_a_link_say_nothing() {
+        let temp = tempfile::tempdir().unwrap();
+        let base = temp.path().canonicalize().unwrap();
+        let (root, outside) = (base.join("shared"), base.join("outside"));
+        std::fs::create_dir_all(root.join(".git")).unwrap();
+        std::fs::create_dir_all(root.join("sub")).unwrap();
+        std::fs::create_dir(&outside).unwrap();
+        std::fs::write(root.join("note.md"), "initial").unwrap();
+        std::fs::write(root.join(".git/config"), "private").unwrap();
+        std::fs::write(outside.join("exists.md"), "outside").unwrap();
+        std::os::unix::fs::symlink("/etc/passwd", root.join("escape")).unwrap();
+        std::os::unix::fs::symlink(&outside, root.join("linked")).unwrap();
+        let files = service(&root, vec![Capability::Read]);
+        let listed = files.list("f", "").unwrap();
+        let names: Vec<_> = listed["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["name"].as_str().unwrap().to_owned())
+            .collect();
+        assert_eq!(names, ["sub", "note.md"]);
+        let note = &listed["entries"][1];
+        assert_eq!(note["size"], 7);
+        assert!(
+            note["modified_ns"]
+                .as_str()
+                .unwrap()
+                .bytes()
+                .all(|b| b.is_ascii_digit())
+        );
+        let read = files.read("f", "note.md").unwrap();
+        assert_eq!(read["content_base64"], STANDARD.encode("initial"));
+        assert_eq!(
+            (read["name"].as_str(), read["kind"].as_str()),
+            (Some("note.md"), Some("file"))
+        );
+        for refused in ["escape", ".git/config", "../outside", "/etc/passwd"] {
+            assert!(files.read("f", refused).is_err(), "{refused}");
+        }
+        assert_eq!(files.read("other", "note.md"), Err("folder_unavailable"));
+        assert_eq!(files.read("f", "missing.md"), Err("not_found"));
+        assert_eq!(files.read("f", "sub/missing.md"), Err("not_found"));
+        assert_eq!(files.list("f", "nowhere"), Err("not_found"));
+        assert_eq!(files.read("f", "linked/exists.md"), Err("invalid_path"));
+        assert_eq!(files.read("f", "linked/missing.md"), Err("invalid_path"));
+    }
+
+    /// `host file service limits`: a directory of exactly 10,000 entries
+    /// lists, in order and well inside the gateway's timeout; one more is
+    /// refused. Files read back byte for byte up to 8 MiB and not past it,
+    /// and a binary write lands unchanged.
+    #[test]
+    fn a_directory_lists_up_to_its_limit_and_files_read_up_to_8_mib() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().canonicalize().unwrap();
+        let big = root.join("big");
+        std::fs::create_dir(&big).unwrap();
+        for index in 0..MAX_DIRECTORY_ENTRIES {
+            std::fs::write(big.join(format!("file-{index:05}.md")), "").unwrap();
+        }
+        let files = service(&root, vec![Capability::Read, Capability::Write]);
+        let started = std::time::Instant::now();
+        let listed = files.list("f", "big").unwrap();
+        assert!(started.elapsed() < Duration::from_secs(10));
+        let entries = listed["entries"].as_array().unwrap();
+        assert_eq!(entries.len(), MAX_DIRECTORY_ENTRIES);
+        assert_eq!(entries[0]["name"], "file-00000.md");
+        assert_eq!(entries[entries.len() - 1]["name"], "file-09999.md");
+        std::fs::write(big.join("one-more.md"), "").unwrap();
+        assert_eq!(files.list("f", "big"), Err("too_many_entries"));
+        let png = [
+            0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0, 0xff, 0x10,
+        ];
+        std::fs::write(root.join("image.png"), png).unwrap();
+        std::fs::write(root.join("note.md"), "# Title\n\nUnicode: 中文 ✓\n").unwrap();
+        for (name, bytes) in [
+            ("image.png", png.to_vec()),
+            (
+                "note.md",
+                "# Title\n\nUnicode: 中文 ✓\n".as_bytes().to_vec(),
+            ),
+        ] {
+            let read = files.read("f", name).unwrap();
+            let content = STANDARD
+                .decode(read["content_base64"].as_str().unwrap())
+                .unwrap();
+            assert_eq!(content, bytes, "{name}");
+            assert_eq!(read["revision"].as_str().unwrap().len(), 64);
+        }
+        std::fs::write(root.join("limit.bin"), vec![1u8; MAX_FILE_BYTES as usize]).unwrap();
+        let at_limit = files.read("f", "limit.bin").unwrap();
+        assert_eq!(
+            STANDARD
+                .decode(at_limit["content_base64"].as_str().unwrap())
+                .unwrap()
+                .len() as u64,
+            MAX_FILE_BYTES
+        );
+        std::fs::write(
+            root.join("over.bin"),
+            vec![1u8; MAX_FILE_BYTES as usize + 1],
+        )
+        .unwrap();
+        assert_eq!(files.read("f", "over.bin"), Err("unsupported_file"));
+        files
+            .write("f", "copy.png", &STANDARD.encode(png), None)
+            .unwrap();
+        assert_eq!(std::fs::read(root.join("copy.png")).unwrap(), png);
+    }
+
+    /// A folder whose grant the test changes.
+    struct Changing(Mutex<Grant>);
+    impl Folders for Changing {
+        fn resolve(&self, folder: &str) -> Option<Grant> {
+            (folder == "f").then(|| self.0.lock().unwrap().clone())
+        }
+    }
+
+    /// Every request checks the folder's grant as it is now: read-only
+    /// refuses writing, making and removing, and a revoked share refuses
+    /// even reading. Two writes from the same revision cannot both land:
+    /// one conflicts, and the file holds the other's bytes.
+    #[test]
+    fn each_request_checks_the_grant_and_concurrent_writes_never_overwrite() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().canonicalize().unwrap();
+        std::fs::write(root.join("note.md"), "initial").unwrap();
+        let folders = Arc::new(Changing(Mutex::new(Grant {
+            root: root.clone(),
+            active: true,
+            capabilities: vec![Capability::Read],
+        })));
+        let files = Arc::new(FileService::new(folders.clone()));
+        let current = files.read("f", "note.md").unwrap()["revision"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        assert_eq!(
+            files.write("f", "note.md", "bmV3", Some(&current)),
+            Err("folder_unavailable")
+        );
+        assert_eq!(files.mkdir("f", "new"), Err("folder_unavailable"));
+        assert_eq!(files.remove("f", "note.md"), Err("folder_unavailable"));
+        folders.0.lock().unwrap().capabilities = vec![Capability::Read, Capability::Write];
+        let writes: Vec<_> = ["Zmlyc3Q=", "c2Vjb25k"]
+            .into_iter()
+            .map(|content| {
+                let (files, current) = (files.clone(), current.clone());
+                std::thread::spawn(move || files.write("f", "note.md", content, Some(&current)))
+            })
+            .collect();
+        let outcomes: Vec<_> = writes.into_iter().map(|w| w.join().unwrap()).collect();
+        assert_eq!(
+            outcomes.iter().filter(|o| o.is_ok()).count(),
+            1,
+            "{outcomes:?}"
+        );
+        assert!(outcomes.contains(&Err("conflict")), "{outcomes:?}");
+        let held = std::fs::read_to_string(root.join("note.md")).unwrap();
+        assert!(["first", "second"].contains(&held.as_str()), "{held}");
+        folders.0.lock().unwrap().active = false;
+        assert_eq!(files.read("f", "note.md"), Err("folder_unavailable"));
+    }
+
+    /// A watch whose last subscriber stopped scans and publishes nothing.
+    #[test]
+    fn a_stopped_watch_scans_and_publishes_nothing() {
+        let temp = tempfile::tempdir().unwrap();
+        let files = service(temp.path(), vec![Capability::Read]);
+        let (tx, rx) = std::sync::mpsc::channel();
+        let watch = files
+            .watch("f", move |paths, reset| {
+                let _ = tx.send((paths, reset));
+            })
+            .unwrap();
+        drop(watch);
+        while rx.recv_timeout(Duration::from_millis(100)).is_ok() {}
+        std::fs::write(temp.path().join("after.md"), "after stop").unwrap();
+        // Past the 2 s reconcile, nothing arrives.
+        assert!(rx.recv_timeout(Duration::from_millis(2_500)).is_err());
+    }
+
+    /// A directory swapped for a link to outside the folder between its
+    /// check and its use is never read, listed, removed, written or made
+    /// into through.
+    #[cfg(unix)]
+    #[test]
+    fn a_directory_swapped_for_a_link_after_its_check_is_never_used() {
+        let racing = |operation: &dyn Fn(&FileService) -> Outcome| {
+            let temp = tempfile::tempdir().unwrap();
+            let base = temp.path().canonicalize().unwrap();
+            let (root, outside) = (base.join("shared"), base.join("outside"));
+            std::fs::create_dir_all(root.join("sub")).unwrap();
+            std::fs::write(root.join("sub/note.md"), "inside").unwrap();
+            std::fs::create_dir(&outside).unwrap();
+            std::fs::write(outside.join("note.md"), "outside secret").unwrap();
+            std::fs::write(outside.join("keep.md"), "keep me").unwrap();
+            let files = service(&root, vec![Capability::Read, Capability::Write]);
+            let swapped = std::rc::Rc::new(std::cell::Cell::new(false));
+            let (seen, sub, moved, target) = (
+                swapped.clone(),
+                root.join("sub"),
+                base.join("moved-away"),
+                outside.clone(),
+            );
+            BEFORE_IO.with(|hook| {
+                *hook.borrow_mut() = Some(Box::new(move || {
+                    std::fs::rename(&sub, &moved).unwrap();
+                    std::os::unix::fs::symlink(&target, &sub).unwrap();
+                    seen.set(true);
+                }))
+            });
+            let result = operation(&files);
+            assert!(swapped.get(), "the race happened between check and use");
+            assert_eq!(
+                std::fs::read_to_string(outside.join("keep.md")).unwrap(),
+                "keep me"
+            );
+            assert_eq!(
+                std::fs::read_to_string(outside.join("note.md")).unwrap(),
+                "outside secret"
+            );
+            for made in ["new.md", "made"] {
+                assert!(std::fs::symlink_metadata(outside.join(made)).is_err());
+            }
+            result
+        };
+        assert_eq!(racing(&|f| f.read("f", "sub/note.md")), Err("invalid_path"));
+        assert_eq!(racing(&|f| f.list("f", "sub")), Err("invalid_path"));
+        assert_eq!(racing(&|f| f.remove("f", "sub")), Err("invalid_path"));
+        assert_eq!(
+            racing(&|f| f.write("f", "sub/new.md", "bmV3", None)),
+            Err("invalid_path")
+        );
+        assert_eq!(racing(&|f| f.mkdir("f", "sub/made")), Err("invalid_path"));
+    }
+
+    #[test]
+    fn a_watch_reports_changes_coalesced() {
+        let temp = tempfile::tempdir().unwrap();
+        let files = service(temp.path(), vec![Capability::Read]);
+        let (tx, rx) = std::sync::mpsc::channel();
+        let _watch = files
+            .watch("f", move |paths, reset| {
+                let _ = tx.send((paths, reset));
+            })
+            .unwrap();
+        assert_eq!(
+            rx.recv_timeout(Duration::from_secs(2)).unwrap(),
+            (vec![], true)
+        );
+        std::thread::sleep(Duration::from_millis(300));
+        std::fs::write(temp.path().join("new.md"), "x").unwrap();
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            let (paths, reset) = rx
+                .recv_timeout(deadline.saturating_duration_since(std::time::Instant::now()))
+                .expect("a change");
+            if reset || paths.iter().any(|p| p == "new.md") {
+                break;
+            }
+        }
+    }
+}

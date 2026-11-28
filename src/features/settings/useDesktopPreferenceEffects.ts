@@ -7,8 +7,12 @@ import { appearanceFields } from "./preferencesPersistence";
 import { desktopPreferencesStore, useDesktopPreference } from "../../preferencesStore";
 import { useDesktopAppearance } from "./useDesktopAppearance";
 
-/** Mounted once per renderer; subscriptions belong to the window, not preference readers. */
-export function useDesktopPreferenceEffects(catalog: SubThemeCatalogSnapshot = BUILTIN_SUB_THEME_CATALOG) {
+/** Mounted once per renderer; subscriptions belong to the window, not preference readers.
+ * The file window passes `syncComputerMode: false`: Computer Mode belongs to project windows. */
+export function useDesktopPreferenceEffects(
+  catalog: SubThemeCatalogSnapshot = BUILTIN_SUB_THEME_CATALOG,
+  { syncComputerMode = true }: { syncComputerMode?: boolean } = {},
+) {
   const interfaceStyle = useDesktopPreference(s => s.interfaceStyle);
   const indicators = useDesktopPreference(s => s.agentFileActivityIndicatorsEnabled);
   const { activeThemeMode, resolvedAppearance, resolvedTheme } = useDesktopAppearance();
@@ -70,12 +74,13 @@ export function useDesktopPreferenceEffects(catalog: SubThemeCatalogSnapshot = B
     query.addEventListener("change", sync);
     window.addEventListener("storage", syncPreferenceStorageEvent);
     const stopGit = subscribeGitAutoCommitPreference();
+    if (syncComputerMode) syncComputerModePreference();
     return () => {
       query.removeEventListener("change", sync);
       window.removeEventListener("storage", syncPreferenceStorageEvent);
       stopGit();
     };
-  }, []);
+  }, [syncComputerMode]);
 }
 function subscribeGitAutoCommitPreference() {
   const desktop = window.puppyoneDesktop;
@@ -90,6 +95,10 @@ function subscribeGitAutoCommitPreference() {
   void desktop.getGitAutoCommitSettings().then(apply).catch(() => undefined);
   const stop = desktop.onGitAutoCommitStateChanged?.(apply);
   return () => { active = false; stop?.(); };
+}
+function syncComputerModePreference() {
+  const enabled = desktopPreferencesStore.getState().experimentalSettings.enableComputerMode;
+  void window.puppyoneDesktop?.localComputers?.setExperimentalOptIn({ enabled }).catch(() => undefined);
 }
 function syncPreferenceStorageEvent(event: StorageEvent) {
   if (event.key === CREATE_NEW_MENU_STORAGE_KEY || event.key === null) {

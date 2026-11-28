@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>puppyone のしくみ</title>
+  <style>
+    :root { color-scheme: light dark; --text: #1f2328; --muted: #656d76; --surface: #ffffff; --raised: #f6f8fa; --line: #d8dee4; --accent: #1f2328; }
+    @media (prefers-color-scheme: dark) { :root { --text: #e6edf3; --muted: #9198a1; --surface: #16181d; --raised: #1f232a; --line: #30363d; --accent: #e6edf3; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--surface); color: var(--text); font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans", "Noto Sans", sans-serif; }
+    main { max-width: 760px; margin: 0 auto; padding: 40px 24px 56px; }
+    .eyebrow { margin: 0 0 6px; color: var(--muted); font-size: 13px; font-weight: 600; }
+    h1 { margin: 0; font-size: 28px; line-height: 1.25; }
+    .lead { margin: 10px 0 28px; color: var(--muted); }
+    [role="tablist"] { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    [role="tab"] { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 6px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+    [role="tab"] span { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--raised); font-size: 12px; font-weight: 600; }
+    [role="tab"]:hover { background: var(--raised); }
+    [role="tab"][aria-selected="true"] { border-color: var(--accent); background: var(--accent); color: var(--surface); }
+    [role="tab"][aria-selected="true"] span { background: var(--surface); color: var(--text); }
+    .step { padding: 24px 28px; border: 1px solid var(--line); border-radius: 12px; background: var(--raised); }
+    .step + .step { margin-top: 12px; }
+    .step[hidden] { display: none; }
+    .count { margin: 0; color: var(--muted); font-size: 13px; }
+    .step h2 { margin: 4px 0 8px; font-size: 20px; }
+    .step p { margin: 0; }
+    .step ul { margin: 14px 0 0; padding-left: 20px; }
+    .step li + li { margin-top: 6px; }
+    nav { display: flex; justify-content: space-between; margin-top: 16px; }
+    nav button { padding: 7px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+    nav button:hover:not(:disabled) { background: var(--raised); }
+    nav button:disabled { opacity: .4; cursor: default; }
+    footer { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">puppyone</p>
+    <h1>puppyone のしくみ</h1>
+    <p class="lead">はじめる前に知っておきたい 4 つのこと。</p>
+    <div role="tablist" aria-label="puppyone のしくみ">
+      <button type="button" role="tab" id="tab-1" aria-controls="step-1" aria-selected="true"><span>1</span>ファイルはあなたのフォルダーに</button>
+      <button type="button" role="tab" id="tab-2" aria-controls="step-2" aria-selected="false"><span>2</span>どのファイルも適した方法で開く</button>
+      <button type="button" role="tab" id="tab-3" aria-controls="step-3" aria-selected="false"><span>3</span>Agent と作業する</button>
+      <button type="button" role="tab" id="tab-4" aria-controls="step-4" aria-selected="false"><span>4</span>手持ちのファイルから始める</button>
+    </div>
+    <section class="step" role="tabpanel" id="step-1" aria-labelledby="tab-1">
+      <p class="count">ステップ 1 / 4</p>
+      <h2>ファイルはあなたのフォルダーに</h2>
+      <p>プロジェクトはコンピューター上のフォルダーで、puppyone は作業内容をその中の通常のファイルとして保存します。</p>
+      <ul>
+        <li>Obsidian やコードエディターなど、ほかのアプリでも同じファイルを開けます。</li>
+        <li>プロジェクトを作成しても、何もアップロードされません。</li>
+        <li>削除したファイルは再作成されません。</li>
+      </ul>
+    </section>
+    <section class="step" role="tabpanel" id="step-2" aria-labelledby="tab-2">
+      <p class="count">ステップ 2 / 4</p>
+      <h2>どのファイルも適した方法で開く</h2>
+      <p>puppyone はファイルごとに適したビューを選ぶので、形式ごとに別のアプリを使い分ける必要はありません。</p>
+      <ul>
+        <li>その場で整形される Markdown ノート</li>
+        <li>スプレッドシートのように編集できる CSV</li>
+        <li>Web ページ、ホワイトボード、PDF、Office 文書</li>
+      </ul>
+    </section>
+    <section class="step" role="tabpanel" id="step-3" aria-labelledby="tab-3">
+      <p class="count">ステップ 3 / 4</p>
+      <h2>Agent と作業する</h2>
+      <p>Agent パネルまたは設定から Agent を選び、構成します。Agent はこのプロジェクトのファイルで作業します。</p>
+      <ul>
+        <li>ノートの整理、表の要約、文書の下書きを頼めます。</li>
+        <li>提案された変更は、反映する前に確認してください。</li>
+        <li>クラウドモデルでは、送信した内容が提供元で処理されることがあります。</li>
+      </ul>
+    </section>
+    <section class="step" role="tabpanel" id="step-4" aria-labelledby="tab-4">
+      <p class="count">ステップ 4 / 4</p>
+      <h2>手持ちのファイルから始める</h2>
+      <p>白紙からではなく、すでにあるファイルから始められます。</p>
+      <ul>
+        <li>ファイル一覧にファイルをドラッグします。</li>
+        <li>既存のフォルダーや Obsidian Vault をプロジェクトとして開きます。</li>
+        <li>Notion（Markdown と CSV でエクスポート）や Airtable（CSV でエクスポート）を取り込めます。</li>
+      </ul>
+    </section>
+    <nav hidden>
+      <button type="button" data-move="-1">前へ</button>
+      <button type="button" data-move="1">次へ</button>
+    </nav>
+    <footer>このページはプロジェクト内の通常の HTML ファイルです。編集に切り替えるとテキストを変更でき、Agent にデザインの変更を頼むこともできます。</footer>
+  </main>
+  <script>
+    const tabs = [...document.querySelectorAll("[role=tab]")];
+    const steps = [...document.querySelectorAll(".step")];
+    const [previous, next] = document.querySelectorAll("[data-move]");
+    let current = 0;
+    function show(index) {
+      current = Math.max(0, Math.min(steps.length - 1, index));
+      steps.forEach((step, position) => { step.hidden = position !== current; });
+      tabs.forEach((tab, position) => tab.setAttribute("aria-selected", String(position === current)));
+      previous.disabled = current === 0;
+      next.disabled = current === steps.length - 1;
+    }
+    tabs.forEach((tab, index) => tab.addEventListener("click", () => show(index)));
+    for (const button of [previous, next]) button.addEventListener("click", () => show(current + Number(button.dataset.move)));
+    document.querySelector("nav").hidden = false;
+    show(0);
+  </script>
+</body>
+</html>

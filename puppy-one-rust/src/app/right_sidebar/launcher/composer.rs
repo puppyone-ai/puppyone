@@ -1,0 +1,501 @@
+//! L1 hero prompt composer card and its occluding Agent switcher popover.
+//!
+//! Uses the shared [`PopoverMenu`] and [`SurfaceFrame`] primitives so the
+//! switcher inherits proper overlay layering (`POPUP_PRIORITY`), pointer
+//! occlusion (preventing clicks from passing through to underlying recent
+//! sessions), outside-click dismissal, and Escape focus restoration.
+use super::*;
+use crate::features::desktop_agent::{AgentSessionControlId, AgentTheme};
+use crate::localization::t as tr;
+use crate::theme;
+use crate::ui::agent_brand_mark::{LauncherIdentity, launcher_icon};
+use crate::ui::appearance::ActiveAppearance;
+use crate::ui::components::{
+    Dismiss, Icon, IconButton, MenuItem, PopoverMenu, ProductIcon, SurfaceFrame, SurfaceVariant,
+    tooltip,
+};
+use crate::ui::resource_drag::ResourceDrag;
+use gpui_kit::base::{Disableable as _, h_flex, v_flex};
+use gpui_kit::component::Sizable as _;
+
+impl WorkbenchLauncher {
+    /// One row inside the Agent switcher popover. Keyed focus handles keep
+    /// keyboard focus stable when discovery prepends newly found Agents.
+    #[allow(clippy::too_many_arguments)]
+    fn agent_picker_row(
+        &mut self,
+        slot: LauncherSlot,
+        group: Id,
+        tab: Option<Id>,
+        installation: &Installation,
+        selected: bool,
+        available: bool,
+        dismiss: Dismiss,
+        cx: &mut Context<Self>,
+    ) -> gpui_kit::base::Button {
+        let t = cx.palette();
+        let m = theme::ty();
+        let id = installation.id;
+        let key_id = slot.element_key();
+        let key = SharedString::from(format!("launcher-pick-{key_id}-{id}"));
+        let focus = self.row_focus(slot, id, cx);
+        let id_owned = id.to_owned();
+        let host = cx.weak_entity();
+        gpui_kit::base::Button::new(ElementId::Name(key.clone()))
+            .accessibility_label(format!(
+                "{}: {}",
+                tr("terminal.launcher.title"),
+                installation.label
+            ))
+            .debug_selector(move || format!("launcher-agent-{id}"))
+            .track_focus(&focus)
+            .group(key.clone())
+            .w_full()
+            .h(px(32.))
+            .justify_start()
+            .gap(px(9.))
+            .px(px(8.))
+            .rounded(px(7.))
+            .text_color(if selected { t.text } else { t.muted })
+            .disabled(!available)
+            .when(available, |b| {
+                b.cursor(theme::clickable_cursor())
+                    .hover(move |s| s.bg(t.hover).text_color(t.text))
+            })
+            .when(!available, |b| b.opacity(0.5))
+            .child(
+                launcher_icon(
+                    LauncherIdentity::brand(installation.runtime.icon_key()),
+                    true,
+                    t.dark,
+                    t.muted,
+                )
+                .group_hover(key, |s| s.opacity(1.)),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .text_size(px(m.right.content))
+                    .line_height(px(18.))
+                    .truncate()
+                    .child(installation.label.clone()),
+            )
+            .when(selected, |b| {
+                b.child(
+                    Icon::new("check")
+                        .with_size(px(13.5))
+                        .stroke(2.)
+                        .color(t.text),
+                )
+            })
+            .on_mouse_down(MouseButton::Left, |_, _, cx| {
+                cx.stop_propagation();
+            })
+            .on_click(move |_, w, cx| {
+                cx.stop_propagation();
+                dismiss(w, cx);
+                let _ = host.update(cx, |s, cx| {
+                    s.select_agent(slot, group, tab, id_owned.clone(), w, cx)
+                });
+            })
+    }
+
+    /// Floating occluding Agent switcher surface anchored under the selector pill.
+    #[allow(clippy::too_many_arguments)]
+    fn render_agent_popover_surface(
+        &mut self,
+        slot: LauncherSlot,
+        group: Id,
+        tab: Option<Id>,
+        active: Option<&Installation>,
+        visible: &[Installation],
+        chats: bool,
+        terminals: bool,
+        cloud: bool,
+        dismiss: Dismiss,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let t = cx.palette();
+        let key_id = slot.element_key();
+        let active_id = active.map(|i| i.id);
+
+        let mut external = v_flex()
+            .id(("launcher-agents", key_id))
+            .role(Role::List)
+            .debug_selector(|| "launcher-agents".into())
+            .gap(px(1.));
+        for installation in visible.iter().filter(|i| !i.bundled()) {
+            let selected = active_id == Some(installation.id);
+            let available = if installation.chat { chats } else { terminals };
+            external = external.child(self.agent_picker_row(
+                slot,
+                group,
+                tab,
+                installation,
+                selected,
+                available,
+                dismiss.clone(),
+                cx,
+            ));
+        }
+
+        let mut bundled = v_flex().gap(px(1.));
+        for installation in visible.iter().filter(|i| i.bundled()) {
+            let selected = active_id == Some(installation.id);
+            let available = if installation.chat { chats } else { terminals };
+            bundled = bundled.child(self.agent_picker_row(
+                slot,
+                group,
+                tab,
+                installation,
+                selected,
+                available,
+                dismiss.clone(),
+                cx,
+            ));
+        }
+
+        let active_for_term = active.cloned();
+        let can_open_in_term =
+            !cloud && terminals && active_for_term.as_ref().is_some_and(|i| !i.bundled());
+        let heading_label = tr(if cloud {
+            "cloud.home.cloud"
+        } else {
+            "native.launcher.localAgents"
+        });
+        let host = cx.weak_entity();
+        let dismiss_term = dismiss.clone();
+
+        SurfaceFrame::new(("launcher-agent-popover", key_id))
+            .variant(SurfaceVariant::CompactMenu)
+            .palette(t)
+            .radius(12.)
+            .absorb_mouse_down()
+            .debug_selector(|| "launcher-agent-popover".into())
+            .w(px(236.))
+            .p(px(5.))
+            .child(
+                div()
+                    .px(px(8.))
+                    .pt(px(5.))
+                    .pb(px(4.))
+                    .text_size(px(11.))
+                    .line_height(px(14.))
+                    .text_color(t.subtle)
+                    .child(heading_label),
+            )
+            .child(external)
+            .child(bundled)
+            .when(can_open_in_term, |d| {
+                let target = active_for_term.clone();
+                d.child(div().h(px(1.)).bg(t.divider).my(px(4.)).mx(px(6.)))
+                    .child(
+                        gpui_kit::base::Button::new(("launcher-open-in-term", key_id))
+                            .w_full()
+                            .h(px(30.))
+                            .justify_start()
+                            .gap(px(8.))
+                            .px(px(8.))
+                            .rounded(px(7.))
+                            .text_size(px(12.))
+                            .text_color(t.subtle)
+                            .cursor(theme::clickable_cursor())
+                            .hover(move |s| s.bg(t.hover).text_color(t.text))
+                            .child(
+                                Icon::new("square-terminal")
+                                    .with_size(px(13.5))
+                                    .stroke(1.75)
+                                    .color(t.subtle),
+                            )
+                            .child(tr("native.launcher.openInTerminal"))
+                            .on_mouse_down(MouseButton::Left, |_, _, cx| {
+                                cx.stop_propagation();
+                            })
+                            .on_click(move |_, w, cx| {
+                                cx.stop_propagation();
+                                dismiss_term(w, cx);
+                                let target = target.clone();
+                                let _ = host.update(cx, |s, cx| {
+                                    s.set_picker_open(slot, false, cx);
+                                    s.chat_mode = false;
+                                    s.launch(group, tab, target, w, cx);
+                                });
+                            }),
+                    )
+            })
+            .into_any_element()
+    }
+
+    /// Prominent L1 hero composer card with inline occluding Agent switcher and
+    /// circular send action. Performs zero child-entity mutations during render.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn render_hero_composer(
+        &mut self,
+        slot: LauncherSlot,
+        group: Id,
+        tab: Option<Id>,
+        active: Option<&Installation>,
+        visible: &[Installation],
+        chats: bool,
+        terminals: bool,
+        cloud: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
+        let t = cx.palette();
+        let a = AgentTheme::new(&t);
+        let m = theme::ty();
+        let key_id = slot.element_key();
+
+        let input = self.ensure_page_input(slot, group, tab, window, cx);
+        let focused = input.focus_handle(cx).contains_focused(window, cx);
+        let has_text = !input.read(cx).current_text(cx).trim().is_empty();
+        let has_attachments = !cloud && self.has_attachments(slot);
+        let can_send = (has_text || has_attachments) && chats && active.is_some();
+        let picker_open = self.is_picker_open(slot);
+        let visual = (!cloud)
+            .then(|| self.render_visual_attachments(slot, cx))
+            .flatten();
+        let has_visual = visual.is_some();
+
+        // Leading `+` attachment menu (local mode only, matching active chat).
+        let attach_menu = (!cloud).then(|| {
+            let host_computer = cx.weak_entity();
+            let host_workspace = cx.weak_entity();
+            div()
+                .debug_selector(|| "launcher-attach-trigger".into())
+                .child(
+                    PopoverMenu::new(("launcher-attach-menu", key_id))
+                        .anchor(Anchor::TopLeft)
+                        .offset(px(4.))
+                        .trigger(
+                            IconButton::new(
+                                ("launcher-attach-trigger", key_id),
+                                Icon::new("plus").with_size(px(15.)).stroke(1.75),
+                            )
+                            .label(tr("agent.reference.add"))
+                            .with_size(px(28.))
+                            .size(px(28.))
+                            .rounded(px(10.))
+                            .color(a.text_subtle)
+                            .disabled(!chats),
+                        )
+                        .menu(move |menu, _, _| {
+                            let host_computer = host_computer.clone();
+                            let host_workspace = host_workspace.clone();
+                            menu.item(
+                                MenuItem::new(tr("agent.reference.addFromComputer"))
+                                    .icon("paperclip")
+                                    .on_click(move |w, cx| {
+                                        let _ = host_computer.update(cx, |s, cx| {
+                                            s.pick_external_files(slot, group, tab, w, cx);
+                                        });
+                                    }),
+                            )
+                            .item(
+                                MenuItem::new(tr("agent.reference.addFromWorkspace"))
+                                    .product_icon(ProductIcon::Folder)
+                                    .on_click(move |w, cx| {
+                                        let _ = host_workspace.update(cx, |s, cx| {
+                                            s.pick_workspace_files(slot, group, tab, w, cx);
+                                        });
+                                    }),
+                            )
+                        }),
+                )
+        });
+
+        // Trigger button: concentric inner radius (16px card - 6px bar = 10px),
+        // left icon edge sits at 6px bar + 8px button = 14px when alone, flush
+        // with the prompt text inset (10px wrapper + 4px Textarea xsmall inset = 14px).
+        let trigger = gpui_kit::base::Button::new(("launcher-agent-picker", key_id))
+            .debug_selector(|| "launcher-agent-picker".into())
+            .h(px(28.))
+            .px(px(8.))
+            .gap(px(6.))
+            .rounded(px(10.))
+            .text_size(px(12.5))
+            .line_height(px(16.))
+            .text_color(if picker_open { t.text } else { t.muted })
+            .when(picker_open, |b| b.bg(t.hover))
+            .cursor(theme::clickable_cursor())
+            .hover(move |s| s.bg(t.hover).text_color(t.text))
+            .when_some(active, |b, inst| {
+                b.child(launcher_icon(
+                    LauncherIdentity::brand(inst.runtime.icon_key()),
+                    true,
+                    t.dark,
+                    t.muted,
+                ))
+                .child(div().min_w_0().truncate().child(inst.label.clone()))
+            })
+            .child(
+                Icon::new("chevron-down")
+                    .with_size(px(10.5))
+                    .stroke(2.)
+                    .color(theme::alpha(t.subtle, 0.8)),
+            );
+
+        let host_toggle = cx.weak_entity();
+        let host_content = cx.weak_entity();
+        let active_cloned = active.cloned();
+        let visible_cloned = visible.to_vec();
+        let agent_pill = PopoverMenu::new(("launcher-agent-popover-menu", key_id))
+            .anchor(Anchor::TopLeft)
+            .offset(px(4.))
+            .open(picker_open)
+            .on_open_change(move |opened, _w, cx| {
+                let _ = host_toggle.update(cx, |s, cx| {
+                    s.set_picker_open(slot, *opened, cx);
+                });
+            })
+            .trigger(trigger)
+            .content(move |dismiss, _w, cx| {
+                host_content
+                    .update(cx, |s, cx| {
+                        s.render_agent_popover_surface(
+                            slot,
+                            group,
+                            tab,
+                            active_cloned.as_ref(),
+                            &visible_cloned,
+                            chats,
+                            terminals,
+                            cloud,
+                            dismiss,
+                            cx,
+                        )
+                    })
+                    .unwrap_or_else(|_| div().into_any_element())
+            });
+
+        // Circular send button (compact 28px concentric with the 28px toolbar).
+        let (send_bg, send_fg) = if can_send {
+            (a.text, a.canvas)
+        } else {
+            (a.action_disabled_surface, a.action_disabled_text)
+        };
+        let send_button = gpui_kit::base::Button::new(("launcher-send", key_id))
+            .debug_selector(|| "launcher-send".into())
+            .accessibility_label(tr("agent.composer.send"))
+            .disabled(!can_send)
+            .flex_none()
+            .size(px(28.))
+            .child(
+                div()
+                    .size(px(28.))
+                    .rounded_full()
+                    .bg(send_bg)
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(
+                        Icon::new("arrow-up")
+                            .with_size(px(13.5))
+                            .stroke(2.)
+                            .color(send_fg),
+                    ),
+            )
+            .when(can_send, |b| {
+                b.cursor(theme::clickable_cursor())
+                    .hover(|s| s.opacity(0.86))
+            })
+            .tooltip(tooltip(tr("agent.composer.send")))
+            .on_click(cx.listener(move |s, _, w, cx| s.submit_hero(slot, group, tab, w, cx)));
+
+        let size = m.left.content;
+        let line_height = size * 1.5;
+        let drop_border = a.accent;
+        let drop_surface = theme::mix(a.accent, a.composer_surface, 0.06);
+        v_flex()
+            .w_full()
+            .min_w_0()
+            .rounded(px(16.))
+            .border_1()
+            .border_color(if focused {
+                a.composer_border_focus
+            } else {
+                a.composer_border
+            })
+            .bg(a.composer_surface)
+            .when(!cloud, |card| {
+                card.drag_over::<ResourceDrag>(move |s, _, _, _| {
+                    s.border_color(drop_border).bg(drop_surface)
+                })
+                .drag_over::<ExternalPaths>(move |s, _, _, _| {
+                    s.border_color(drop_border).bg(drop_surface)
+                })
+            })
+            .children(visual)
+            .child(
+                div()
+                    .debug_selector(|| "launcher-composer-input".into())
+                    .w_full()
+                    .min_w_0()
+                    .pt(px(if has_visual { 6. } else { 12. }))
+                    .pb(px(6.))
+                    // 10px wrapper + Textarea's 4px inner inset = 14px symmetric horizontal padding.
+                    .px(px(10.))
+                    .text_size(px(size))
+                    .line_height(px(line_height))
+                    .child(input),
+            )
+            .child(
+                h_flex()
+                    .w_full()
+                    .items_center()
+                    .gap(px(2.))
+                    .pt(px(2.))
+                    .pb(px(6.))
+                    .px(px(6.))
+                    .children(attach_menu)
+                    .child(div().min_w_0().flex_shrink(1.).child(agent_pill))
+                    .child(div().flex_1())
+                    .child(send_button),
+            )
+            .into_any_element()
+    }
+
+    /// Quiet `Model` / `Effort` / `Mode` parameter chips directly beneath the
+    /// Hero Composer card, reusing the exact shared [`SessionPickers`] widget
+    /// from active Agent Chat so users can configure provider parameters in
+    /// Act 1 before sending their first prompt.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn render_parameter_controls(
+        &mut self,
+        slot: LauncherSlot,
+        stage_width: f32,
+        cloud: bool,
+        chats: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        if cloud {
+            return None;
+        }
+        let controls = self.active_controls(cx);
+        if controls.is_empty() {
+            return None;
+        }
+        let pickers = self.ensure_page_pickers(slot, window, cx);
+        let mut row = h_flex()
+            .debug_selector(|| "launcher-controls".into())
+            .w_full()
+            .min_w_0()
+            .mt(px(6.))
+            .pl(px(2.))
+            .gap(px(4.))
+            .overflow_hidden();
+        for control in &controls {
+            let width = match control.id {
+                AgentSessionControlId::Model => 170f32.min(stage_width * 0.48),
+                AgentSessionControlId::Effort => 88f32.min(stage_width * 0.25),
+                AgentSessionControlId::Mode => 104f32.min(stage_width * 0.27),
+            };
+            let picker = pickers.update(cx, |p, cx| p.picker(control, width, !chats, cx));
+            row = row.child(div().min_w_0().flex_shrink(1.).child(picker));
+        }
+        Some(row.into_any_element())
+    }
+}

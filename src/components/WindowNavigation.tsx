@@ -1,4 +1,5 @@
 import { createContext, useContext, type ReactNode } from "react";
+import { CloudSignInDialog } from "../features/cloud";
 import type { DesktopCloudSession } from "../lib/cloudApi";
 import type { CloudSpace } from "../lib/workspaceHomeModel";
 
@@ -27,5 +28,18 @@ export type WindowNavigation = Readonly<{
 }>;
 
 const WindowNavigationContext = createContext<WindowNavigation | null>(null);
-export const WindowNavigationProvider = WindowNavigationContext.Provider;
+export function WindowNavigationProvider({
+  value,
+  children,
+}: {
+  value: WindowNavigation | null;
+  children: ReactNode;
+}) {
+  return (
+    <WindowNavigationContext.Provider value={value}>
+      {children}
+      {value?.account && <CloudSignInDialog signedIn={Boolean(value.account.session)} />}
+    </WindowNavigationContext.Provider>
+  );
+}
 export function useWindowNavigation() { return useContext(WindowNavigationContext); }

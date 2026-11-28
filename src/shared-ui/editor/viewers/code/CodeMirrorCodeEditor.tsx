@@ -41,10 +41,18 @@ import type {
 
 import { useDocumentModelOwner } from "../../document-session/DocumentModelOwner";
 import { CodeMirrorDocumentModel, externalDocumentUpdate, getCodeMirrorDocumentRevision as getCodeDocumentRevision } from "../../document-session/CodeMirrorDocumentModel";
+import { createCodeMirrorFollowerView } from "../../document-session/codeMirrorFollower";
 
 export type CodeMirrorCodeEditorProps = {
   /** A format-owned model shared with another representation of this document. */
   model?: CodeMirrorDocumentModel;
+  /**
+   * Show `model` beside the view that edits it elsewhere, as its source panel:
+   * edits go through that model, which saves and reports them.
+   */
+  follow?: boolean;
+  /** Wraps long lines, for a source panel narrower than the page. */
+  lineWrapping?: boolean;
   content: string;
   nodeName?: string;
   language?: string | null;
@@ -56,6 +64,8 @@ export type CodeMirrorCodeEditorProps = {
 
 export function CodeMirrorCodeEditor({
   model: providedModel,
+  follow = false,
+  lineWrapping = false,
   content,
   nodeName = "",
   language = null,
@@ -75,7 +85,7 @@ export function CodeMirrorCodeEditor({
   const externalContentRef = useRef(content);
   const languageKey = useMemo(() => resolveCodeLanguageKey(language, nodeName), [language, nodeName]);
   const findAdapter = useMemo(() => new CodeMirrorFindAdapter(), []);
-  const initialEditorConfigRef = useRef({ content, languageKey, nodeName, readOnly });
+  const initialEditorConfigRef = useRef({ content, languageKey, nodeName, readOnly, lineWrapping });
 
   useRegisterEditorFindAdapter(findAdapter);
 
@@ -94,9 +104,10 @@ export function CodeMirrorCodeEditor({
 
     const model = providedModel ?? modelOwner?.getOrCreate("codemirror-code", () => new CodeMirrorDocumentModel(initialConfig.content))
       ?? new CodeMirrorDocumentModel(initialConfig.content);
-    modelOwner?.activate(model);
+    const following = follow && Boolean(providedModel);
+    if (!following) modelOwner?.activate(model);
     modelRef.current = model;
-    const state = model.createViewState([
+    const extensions = [
         EditorView.editorAttributes.of({ "data-po-selection-renderer": "drawn" }),
         lineNumbers(),
         foldGutter({ openText: "⌄", closedText: "›" }),
@@ -140,9 +151,27 @@ export function CodeMirrorCodeEditor({
         }),
         languageCompartmentRef.current.of([]),
         readOnlyCompartmentRef.current.of(getReadOnlyExtension(initialConfig.readOnly)),
-      ]);
+        initialConfig.lineWrapping ? EditorView.lineWrapping : [],
+      ];
 
-    const view = new EditorView({ state, parent: host, scrollTo: model.getScrollSnapshot(), dispatchTransactions: (transactions, target) => model.acceptTransactions(transactions, target) });
+    if (following) {
+      const follower = createCodeMirrorFollowerView(model, { parent: host, extensions });
+      follower.view.scrollDOM.dataset.poScrollbar = "content";
+      viewRef.current = follower.view;
+      findAdapter.attach(follower.view);
+      const unsubscribeTypography = subscribeTypographyChanges(host.ownerDocument, () => {
+        follower.view.requestMeasure();
+      });
+      return () => {
+        unsubscribeTypography();
+        findAdapter.dispose();
+        follower.dispose();
+        viewRef.current = null;
+        modelRef.current = null;
+      };
+    }
+
+    const view = new EditorView({ state: model.createViewState(extensions), parent: host, scrollTo: model.getScrollSnapshot(), dispatchTransactions: (transactions, target) => model.acceptTransactions(transactions, target) });
     model.attachView(view);
     view.scrollDOM.dataset.poScrollbar = "content";
     viewRef.current = view;
@@ -176,7 +205,7 @@ export function CodeMirrorCodeEditor({
       modelRef.current = null;
       if (!modelOwner && !providedModel) model.dispose();
     };
-  }, [findAdapter, modelOwner, providedModel]);
+  }, [findAdapter, follow, modelOwner, providedModel]);
 
   useEffect(() => {
     if (providedModel) return;

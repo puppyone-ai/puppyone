@@ -2,16 +2,17 @@ import { useLocalization } from "@puppyone/localization";
 import { useRef, useState, type ReactNode } from "react";
 import { WindowNavigationRows, windowNavigationHasRows } from "../WindowNavigationRows";
 import { DesktopTitlebarMenuLayer } from "../DesktopTitlebarMenuLayer";
-import { PuppyBrandMark } from "../brand/PuppyBrandMark";
 import { useWindowNavigation } from "../WindowNavigation";
 import type { OnboardingHomeState } from "./types";
+import { VALUE_SLIDES, type ValueSlideIndex } from "./OnboardingValueCarousel";
 
 type OnboardingBrandLockupProps = {
   state: OnboardingHomeState;
-  resolvedTheme: "light" | "dark";
   /** With projects to choose from, the head offers ways to view them instead of a title. */
   toolbar?: ReactNode;
   trailing?: ReactNode;
+  /** First run's moment, whose title and line the head shows. */
+  valueSlide?: ValueSlideIndex;
 };
 
 /**
@@ -51,22 +52,26 @@ export function OnboardingHeaderBrand() {
   );
 }
 
-/** First-run states the file-first promise; returning users get straight to their projects. */
-export function OnboardingBrandLockup({ state, resolvedTheme, toolbar, trailing }: OnboardingBrandLockupProps) {
+/**
+ * First-run says what the person's files become here, one moment at a time; the
+ * window's Header already names the product. Returning users get straight to their projects.
+ */
+export function OnboardingBrandLockup({ state, toolbar, trailing, valueSlide = 0 }: OnboardingBrandLockupProps) {
   const { t } = useLocalization();
   const hasProjects = state === "projects";
 
   return (
     <header className="onboarding-brand-lockup">
       {hasProjects ? toolbar : (<>
-        <span className="onboarding-brand-mark" aria-hidden="true">
-          <PuppyBrandMark
-            className="onboarding-brand-mark-artwork"
-            tone={resolvedTheme === "light" ? "lite" : "dark"}
-          />
-        </span>
-        <div className="onboarding-brand-copy">
-          <h1 className="onboarding-brand-name">{t("onboarding.brand.agentReadyMessage")}</h1>
+        {/* Every moment's words share one cell, so the keys below never move as they change. */}
+        <div className="onboarding-brand-moments">
+          {VALUE_SLIDES.map((slide, index) => (
+            <div key={slide.id} className={`onboarding-brand-copy ${index === valueSlide ? "is-active" : ""}`}
+              aria-hidden={index === valueSlide ? undefined : true}>
+              <h1 className="onboarding-brand-name">{t(`onboarding.value.${slide.id}.title`)}</h1>
+              <p className="onboarding-brand-pitch">{t(`onboarding.value.${slide.id}.body`)}</p>
+            </div>
+          ))}
         </div>
       </>)}
       {trailing}

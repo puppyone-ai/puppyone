@@ -161,19 +161,19 @@ describe("Homepage project layouts", () => {
     expect(layoutTrigger(container).querySelector(".lucide-layout-grid")).not.toBeNull();
   });
 
-  it("heads the page with the view controls and New, with the product named in the Header", () => {
-    const { container } = renderHome();
-    const view = container.querySelector(".onboarding-brand-lockup .onboarding-project-toolbar .onboarding-project-view")!;
+  it("heads the page with the three place actions and the Agents, while Projects and view controls lead the list", () => {
+    const { container } = renderHome({ onOpenAgentSettings: vi.fn() });
+    const view = container.querySelector(".onboarding-projects-head .onboarding-project-toolbar .onboarding-project-view")!;
     const roots = [...view.querySelectorAll(":scope > .onboarding-view-menu-root")];
     expect(roots).toHaveLength(2);
     expect(roots[0]?.contains(sortTrigger(container))).toBe(true);
     expect(roots[1]?.contains(layoutTrigger(container))).toBe(true);
+    expect(container.querySelector(".onboarding-projects-head .onboarding-projects-title")?.textContent).toBe("Projects");
     const head = [...container.querySelector(".onboarding-brand-lockup")!.children];
-    // The order and the arrangement, then New: one way to start a project, at the page's head.
-    expect(head.map((part) => part.className)).toEqual(["onboarding-project-toolbar", "onboarding-entry-menu-root"]);
-    expect(container.querySelector(".onboarding-home-primary .onboarding-view-menu-root")).toBeNull();
+    expect(head.map((part) => part.className)).toEqual(["onboarding-start-actions", "onboarding-agent-strip"]);
+    expect(container.querySelector(".onboarding-brand-lockup .onboarding-view-menu-root")).toBeNull();
     expect(container.querySelector(".desktop-titlebar .onboarding-view-menu-root")).toBeNull();
-    expect(container.querySelector(".onboarding-brand-lockup img")).toBeNull();
+    expect(container.querySelector(".onboarding-brand-lockup img:not(.onboarding-agent-strip img)")).toBeNull();
     expect(container.querySelector(".onboarding-brand-prompt")).toBeNull();
     const brand = container.querySelector(".desktop-titlebar .onboarding-header-brand")!;
     expect(brand.textContent).toBe("puppyone");
@@ -181,19 +181,20 @@ describe("Homepage project layouts", () => {
     expect(brand.querySelector("img, svg")).toBeNull();
   });
 
-  it("names nothing in the Header until there are projects, when the page greets you itself", () => {
+  it("names the product in the Header on first run too, while the page tells its story", () => {
     const { container } = renderHome({ projectItems: [] });
-    expect(container.querySelector(".desktop-titlebar .onboarding-header-brand")).toBeNull();
-    expect(container.querySelector(".onboarding-brand-lockup img")).not.toBeNull();
+    expect(container.querySelector(".desktop-titlebar .onboarding-header-brand")?.textContent).toBe("puppyone");
+    expect(container.querySelector(".onboarding-brand-lockup img")).toBeNull();
   });
 
-  it("puts New in words and the other ways to start behind an arrow, without an icon", () => {
-    const { container } = renderHome();
-    const create = container.querySelector<HTMLButtonElement>(".onboarding-brand-lockup [data-onboarding-action='create']")!;
-    expect(create.textContent).toBe("New project");
-    expect(create.querySelector(".po-button__icon")).toBeNull();
-    expect(create.classList.contains("po-button--primary")).toBe(false);
-    expect(container.querySelector("[data-onboarding-action='more'] .lucide-chevron-down")).not.toBeNull();
+  it("shows New project, Open a folder and Import directly at the top left", () => {
+    const { container } = renderHome({ onImportSource: vi.fn(async () => null) });
+    const actions = [...container.querySelectorAll<HTMLButtonElement>(".onboarding-brand-lockup .onboarding-start-actions .onboarding-entry-action")];
+    expect(actions.map((action) => action.getAttribute("data-onboarding-action"))).toEqual(["create", "open", "import"]);
+    expect(actions.map((action) => action.textContent)).toEqual(["New project", "Open a folder", "Import"]);
+    expect(actions[0]?.classList.contains("po-button--primary")).toBe(false);
+    expect(container.querySelector("[data-onboarding-action='more']")).toBeNull();
+    expect(actions[2]?.querySelector(".onboarding-entry-import-brands")).toBeNull();
   });
 
   it("opens each toolbar menu from its own control, one at a time", () => {
@@ -256,45 +257,25 @@ describe("Homepage project layouts", () => {
     expect(document.activeElement).toBe(items[1]);
   });
 
-  it("keeps New one click away at the head of the page, with the other entries behind the arrow", () => {
-    const { container } = renderHome();
+  it("triggers Open a folder and Import directly from the top-left buttons without a menu", async () => {
+    const onImportSource = vi.fn(async () => null);
+    const { container, props } = renderHome({
+      onImportSource,
+      onConnectImportSource: vi.fn(async () => ({ connectionId: "test-connection" })),
+      onListImportResources: vi.fn(async () => ({ items: [], nextCursor: null })),
+      onCancelImportSource: vi.fn(async () => ({ cancelled: true })),
+      onImportSourceProgress: vi.fn(() => () => undefined),
+    });
     expect(container.querySelector(".onboarding-project-group-head [data-onboarding-action]")).toBeNull();
     const head = container.querySelector(".onboarding-brand-lockup")!;
-    expect(head.querySelector("[data-onboarding-action='create']")).not.toBeNull();
-    expect(container.querySelector("[data-onboarding-action='open'], [data-onboarding-action='import']")).toBeNull();
-    const more = head.querySelector<HTMLButtonElement>("[data-onboarding-action='more']")!;
-    expect(more.getAttribute("aria-label")).toBe("More ways to start a project");
-    expect(more.getAttribute("aria-haspopup")).toBe("menu");
-    expect(more.getAttribute("aria-expanded")).toBe("false");
-    act(() => more.click());
-    expect(more.getAttribute("aria-expanded")).toBe("true");
-    expect(document.activeElement?.getAttribute("data-onboarding-action")).toBe("open");
-  });
-
-  it("moves through the entry menu by keyboard and hands focus back when dismissed", () => {
-    const { container } = renderHome({ onImportSource: vi.fn(async () => null) });
-    const more = container.querySelector<HTMLButtonElement>("[data-onboarding-action='more']")!;
-    const press = (key: string) => act(() => {
-      document.activeElement?.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
-    });
-    act(() => more.focus());
-    act(() => more.click());
-    press("ArrowDown");
-    expect(document.activeElement?.getAttribute("data-onboarding-action")).toBe("import");
-    press("ArrowDown");
-    expect(document.activeElement?.getAttribute("data-onboarding-action")).toBe("open");
-    press("Escape");
-    expect(container.querySelector(".onboarding-entry-menu")).toBeNull();
-    expect(document.activeElement).toBe(more);
-  });
-
-  it("closes the entry menu on a press outside it", () => {
-    const { container } = renderHome();
-    const more = container.querySelector<HTMLButtonElement>("[data-onboarding-action='more']")!;
-    act(() => more.click());
-    expect(container.querySelector(".onboarding-entry-menu")).not.toBeNull();
-    act(() => { document.body.dispatchEvent(new Event("pointerdown", { bubbles: true })); });
-    expect(container.querySelector(".onboarding-entry-menu")).toBeNull();
+    const open = head.querySelector<HTMLButtonElement>("[data-onboarding-action='open']")!;
+    const importBtn = head.querySelector<HTMLButtonElement>("[data-onboarding-action='import']")!;
+    expect(open.disabled).toBe(false);
+    expect(importBtn.disabled).toBe(false);
+    await act(async () => open.click());
+    expect(props.onChooseWorkspace).toHaveBeenCalledOnce();
+    await act(async () => importBtn.click());
+    expect(document.body.querySelector(".is-import-sources")).not.toBeNull();
   });
 
   it("names the switch and each layout for assistive technology", () => {
@@ -521,16 +502,32 @@ describe("Homepage project layouts", () => {
     expect(container.querySelector(".onboarding-project-list :is(.onboarding-project-cloud-badge, .onboarding-project-shared-mark)")).toBeNull();
   });
 
-  it("keeps one sheet behind a folder's front, centred, showing nothing until you reach for it", () => {
-    const { container } = renderHome();
-    pick(container, "grid");
-    const folder = project(container, "local").querySelector(".project-folder-glyph")!;
-    expect(folder.querySelectorAll(".project-folder-sheet")).toHaveLength(1);
-    const sheet = folder.querySelector(".project-folder-sheet rect")!;
-    expect(Number(sheet.getAttribute("x")) + Number(sheet.getAttribute("width")) / 2).toBe(24);
-    expect(Number(sheet.getAttribute("y"))).toBeGreaterThan(11);
-    const paint = [...folder.children].map((node) => node.getAttribute("class"));
-    expect(paint.indexOf("project-folder-sheet")).toBeLessThan(paint.indexOf("project-folder-front"));
+  it("draws a calm empty folder when no previews exist, and sandwiches up to three asset sheets between back and front when previews exist", () => {
+    const empty = renderHome();
+    pick(empty.container, "grid");
+    const emptyFolder = project(empty.container, "local").querySelector(".project-folder-glyph")!;
+    expect(emptyFolder.querySelectorAll(".project-folder-sheet")).toHaveLength(0);
+    expect([...emptyFolder.children].map((node) => node.getAttribute("class"))).toEqual([
+      "project-folder-back",
+      "project-folder-front",
+    ]);
+
+    act(() => { root?.unmount(); root = null; });
+    const previews = new Map([
+      [local.localPath, [
+        { name: "dashboard.html", kind: "html" as const, snippet: "Dashboard" },
+        { name: "README.md", kind: "md" as const, snippet: "# Notes" },
+        { name: "revenue.csv", kind: "csv" as const, snippet: "month,amount" },
+        { name: "extra.txt", kind: "other" as const, snippet: null },
+      ]],
+    ]);
+    const withPreviews = renderHome({ projectPreviews: previews });
+    pick(withPreviews.container, "grid");
+    const stage = project(withPreviews.container, "local").querySelector(".project-folder-stage")!;
+    const badges = [...stage.querySelectorAll(".project-folder-preview-badge")].map((badge) => badge.textContent);
+    expect(badges).toEqual(["HTML", "MD", "CSV"]);
+    expect(stage.firstElementChild?.classList.contains("project-folder-stage-back")).toBe(true);
+    expect(stage.lastElementChild?.classList.contains("project-folder-stage-front")).toBe(true);
   });
 
   it("names a project under its folder, and leaves the tooltip for what is not shown", () => {

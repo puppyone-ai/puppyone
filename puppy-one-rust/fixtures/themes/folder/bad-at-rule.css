@@ -1,0 +1,2 @@
+@puppyone-theme { id: local.user.bad-font-face; name: Bad Font Face; version: 1.0.0; modes: light; }
+@puppyone markdown { @font-face { font-family: X; src: url(x.woff2); } }

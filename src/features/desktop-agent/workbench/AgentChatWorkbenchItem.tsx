@@ -83,10 +83,14 @@ export function prepareAgentChatWorkbenchItem(
   project: AuxiliaryWorkbenchProject,
   itemId: string,
   runtimeId: string | null,
+  initialPrompt: string | null = null,
 ) {
   project.assertOpen();
-  if (!runtimeId) return;
   const controller = projectAgentControllers(project).get(itemId);
+  if (initialPrompt) {
+    controller.seedInitialPrompt(initialPrompt);
+  }
+  if (!runtimeId) return;
   controller.beginInitializeForRuntime(runtimeId);
 }
 

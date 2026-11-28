@@ -1,0 +1,5 @@
+@puppyone-theme { id: local.user.selection-ok; name: Selection Ok; version: 1.0.0; modes: light dark; }
+@puppyone application {
+  :root { --po-text-selection-bg: var(--po-terminal-selection, rgba(0, 100, 200, 0.3)); --po-accent: var(--po-info); }
+  .dark .theme-root { --po-accent: var(--po-success); }
+}

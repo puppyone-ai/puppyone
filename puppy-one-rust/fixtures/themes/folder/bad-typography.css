@@ -1,0 +1,2 @@
+@puppyone-theme { id: local.user.bad-type; name: Bad Type; version: 1.0.0; modes: light dark; }
+@puppyone typography { :root { --po-text-size-content: 40px; } }

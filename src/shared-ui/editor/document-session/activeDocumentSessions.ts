@@ -39,8 +39,27 @@ function forgetSession(session: DocumentEditingSessionHandle, registration: Sess
   publishUnsaved();
 }
 
+/**
+ * Auto-save policy "on window change": leaving the window or hiding it writes
+ * pending edits now instead of after the idle delay. Not a drain barrier.
+ */
+export function flushPendingAutoSaves(): void {
+  for (const session of registeredDocumentSessions.keys()) session.flushPendingAutoSave?.();
+}
+
+let windowAutoSaveInstalled = false;
+function installWindowAutoSave(): void {
+  if (windowAutoSaveInstalled || typeof window === "undefined") return;
+  windowAutoSaveInstalled = true;
+  window.addEventListener("blur", flushPendingAutoSaves);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flushPendingAutoSaves();
+  });
+}
+
 /** Register a host-owned session for the lifetime of its React boundary. */
 export function registerActiveDocumentSession(session: DocumentEditingSessionHandle): () => void {
+  installWindowAutoSave();
   let registration = registeredDocumentSessions.get(session);
   if (!registration) {
     registration = { tokens: new Set(), stopObserving: session.subscribe(publishUnsaved) };

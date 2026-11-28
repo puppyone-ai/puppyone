@@ -1,0 +1,673 @@
+//! The account's Project and space requests (`lib/cloudApi.ts`): renaming,
+//! deleting and creating Cloud projects, and the spaces they live in. Every
+//! response is held to the Project asked for; a creation carries its
+//! operation's idempotency key, so a retried one is made once.
+use super::sandbox::{self, CloudSandbox, SandboxSettings};
+use crate::cloud::auth::{
+    self as auth, Broker, Cancellation,
+    model::{ApiRequest, Binding},
+};
+use reqwest::Method;
+use serde::Deserialize;
+use serde_json::{Value, json};
+use std::sync::Arc;
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Error {
+    /// The server answered with this status.
+    Status(u16),
+    /// A mutation's outcome is unknown; never repeated automatically.
+    Unknown,
+    /// The response broke the contract.
+    Invalid(&'static str),
+    Unavailable,
+    /// Hosted subscriptions are switched off: readings stay, selling stops.
+    BillingDisabled,
+}
+impl Error {
+    fn from_auth(error: auth::Error) -> Self {
+        match error {
+            auth::Error::Response(404, Some(auth::BILLING_DISABLED), _) => Self::BillingDisabled,
+            auth::Error::Http(s) | auth::Error::Service(s, _) | auth::Error::Response(s, _, _) => {
+                Self::Status(s)
+            }
+            auth::Error::InvalidCredentials => Self::Status(401),
+            auth::Error::OutcomeUnknown => Self::Unknown,
+            _ => Self::Unavailable,
+        }
+    }
+}
+pub type Result<T> = std::result::Result<T, Error>;
+
+pub trait Transport: Send + Sync {
+    fn request(&self, request: ApiRequest) -> Result<Value>;
+}
+pub struct BrokerTransport {
+    pub broker: Arc<Broker>,
+    pub binding: Binding,
+    pub cancel: Cancellation,
+}
+impl Transport for BrokerTransport {
+    fn request(&self, request: ApiRequest) -> Result<Value> {
+        self.broker
+            .request_scoped(&self.binding, &request, &self.cancel)
+            .map_err(Error::from_auth)
+    }
+}
+
+/// `UpdateCloudProjectInput`: only the settings being changed.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ProjectUpdate {
+    pub name: Option<String>,
+    /// `Some(None)` clears the description.
+    pub description: Option<Option<String>>,
+    /// `org` or `private`.
+    pub visibility: Option<&'static str>,
+    pub bound_git_branch: Option<String>,
+}
+impl ProjectUpdate {
+    fn payload(self) -> Result<Value> {
+        let mut payload = serde_json::Map::new();
+        if let Some(name) = self.name {
+            let name = name.trim();
+            if name.is_empty() {
+                return Err(Error::Invalid("name"));
+            }
+            payload.insert("name".into(), name.into());
+        }
+        if let Some(description) = self.description {
+            payload.insert("description".into(), description.into());
+        }
+        if let Some(branch) = self.bound_git_branch {
+            let branch = branch.trim();
+            if branch.is_empty() {
+                return Err(Error::Invalid("branch"));
+            }
+            payload.insert("bound_git_branch".into(), branch.into());
+        }
+        if let Some(visibility) = self.visibility {
+            payload.insert("visibility".into(), visibility.into());
+        }
+        if payload.is_empty() {
+            return Err(Error::Invalid("update"));
+        }
+        Ok(Value::Object(payload))
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+pub struct Project {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub updated_at: Option<String>,
+    #[serde(default)]
+    pub capabilities: Vec<String>,
+    #[serde(default)]
+    pub visibility: Option<String>,
+    #[serde(default)]
+    pub bound_git_branch: Option<String>,
+}
+impl Project {
+    pub fn can(&self, capability: &str) -> bool {
+        self.capabilities.iter().any(|c| c == capability)
+    }
+}
+/// `DesktopCloudOrganization`: a space. `is_default`, `role`,
+/// `can_manage_space`, `can_create_projects` and `billing_plan_id` are
+/// absent on older deployments; the account's own space is never inferred
+/// from a name.
+#[derive(Clone, Debug, Default, PartialEq, Deserialize)]
+pub struct Organization {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub is_default: Option<bool>,
+    #[serde(default)]
+    pub role: Option<String>,
+    #[serde(default)]
+    pub can_manage_space: Option<bool>,
+    #[serde(default)]
+    pub can_create_projects: Option<bool>,
+    /// The plan billing published for this space.
+    #[serde(default)]
+    pub billing_plan_id: Option<String>,
+    #[serde(default)]
+    pub plan: String,
+    #[serde(default)]
+    pub seat_limit: u64,
+}
+
+/// `DesktopCloudTreeEntry`: one top-level entry returned by `/content/{id}/ls`.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Deserialize)]
+pub struct TreeEntry {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default, rename = "type")]
+    pub kind: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+struct TreeListing {
+    #[serde(default)]
+    entries: Vec<TreeEntry>,
+}
+
+/// `CreateTeamDialog`'s and `SpaceSettings`' name limit.
+pub const SPACE_NAME_MAX: usize = 80;
+/// `DesktopCloudOrgMember`.
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct Member {
+    pub user_id: String,
+    #[serde(default)]
+    pub email: Option<String>,
+    #[serde(default)]
+    pub display_name: Option<String>,
+    /// `owner`, `member`, `viewer` or a role this client does not know.
+    pub role: String,
+}
+impl Member {
+    /// `display_name || email || user_id`.
+    pub fn label(&self) -> &str {
+        [self.display_name.as_deref(), self.email.as_deref()]
+            .into_iter()
+            .flatten()
+            .find(|s| !s.is_empty())
+            .unwrap_or(&self.user_id)
+    }
+}
+/// The two roles an owner gives: a paid seat or a free viewer.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum MemberRole {
+    #[default]
+    Viewer,
+    Member,
+}
+impl MemberRole {
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Viewer => "viewer",
+            Self::Member => "member",
+        }
+    }
+}
+
+/// `{code, data}` yields `data`.
+pub(super) fn unwrap(value: Value) -> Value {
+    match value {
+        Value::Object(mut map) if map.contains_key("data") => {
+            map.remove("data").unwrap_or(Value::Null)
+        }
+        value => value,
+    }
+}
+pub(super) fn decode<T: serde::de::DeserializeOwned>(
+    value: Value,
+    what: &'static str,
+) -> Result<T> {
+    serde_json::from_value(unwrap(value)).map_err(|_| Error::Invalid(what))
+}
+/// A path segment: nothing that would need escaping reaches a request.
+pub(super) fn segment(id: &str) -> Result<&str> {
+    if !id.is_empty()
+        && id.len() <= 128
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
+    {
+        Ok(id)
+    } else {
+        Err(Error::Invalid("identifier"))
+    }
+}
+/// Requests for the account's Projects and spaces.
+#[derive(Clone)]
+pub struct Client {
+    transport: Arc<dyn Transport>,
+}
+impl Client {
+    pub fn new(transport: Arc<dyn Transport>) -> Self {
+        Self { transport }
+    }
+    pub fn transport(&self) -> Arc<dyn Transport> {
+        self.transport.clone()
+    }
+    fn send(
+        &self,
+        method: Method,
+        path: String,
+        body: Option<Value>,
+        idempotency_key: Option<String>,
+    ) -> Result<Value> {
+        self.transport.request(ApiRequest {
+            method,
+            path,
+            query: vec![],
+            body,
+            idempotency_key,
+        })
+    }
+    fn get(&self, path: String) -> Result<Value> {
+        self.send(Method::GET, path, None, None)
+    }
+    pub fn project(&self, id: &str) -> Result<Project> {
+        let project: Project = decode(self.get(format!("/projects/{}", segment(id)?))?, "project")?;
+        if project.id != id {
+            return Err(Error::Invalid("project"));
+        }
+        Ok(project)
+    }
+    /// `createCloudProject`: an empty Cloud project named `name` in the
+    /// space `org`. `operation` is the creation's idempotency key, the same
+    /// for every retry of one intent.
+    pub fn create_project(&self, name: &str, org: &str, operation: &str) -> Result<Project> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err(Error::Invalid("name"));
+        }
+        let body = json!({ "name": name, "org_id": segment(org)? });
+        decode(
+            self.send(
+                Method::POST,
+                "/projects/".into(),
+                Some(body),
+                Some(operation.to_owned()),
+            )?,
+            "project",
+        )
+    }
+    /// `PUT /projects/{id}/workbench/sandbox`: the signed-in person's
+    /// choices for their Cloud Computer in this project. `desktop` picks the
+    /// Profile of the next computer, so a new project sends it before it
+    /// first opens.
+    pub fn update_project_sandbox(
+        &self,
+        id: &str,
+        patch: &SandboxSettings,
+    ) -> Result<CloudSandbox> {
+        let path = format!("/projects/{}/workbench/sandbox", segment(id)?);
+        let body = sandbox::settings_body(patch).ok_or(Error::Invalid("sandbox"))?;
+        let value = self.send(Method::PUT, path, Some(body), None)?;
+        Ok(sandbox::read_sandbox(&unwrap(value)))
+    }
+    /// `updateCloudProject`: `PUT /projects/{id}` with the fields given and
+    /// nothing else. A name or branch is trimmed and may not be empty.
+    pub fn update_project(&self, id: &str, update: ProjectUpdate) -> Result<Project> {
+        let path = format!("/projects/{}", segment(id)?);
+        let body = update.payload()?;
+        let project: Project = decode(self.send(Method::PUT, path, Some(body), None)?, "project")?;
+        if project.id != id {
+            return Err(Error::Invalid("project"));
+        }
+        Ok(project)
+    }
+    /// `deleteCloudProject`: access ends when the server accepts this; it
+    /// removes the stored objects afterwards.
+    pub fn delete_project(&self, id: &str) -> Result<()> {
+        let path = format!("/projects/{}", segment(id)?);
+        self.send(Method::DELETE, path, None, None).map(|_| ())
+    }
+    /// `createCloudTeam`: a new space named `name`, starting on Free.
+    pub fn create_space(&self, name: &str) -> Result<Organization> {
+        let name = name.trim();
+        if name.is_empty() || name.chars().count() > SPACE_NAME_MAX {
+            return Err(Error::Invalid("name"));
+        }
+        decode(
+            self.send(
+                Method::POST,
+                "/organizations/".into(),
+                Some(json!({ "name": name })),
+                None,
+            )?,
+            "space",
+        )
+    }
+    /// `updateCloudSpace`: the space's name, by its owner.
+    pub fn rename_space(&self, org: &str, name: &str) -> Result<()> {
+        let name = name.trim();
+        if name.is_empty() || name.chars().count() > SPACE_NAME_MAX {
+            return Err(Error::Invalid("name"));
+        }
+        let path = format!("/organizations/{}", segment(org)?);
+        self.send(Method::PUT, path, Some(json!({ "name": name })), None)
+            .map(|_| ())
+    }
+    /// `listCloudOrganizationMembers`.
+    pub fn members(&self, org: &str) -> Result<Vec<Member>> {
+        decode(
+            self.get(format!("/organizations/{}/members", segment(org)?))?,
+            "members",
+        )
+    }
+    /// `inviteCloudSpaceMember`: the invitation link, when the server made one.
+    pub fn invite(&self, org: &str, email: &str, role: MemberRole) -> Result<Option<String>> {
+        let email = email.trim();
+        if email.is_empty() {
+            return Err(Error::Invalid("email"));
+        }
+        let path = format!("/organizations/{}/invite", segment(org)?);
+        let value = unwrap(self.send(
+            Method::POST,
+            path,
+            Some(json!({ "email": email, "role": role.key() })),
+            None,
+        )?);
+        Ok(value["invite_url"].as_str().map(str::to_owned))
+    }
+    /// `updateCloudSpaceMemberRole`.
+    pub fn set_member_role(&self, org: &str, user: &str, role: MemberRole) -> Result<()> {
+        let path = format!(
+            "/organizations/{}/members/{}/role",
+            segment(org)?,
+            segment(user)?
+        );
+        self.send(Method::PUT, path, Some(json!({ "role": role.key() })), None)
+            .map(|_| ())
+    }
+    /// `removeCloudSpaceMember`.
+    pub fn remove_member(&self, org: &str, user: &str) -> Result<()> {
+        let path = format!(
+            "/organizations/{}/members/{}",
+            segment(org)?,
+            segment(user)?
+        );
+        self.send(Method::DELETE, path, None, None).map(|_| ())
+    }
+    /// `transferCloudSpaceOwnership`.
+    pub fn transfer_ownership(&self, org: &str, user: &str) -> Result<()> {
+        let path = format!("/organizations/{}/ownership/transfer", segment(org)?);
+        self.send(
+            Method::POST,
+            path,
+            Some(json!({ "user_id": segment(user)? })),
+            None,
+        )
+        .map(|_| ())
+    }
+    /// `listCloudRoot`: top-level entries of a Cloud project (`/content/{id}/ls?path=`)
+    /// without reading file contents.
+    pub fn list_root_entries(&self, id: &str) -> Result<Vec<TreeEntry>> {
+        let listing: TreeListing = decode(
+            self.transport.request(ApiRequest {
+                method: Method::GET,
+                path: format!("/content/{}/ls", segment(id)?),
+                query: vec![("path".into(), String::new())],
+                body: None,
+                idempotency_key: None,
+            })?,
+            "cloud tree",
+        )?;
+        Ok(listing.entries)
+    }
+
+    /// `listCloudOrganizations`: the spaces this account belongs to.
+    pub fn organizations(&self) -> Result<Vec<Organization>> {
+        decode(self.get("/organizations/".into())?, "organizations")
+    }
+    /// `ensurePersonalCloudSpace`: deliberate provisioning of this account's
+    /// own space; the server returns the same one on every call. Only a
+    /// deployment without the route (404) is asked the older way, and its
+    /// answer is the default space; authentication and network failures are
+    /// never retried.
+    pub fn ensure_default_space(&self) -> Result<Organization> {
+        match self.send(Method::POST, "/auth/default-space".into(), None, None) {
+            Ok(value) => decode(value, "default space"),
+            Err(Error::Status(404)) => {
+                let space: Organization = decode(
+                    self.send(Method::POST, "/auth/personal-space".into(), None, None)?,
+                    "default space",
+                )?;
+                Ok(Organization {
+                    is_default: Some(true),
+                    ..space
+                })
+            }
+            Err(error) => Err(error),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    struct Reply(Value);
+    impl Transport for Reply {
+        fn request(&self, _: ApiRequest) -> Result<Value> {
+            Ok(self.0.clone())
+        }
+    }
+    fn client(value: Value) -> Client {
+        Client::new(Arc::new(Reply(value)))
+    }
+
+    #[test]
+    fn identifiers_never_reach_a_path_unescaped() {
+        assert!(client(json!({})).project("../x").is_err());
+        assert!(
+            client(json!({"id": "other", "name": "N"}))
+                .project("p")
+                .is_err()
+        );
+        assert!(client(json!({})).delete_project("a/b").is_err());
+        assert!(client(json!({})).create_project("N", "o/x", "op").is_err());
+    }
+
+    struct Recorded(std::sync::Mutex<Vec<ApiRequest>>, Value);
+    impl Transport for Recorded {
+        fn request(&self, request: ApiRequest) -> Result<Value> {
+            self.0.lock().unwrap().push(request);
+            Ok(self.1.clone())
+        }
+    }
+
+    #[test]
+    fn a_project_is_updated_with_put_and_deleted_with_delete() {
+        let transport = Arc::new(Recorded(
+            Default::default(),
+            json!({"id": "p", "name": "Notes"}),
+        ));
+        let client = Client::new(transport.clone());
+        let update = ProjectUpdate {
+            name: Some("  Notes ".into()),
+            description: Some(None),
+            ..Default::default()
+        };
+        assert_eq!(client.update_project("p", update).unwrap().name, "Notes");
+        client.delete_project("p").unwrap();
+        let sent = transport.0.lock().unwrap();
+        assert_eq!(sent[0].method, Method::PUT);
+        assert_eq!(sent[0].path, "/projects/p");
+        assert_eq!(
+            sent[0].body,
+            Some(json!({"name": "Notes", "description": null}))
+        );
+        assert_eq!(sent[1].method, Method::DELETE);
+        assert_eq!(sent[1].path, "/projects/p");
+        assert_eq!(sent[1].body, None);
+    }
+
+    /// `cloudApi.client.test.ts`: "updates native Project settings through
+    /// the secure Cloud bridge" — every setting given, trimmed, in one PUT;
+    /// an empty update or a blank name is refused before anything is sent.
+    #[test]
+    fn project_settings_are_trimmed_into_one_put_and_empty_ones_are_refused() {
+        let transport = Arc::new(Recorded(
+            Default::default(),
+            json!({"id": "p", "name": "Atlas", "visibility": "private"}),
+        ));
+        let client = Client::new(transport.clone());
+        let update = ProjectUpdate {
+            name: Some("  Atlas  ".into()),
+            description: Some(None),
+            bound_git_branch: Some("  main  ".into()),
+            visibility: Some("private"),
+        };
+        assert_eq!(client.update_project("p", update).unwrap().name, "Atlas");
+        assert!(
+            client
+                .update_project("p", ProjectUpdate::default())
+                .is_err()
+        );
+        let blank = ProjectUpdate {
+            name: Some("  ".into()),
+            ..Default::default()
+        };
+        assert!(client.update_project("p", blank).is_err());
+        let sent = transport.0.lock().unwrap();
+        assert_eq!(sent.len(), 1);
+        assert_eq!(
+            (sent[0].method.as_str(), sent[0].path.as_str()),
+            ("PUT", "/projects/p")
+        );
+        assert_eq!(
+            sent[0].body,
+            Some(
+                json!({"name": "Atlas", "description": null, "bound_git_branch": "main",
+                "visibility": "private"})
+            )
+        );
+    }
+
+    #[test]
+    fn a_new_cloud_project_names_its_space_and_keeps_its_operation_key() {
+        let transport = Arc::new(Recorded(
+            Default::default(),
+            json!({"data": {"id": "p", "name": "Plan"}}),
+        ));
+        let client = Client::new(transport.clone());
+        assert_eq!(
+            client.create_project(" Plan ", "org-1", "op-1").unwrap().id,
+            "p"
+        );
+        assert!(client.create_project("  ", "org-1", "op-1").is_err());
+        let sent = transport.0.lock().unwrap();
+        assert_eq!(sent.len(), 1);
+        assert_eq!(sent[0].method, Method::POST);
+        assert_eq!(sent[0].path, "/projects/");
+        assert_eq!(
+            sent[0].body,
+            Some(json!({"name": "Plan", "org_id": "org-1"}))
+        );
+        assert_eq!(sent[0].idempotency_key.as_deref(), Some("op-1"));
+    }
+
+    #[test]
+    fn a_cloud_computer_choice_is_put_on_the_projects_workbench() {
+        let transport = Arc::new(Recorded(
+            Default::default(),
+            json!({"code": 0, "data": {
+                "profile": "desktop",
+                "next_profile": "desktop",
+                "settings": {"desktop": true},
+                "features": [{"id": "screen_stream", "installed": true, "enabled": true, "transport": "vnc"}]
+            }}),
+        ));
+        let client = Client::new(transport.clone());
+        let desktop = SandboxSettings {
+            desktop: Some(true),
+            ..Default::default()
+        };
+        let sandbox = client.update_project_sandbox("p", &desktop).unwrap();
+        assert!(sandbox.screen_present());
+        assert_eq!(sandbox.settings.desktop, Some(true));
+        assert!(client.update_project_sandbox("a/b", &desktop).is_err());
+        assert!(
+            client
+                .update_project_sandbox("p", &SandboxSettings::default())
+                .is_err()
+        );
+        let sent = transport.0.lock().unwrap();
+        assert_eq!(sent.len(), 1);
+        assert_eq!(sent[0].method, Method::PUT);
+        assert_eq!(sent[0].path, "/projects/p/workbench/sandbox");
+        assert_eq!(sent[0].body, Some(json!({"desktop": true})));
+        assert_eq!(sent[0].idempotency_key, None);
+    }
+
+    /// `SpaceSettings`: every change names its space and member in the path
+    /// and nothing else; names are trimmed and bounded.
+    #[test]
+    fn member_changes_are_shaped_as_the_product_sends_them() {
+        let transport = Arc::new(Recorded(
+            Default::default(),
+            json!({"invite_url": "https://puppyone.ai/invite/x"}),
+        ));
+        let client = Client::new(transport.clone());
+        assert_eq!(
+            client
+                .invite("org-1", " a@b.co ", MemberRole::Member)
+                .unwrap()
+                .as_deref(),
+            Some("https://puppyone.ai/invite/x")
+        );
+        client
+            .set_member_role("org-1", "u-2", MemberRole::Viewer)
+            .unwrap();
+        client.remove_member("org-1", "u-2").unwrap();
+        client.transfer_ownership("org-1", "u-2").unwrap();
+        client.rename_space("org-1", " Design ").unwrap();
+        let sent = transport.0.lock().unwrap();
+        let shape: Vec<(String, String, Option<Value>)> = sent
+            .iter()
+            .map(|r| (r.method.to_string(), r.path.clone(), r.body.clone()))
+            .collect();
+        assert_eq!(
+            shape,
+            [
+                (
+                    "POST".into(),
+                    "/organizations/org-1/invite".into(),
+                    Some(json!({"email": "a@b.co", "role": "member"}))
+                ),
+                (
+                    "PUT".into(),
+                    "/organizations/org-1/members/u-2/role".into(),
+                    Some(json!({"role": "viewer"}))
+                ),
+                (
+                    "DELETE".into(),
+                    "/organizations/org-1/members/u-2".into(),
+                    None
+                ),
+                (
+                    "POST".into(),
+                    "/organizations/org-1/ownership/transfer".into(),
+                    Some(json!({"user_id": "u-2"}))
+                ),
+                (
+                    "PUT".into(),
+                    "/organizations/org-1".into(),
+                    Some(json!({"name": "Design"}))
+                ),
+            ]
+        );
+        assert!(client.rename_space("org-1", &"x".repeat(81)).is_err());
+        assert!(client.create_space("  ").is_err());
+        assert!(client.remove_member("org-1", "../x").is_err());
+    }
+
+    #[test]
+    fn spaces_keep_what_the_server_says_and_nothing_more() {
+        let orgs = client(json!([
+            {"id": "a", "name": "Alex", "is_default": true, "role": "owner",
+                "can_manage_space": true, "can_create_projects": true, "billing_plan_id": "team_v2"},
+            {"id": "b", "name": "Design", "role": "viewer", "can_create_projects": false},
+            {"id": "c", "name": "Old"}
+        ]))
+        .organizations()
+        .unwrap();
+        assert_eq!(orgs[0].is_default, Some(true));
+        assert_eq!(orgs[0].role.as_deref(), Some("owner"));
+        assert_eq!(orgs[0].can_manage_space, Some(true));
+        assert_eq!(orgs[0].billing_plan_id.as_deref(), Some("team_v2"));
+        assert_eq!(orgs[1].can_create_projects, Some(false));
+        assert_eq!(orgs[1].is_default, None);
+        assert_eq!(orgs[2].can_create_projects, None);
+        assert_eq!(orgs[2].billing_plan_id, None);
+    }
+}

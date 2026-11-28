@@ -1,0 +1,4 @@
+{
+  "comment": "Pre-existing editor internal layering and generic-view format-vocabulary exemptions enforced by tools/check-editor-architecture.py (TA-80, ISSUE-131). Shrink-only: resolved entries must be removed with `python3 tools/check-editor-architecture.py --prune` in the commit that fixes them (Batches 3-5).",
+  "violations": []
+}

@@ -1,5 +1,5 @@
 export {
   useRemoteFolderWorkbench,
-  type RemoteFolderService,
   type RemoteFolderWorkbench,
 } from "./useRemoteFolderWorkbench";
+export type { RemoteFolderChange, RemoteFolderService } from "./remoteFolderService";

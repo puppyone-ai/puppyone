@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import packageMetadata from "../../../../package.json";
 import {
-  inspectContinuousIntegrationWorkflow,
   inspectAtomicStableReleasePublisherWorkflow,
   inspectInternalReleaseWorkflow,
   inspectLegacyArchiveWorkflow,
   inspectReleasePublisherWorkflow,
+  inspectRustAcceptanceWorkflow,
   inspectStableReleaseWorkflow,
   inspectUpdateFeedMonitorWorkflow,
 } from "../../../../scripts/release-support/internal-release-workflow-policy.mjs";
@@ -115,24 +115,28 @@ describe("macOS stable release policy", () => {
   });
 });
 
-describe("continuous integration workflow", () => {
-  it("runs source gates without release authority and pins actions", () => {
-    const workflow = readFileSync(
-      new URL("../../../../.github/workflows/ci.yml", import.meta.url),
-      "utf8",
-    );
-    expect(inspectContinuousIntegrationWorkflow(workflow)).toEqual([]);
-    expect(inspectContinuousIntegrationWorkflow(
+describe("Rust desktop acceptance workflow", () => {
+  const workflow = readFileSync(
+    new URL("../../../../.github/workflows/rust-tests.yml", import.meta.url),
+    "utf8",
+  );
+
+  it("verifies every release commit without release authority and pins actions", () => {
+    expect(inspectRustAcceptanceWorkflow(workflow)).toEqual([]);
+    expect(inspectRustAcceptanceWorkflow(
       workflow.replace(/actions\/checkout@[a-f0-9]{40}/, "actions/checkout@v4"),
     )).toEqual(expect.arrayContaining([
       expect.stringMatching(/pinned to full commit SHAs/),
     ]));
-    expect(inspectContinuousIntegrationWorkflow(
-      workflow.replace(", cloud-email-sign-in]", "]").replace('\n          test "$CLOUD_EMAIL_SIGN_IN_RESULT" = success', ""),
-    )).toEqual(expect.arrayContaining([
-      expect.stringMatching(/Cloud email sign-in/),
-      expect.stringMatching(/email sign-in through the paired Cloud must pass/),
-    ]));
+  });
+
+  it("rejects a path filter or a cancelled push, which would leave a release commit unverified", () => {
+    expect(inspectRustAcceptanceWorkflow(
+      workflow.replace("  pull_request:\n", "  pull_request:\n    paths: ['puppy-one-rust/**']\n"),
+    )).toEqual(expect.arrayContaining([expect.stringMatching(/path filter/)]));
+    expect(inspectRustAcceptanceWorkflow(
+      workflow.replace("cancel-in-progress: ${{ github.event_name == 'pull_request' }}", "cancel-in-progress: true"),
+    )).toEqual(expect.arrayContaining([expect.stringMatching(/must not cancel/)]));
   });
 });
 
@@ -146,25 +150,36 @@ describe("macOS internal release workflow", () => {
   });
 
   it.each([
-    ['.event == "push"', "the Internal workflow must require a main push CI run"],
+    ['.event == "push"', "the Internal workflow must require a push CI run on its branch"],
     [".head_sha == env.GITHUB_SHA", "the Internal workflow must match the exact source SHA in returned CI records"],
     ['.status == "completed"', "the Internal workflow must require completed CI records"],
     ['.conclusion == "success"', "the Internal workflow must require successful CI"],
-  ])("keeps the green-main gate fail-closed without %s", (condition, error) => {
+  ])("keeps the green source-branch gate fail-closed without %s", (condition, error) => {
     const workflow = readFileSync(
       new URL("../../../../.github/workflows/desktop-internal-build.yml", import.meta.url), "utf8",
     ).replace(condition, "true");
     expect(inspectInternalReleaseWorkflow(workflow)).toContain(error);
   });
 
-  it("rejects an Internal workflow without the green-main source gate", () => {
+  it("rejects an Internal workflow without the green source-branch gate", () => {
     const workflow = readFileSync(
       new URL("../../../../.github/workflows/desktop-internal-build.yml", import.meta.url),
       "utf8",
-    ).replace("- name: Verify green main source", "- name: Unverified source");
+    ).replace("- name: Verify green source branch", "- name: Unverified source");
 
     expect(inspectInternalReleaseWorkflow(workflow)).toContain(
-      "the Internal workflow must reject non-main or unverified source commits",
+      "the Internal workflow must reject unverified source commits or other branches",
+    );
+  });
+
+  it("rejects an Internal workflow that builds from any branch other than main, qubits or release/*", () => {
+    const workflow = readFileSync(
+      new URL("../../../../.github/workflows/desktop-internal-build.yml", import.meta.url),
+      "utf8",
+    ).replace("refs/heads/main | refs/heads/qubits | refs/heads/release/*) ;;", "refs/heads/*) ;;");
+
+    expect(inspectInternalReleaseWorkflow(workflow)).toContain(
+      "the Internal workflow must accept only main, qubits and release/* branches",
     );
   });
 });

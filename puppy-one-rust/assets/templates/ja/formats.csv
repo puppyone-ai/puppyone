@@ -1,0 +1,9 @@
+形式,拡張子,puppyone でできること,このプロジェクトのサンプル
+Markdown,.md,見出し、表、タスクリスト、ファイル間リンクをその場で整形しながら書く,Getting Started.md
+表,.csv,スプレッドシートのようにセルを編集し、行や列を追加する,Formats.csv
+Web ページ,.html,インタラクティブなページをプレビューし、テキストを編集する,How It Works.html
+ホワイトボード,.excalidraw,図形を描き、アイデアをつなぎ、メモを貼る,Workspace Map.excalidraw
+PDF,.pdf,文書を読む,
+Office 文書,.docx .xlsx .pptx,文書、スプレッドシート、スライドをプレビューする,
+画像・音声・動画,.png .jpg .mp3 .mp4,メディアをプレビューする,
+コードとテキスト,.txt .json .js .py,シンタックスハイライト付きで編集する,

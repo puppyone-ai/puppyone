@@ -373,7 +373,7 @@ export function NativeCloudWorkbenchSmokeHarness() {
       rightSidebarOpen={sidebar.open}
       rightSidebarWidth={360} resizableRightSidebar
       onRightSidebarOpenChange={sidebar.setOpen}
-      rightSidebar={pane => <SmokeAgentSidebar location={location} agent={agent} cloudSidebar={cloudSidebar} revisionKey={String(workbench.refreshToken.sequence)} contentVisible={pane.contentVisible} />}
+      rightSidebar={pane => <SmokeAgentSidebar location={location} agent={agent} cloudSidebar={cloudSidebar} revisionKey={workbench.contentSettledKey} contentVisible={pane.contentVisible} />}
       onLeftSidebarExpand={() => setSidebarCollapsed(false)}
       titlebarSidebarSlot={projectSwitcher}
       titlebarActions={<>

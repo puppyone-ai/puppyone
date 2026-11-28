@@ -2,7 +2,6 @@ import { useDesktopPlatformCapabilities } from "../platform/useDesktopPlatformCa
 import { useDesktopPreference } from "../preferencesStore";
 import { useLocalization } from "@puppyone/localization";
 import { AlertTriangle } from "lucide-react";
-import type { ComponentProps } from "react";
 import {
   useEffect,
   useMemo,
@@ -13,7 +12,9 @@ import {
 import type { ResolvedSurfaceAppearance } from "../features/appearance/AppearanceRuntime";
 import { useWorkspaceFolderDrop } from "../features/app-shell/useWorkspaceFolderDrop";
 import type { ProjectEntryFlowController } from "../features/app-shell/ProjectEntryFlow";
+import type { DesktopCloudSession } from "../lib/cloudApi";
 import { projectHomeItemLocation, type CloudSpace, type ProjectHomeItem, type RecentWorkspaceHomeItem } from "../lib/workspaceHomeModel";
+import type { ProjectAssetPreview } from "../types/electron";
 import { writeClipboardText } from "../features/settings/utils";
 import { resolveImportPreviewBrands } from "../features/project-import/importSourceRegistry";
 import { DesktopWindowChrome } from "./DesktopWindowChrome";
@@ -22,15 +23,20 @@ import { OnboardingEmptyStateIntro } from "./onboarding/OnboardingEmptyStateIntr
 import {
   OnboardingCreateProjectAction,
   OnboardingEntryActions,
+  OnboardingStartActions,
 } from "./onboarding/OnboardingEntryActions";
-import { OnboardingEntryMenu } from "./onboarding/OnboardingEntryMenu";
+import { HomepageAgentStrip, type HomepageCloudAgent } from "./onboarding/HomepageAgentStrip";
+import { useHomepageLocalAgents } from "./onboarding/useHomepageAgents";
+import { useHomepageCloudAgents } from "./onboarding/useHomepageCloudAgents";
+import { useProjectPreviews } from "./onboarding/useProjectPreviews";
 import { OnboardingProjectToolbar, useHomepageProjectView } from "./onboarding/OnboardingProjectToolbar";
 import { useCloudProjectGroups } from "./onboarding/useCloudProjectGroups";
 import { useProjectGroupFocus, type HomepagePlaceFocus } from "./onboarding/useProjectGroupFocus";
-import { useWindowNavigation } from "./WindowNavigation";
 import { OnboardingHomeLayout } from "./onboarding/OnboardingHomeLayout";
+import { OnboardingValueCarousel, type ValueSlideIndex } from "./onboarding/OnboardingValueCarousel";
 import { OnboardingProjectLayoutSwitch } from "./onboarding/OnboardingProjectLayoutSwitch";
 import { OnboardingProjectList, type ProjectListSharing } from "./onboarding/OnboardingProjectList";
+import { useComputerModeHomepage } from "../features/computer-mode";
 import { OtherComputersLabel, type CloudCopy, type ProjectAudience } from "./project-audience";
 import { onboardingBaseGroups, OnboardingProjectGroups, type OnboardingGroupsBase } from "./onboarding/OnboardingProjectGroups";
 import { OnboardingTelemetryDisclosure } from "./onboarding/OnboardingTelemetryDisclosure";
@@ -82,6 +88,17 @@ export type MinimalOnboardingProps = {
   appearance: ResolvedSurfaceAppearance;
   /** The place chosen from the Header, brought into view. */
   focusPlace?: HomepagePlaceFocus | null;
+  /** Authenticated Cloud session for loading personal-space Agents and Cloud root previews. */
+  cloudSession?: DesktopCloudSession | null;
+  cloudApiBaseUrl?: string | null;
+  /** Agents that can reach the person's Cloud projects. */
+  cloudAgents?: readonly HomepageCloudAgent[];
+  /** Per-project Cloud Agents, keyed by Cloud project ID. */
+  cloudProjectAgents?: ReadonlyMap<string, readonly HomepageCloudAgent[]>;
+  /** Per-project top-level asset previews. */
+  projectPreviews?: ReadonlyMap<string, readonly ProjectAssetPreview[]>;
+  /** Where another Agent is set up. */
+  onOpenAgentSettings?: () => void;
 };
 
 const NO_RECENT_WORKSPACES: RecentWorkspaceHomeItem[] = [];
@@ -89,16 +106,6 @@ const NO_RECENT_WORKSPACES: RecentWorkspaceHomeItem[] = [];
 const SPACES_WAIT_MS = 3000;
 
 /** Homepage project list. Cloud catalog/auth is supplied by the host, not discovered by the view. */
-/** Once there are projects, every way to start one moves to the head of the page. */
-function onboardingEntrySlots(hasProjects: boolean, {
-  draggingFolder,
-  ...entry
-}: ComponentProps<typeof OnboardingEntryMenu> & { draggingFolder: boolean }) {
-  if (hasProjects) return { trailing: <OnboardingEntryMenu {...entry} />, actions: null };
-  const { canCreateProject: _canCreateProject, onCreateProject: _onCreateProject, ...actions } = entry;
-  return { trailing: null, actions: <OnboardingEntryActions {...actions} draggingFolder={draggingFolder} /> };
-}
-
 export function MinimalOnboarding({
   projectEntryController,
   canCreateProject = false,
@@ -128,9 +135,14 @@ export function MinimalOnboarding({
   initialError = null,
   appearance,
   focusPlace,
+  cloudSession = null,
+  cloudApiBaseUrl = null,
+  cloudAgents,
+  cloudProjectAgents,
+  projectPreviews,
+  onOpenAgentSettings,
 }: MinimalOnboardingProps) {
   const { t } = useLocalization();
-  const navigation = useWindowNavigation();
   useProjectGroupFocus(focusPlace);
   const desktopPlatform = useDesktopPlatformCapabilities();
   const [error, setError] = useState<string | null>(initialError);
@@ -226,6 +238,7 @@ export function MinimalOnboarding({
   }, [showEmptyStateIntro]);
 
   const completeEmptyStateIntro = () => setShowEmptyStateIntro(false);
+  const [valueSlide, setValueSlide] = useState<ValueSlideIndex>(0);
   const resolvedTheme = appearance.appearance.effectiveColorMode;
   const projectView = useHomepageProjectView(items, listHeld);
   // Which group a Cloud project is in comes from the account's spaces. Until they
@@ -240,6 +253,22 @@ export function MinimalOnboarding({
     return () => window.clearTimeout(timer);
   }, [awaitingSpaces]);
   const groupsHeld = listHeld || (awaitingSpaces && !spacesWaitOver);
+  const discoveredCloudAgents = useHomepageCloudAgents({
+    enabled: hasProjects && !cloudAgents,
+    session: cloudSession,
+    apiBaseUrl: cloudApiBaseUrl,
+    spaces: cloudSpaces,
+    items,
+  });
+  const resolvedCloudAgents = cloudAgents ?? discoveredCloudAgents.agents;
+  const resolvedCloudProjectAgents = cloudProjectAgents ?? discoveredCloudAgents.projectAgents;
+  const discoveredPreviews = useProjectPreviews({
+    items,
+    enabled: hasProjects && !projectPreviews,
+    session: cloudSession,
+    apiBaseUrl: cloudApiBaseUrl,
+  });
+  const resolvedProjectPreviews = projectPreviews ?? discoveredPreviews;
   const localItems = projectView.visibleItems.filter((item) => projectHomeItemLocation(item) === "local");
   const cloudItems = projectView.visibleItems.filter((item) => projectHomeItemLocation(item) === "cloud");
   // A folder's menu says who can open it and changes that as dragging it would:
@@ -271,13 +300,18 @@ export function MinimalOnboarding({
       } : undefined,
     };
   };
-  const projectList = (listItems: ProjectHomeItem[], sharing?: ProjectListSharing) => (
+  const renderProjectListWithPresentation = (
+    presentation: "folder" | "computer",
+    powerMap?: ReadonlyMap<string, import("../features/computer-mode").ComputerVisualPowerState>,
+  ) => (listItems: ProjectHomeItem[], sharing?: ProjectListSharing) => (
     <OnboardingProjectList
       audience={projectAudience(sharing)}
       held={groupsHeld}
       items={listItems}
       sharing={sharing}
       layout={projectLayout}
+      presentation={presentation}
+      computerPowerByPath={powerMap}
       onOpenCloudProject={onOpenCloudProject}
       busy={busy}
       openingPath={openingPath}
@@ -285,6 +319,8 @@ export function MinimalOnboarding({
       onOpen={(path) => void openPath(path)}
       unavailable={unavailableProjects}
       onOpenUnavailable={onOpenUnavailableProject}
+      previews={resolvedProjectPreviews}
+      cloudProjectAgents={resolvedCloudProjectAgents}
       onRename={onRenameProject}
       onRemove={onRemoveProject}
       onRenameCloudProject={onRenameCloudProject}
@@ -293,27 +329,46 @@ export function MinimalOnboarding({
       onDragEnd={() => setDraggingPath(null)}
     />
   );
+  const projectList = renderProjectListWithPresentation("folder");
+  const computerHome = useComputerModeHomepage({
+    localItems,
+    platform: desktopPlatform?.platform,
+    canCreateProject,
+    onCreateComputer: projectEntryController.openCreate,
+    renderComputerList: (listItems, sharing, powerByPath) => (
+      renderProjectListWithPresentation("computer", powerByPath)(listItems, sharing)
+    ),
+    renderPlainFolderList: projectList,
+  });
+  const cloudProjectRenderer = computerHome.computerMode
+    ? renderProjectListWithPresentation("computer", computerHome.computerPowerByPath)
+    : projectList;
   // This computer stays visible; cloud Space and device-sharing facts keep their own groups.
   const cloudGroups = useCloudProjectGroups({
     spaces: cloudSpaces,
-    cloudItems, localItems, renderProjects: projectList, draggingPath, busy,
+    cloudItems, localItems, renderProjects: cloudProjectRenderer, draggingPath, busy,
     onPublish: onPublishToSpace ? (path, spaceId) => runOpening(path, () => onPublishToSpace(path, spaceId)) : undefined,
     onDragEnd: () => setDraggingPath(null),
     onManageSpace,
   });
-  const entry = onboardingEntrySlots(hasProjects, {
+  const entry = {
     busy,
     openingFolder: openingPath === "__new__",
-    draggingFolder: folderDrop.dragging,
-    canCreateProject,
     canImport,
     importPreviewBrands,
-    onCreateProject: projectEntryController.openCreate,
     onOpenFolder: () => void chooseFolder(),
     onImport: projectEntryController.openImport,
-  });
+  };
+  // Once there are projects, every way in is at the head of the page: by hand on the
+  // left, and the person's own Agents on the right.
+  const localAgents = useHomepageLocalAgents(hasProjects);
+  const head = hasProjects ? {
+    start: <OnboardingStartActions {...entry} canCreateProject={canCreateProject} onCreateProject={projectEntryController.openCreate} />,
+    agents: <HomepageAgentStrip local={localAgents} cloud={resolvedCloudAgents} busy={busy}
+      onStart={canCreateProject ? projectEntryController.openAgentStart : undefined} onConnect={onOpenAgentSettings} />,
+  } : null;
   const groupsBase: OnboardingGroupsBase = {
-    label: t("onboarding.projects.title"),
+    label: computerHome.sectionTitle,
     layout: projectLayout,
     cloud: cloudGroups,
     localShare: onShareLocalFolder ? { draggingPath, busy,
@@ -324,10 +379,29 @@ export function MinimalOnboarding({
       items: localItems,
       render: projectList,
     } : null,
+    computerMode: computerHome.computerGroup,
+    footer: computerHome.plainFoldersFooter,
   };
   let projects: ReactNode = projectList(projectView.visibleItems);
   if (!groupsHeld && projectGroups) projects = projectGroups(groupsBase);
-  else if (!groupsHeld) projects = <OnboardingProjectGroups label={groupsBase.label} groups={onboardingBaseGroups(groupsBase)} />;
+  else if (!groupsHeld) {
+    projects = (
+      <OnboardingProjectGroups
+        label={groupsBase.label}
+        groups={onboardingBaseGroups(groupsBase)}
+        footer={groupsBase.footer?.()}
+      />
+    );
+  }
+  // The projects are titled, with how they are ordered and arranged at the title's end.
+  const projectsHead = (
+    <div className="onboarding-projects-head">
+      <strong className="onboarding-projects-title">{computerHome.sectionTitle}</strong>
+      <OnboardingProjectToolbar view={projectView} disabled={busy}>
+        <OnboardingProjectLayoutSwitch layout={projectLayout} disabled={busy} onChange={setProjectLayout} />
+      </OnboardingProjectToolbar>
+    </div>
+  );
 
   return (
     <main
@@ -340,7 +414,8 @@ export function MinimalOnboarding({
       onDragLeave={folderDrop.onDragLeave}
       onDrop={folderDrop.onDrop}
     >
-      <DesktopWindowChrome context={hasProjects || navigation?.account ? <OnboardingHeaderBrand /> : undefined} actions={cloudAccountStatus} />
+      {/* The page tells first run's story, so the Header is what names the product. */}
+      <DesktopWindowChrome context={<OnboardingHeaderBrand />} actions={cloudAccountStatus} />
       <section
         className="onboarding-homepage"
         aria-label={t("onboarding.projects.title")}
@@ -348,13 +423,9 @@ export function MinimalOnboarding({
         {...(showEmptyStateIntro ? { inert: "" } : {})}
       >
         <OnboardingHomeLayout
-          brand={<OnboardingBrandLockup state={onboardingState} resolvedTheme={resolvedTheme} toolbar={(
-            <OnboardingProjectToolbar view={projectView} disabled={busy}>
-              <OnboardingProjectLayoutSwitch layout={projectLayout} disabled={busy} onChange={setProjectLayout} />
-            </OnboardingProjectToolbar>
-          )} trailing={entry.trailing} />}
+          brand={<OnboardingBrandLockup state={onboardingState} valueSlide={valueSlide} toolbar={head?.start} trailing={head?.agents} />}
           primaryKind={hasProjects ? "projects" : "create"}
-          primary={hasProjects ? projects : (
+          primary={hasProjects ? <>{!listHeld && projectsHead}{projects}</> : (
             <OnboardingCreateProjectAction
               busy={busy}
               canCreateProject={canCreateProject}
@@ -362,7 +433,8 @@ export function MinimalOnboarding({
               onCreateProject={projectEntryController.openCreate}
             />
           )}
-          actions={entry.actions}
+          actions={hasProjects ? null : <OnboardingEntryActions {...entry} draggingFolder={folderDrop.dragging} />}
+          aside={hasProjects ? undefined : <OnboardingValueCarousel index={valueSlide} onSelect={setValueSlide} />}
         />
         {!hasProjects && projectGroups?.({ ...groupsBase, cloud: [], local: null })}
 

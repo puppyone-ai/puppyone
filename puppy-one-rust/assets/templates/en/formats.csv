@@ -1,0 +1,9 @@
+Format,Extensions,What you can do in puppyone,Sample in this project
+Markdown,.md,"Write with live formatting: headings, tables, task lists and links between files",Getting Started.md
+Table,.csv,Edit cells like a spreadsheet and add rows or columns,Formats.csv
+Web page,.html,Preview interactive pages and edit their text,How It Works.html
+Whiteboard,.excalidraw,"Draw shapes, connect ideas and add notes",Workspace Map.excalidraw
+PDF,.pdf,Read documents,
+Office documents,.docx .xlsx .pptx,"Preview documents, spreadsheets and slides",
+"Images, audio and video",.png .jpg .mp3 .mp4,Preview media,
+Code and plain text,.txt .json .js .py,Edit with syntax highlighting,

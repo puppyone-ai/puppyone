@@ -92,7 +92,14 @@ import {
   removeWorkspaceGitRemote,
   showHomepage,
 } from "./lib/localFiles";
-import { closeHostFolder, showWindowProject, useWindowProject, windowProjectStore } from "./features/app-shell/window-project/windowProjectStore";
+import {
+  closeHostFolder,
+  consumePendingAgentStart,
+  setPendingAgentStart,
+  showWindowProject,
+  useWindowProject,
+  windowProjectStore,
+} from "./features/app-shell/window-project/windowProjectStore";
 import { useHostFolderRestore } from "./features/app-shell/window-project/useHostFolderRestore";
 import { normalizeCloudApiBaseUrl } from "../shared/cloudEndpoint.js";
 import { ProjectNavigationFailure } from "./features/app-shell/ProjectNavigationFailure";
@@ -153,7 +160,7 @@ import { useDataNodeActions } from "./features/data-workspace/useDataNodeActions
 import { EditorHeaderTabs } from "./features/editor-workbench/header/EditorHeaderTabs";
 import { useAiEditReviewRequest } from "./features/data-workspace/useAiEditReviewRequest";
 import { useWorkbenchWorkspaceContentWatch } from "./features/data-workspace/useWorkbenchWorkspaceContentWatch";
-import { appendWorkbenchWorkspaceContentChange } from "./features/data-workspace/workbenchWorkspaceContentChange";
+import { appendWorkbenchResourceContentChange, appendWorkbenchWorkspaceContentChange } from "./features/data-workspace/workbenchWorkspaceContentChange";
 import {
   BranchSwitchConflictDialog,
   GitOperationErrorDialog,
@@ -252,6 +259,7 @@ function AppContent() {
   const setRightSidebarSurface = useDesktopPreference(s => s.setRightSidebarSurface);
   const setSidebarCollapsed = useDesktopPreference(s => s.setSidebarCollapsed);
   const setRightSidebarOpen = useDesktopPreference(s => s.setRightSidebarOpen);
+  const setAgentPreferredRuntime = useDesktopPreference(s => s.setAgentPreferredRuntime);
   const setProjectSwitcherExpanded = useDesktopPreference(s => s.setProjectSwitcherExpanded);
   const typographyPreferences = useDesktopPreference(s => s.typographyPreferences);
   const projectSwitcherWidth = useDesktopPreference(s => s.projectSwitcherWidth);
@@ -600,6 +608,9 @@ function AppContent() {
       setWorkspaceAtomicRefreshToken((current) => current + 1);
     }
   }, [workbenchWorkspace]);
+  const refreshWorkspaceResources = useCallback((resources?: readonly string[]) => {
+    setWorkspaceRefreshToken((current) => appendWorkbenchResourceContentChange(current, workbenchWorkspace, resources));
+  }, [workbenchWorkspace]);
   const refreshWorkspaceContentFromGit = useCallback((
     presentation: "incremental" | "atomic" = "incremental",
   ) => {
@@ -767,7 +778,7 @@ function AppContent() {
     getPathForCopy: workbenchDataService?.getPathForCopy,
     onEnterDataView: enterDataView,
     onLocalWorkspaceContentChanged: refreshGitStatus,
-    onWorkspaceContentChanged: refreshWorkspaceContent,
+    onWorkspaceContentChanged: refreshWorkspaceResources,
     onResourceDeleted: handleResourceDeleted,
     onResourceMoved: handleResourceMoved,
     onActivateNode: activateDataNode,
@@ -1403,6 +1414,39 @@ function AppContent() {
     projectSessions,
     (focusedWorkspace ?? workspace)?.path ?? null,
   );
+  const pendingAgentStart = useWindowProject((project) => project.pendingAgentStart);
+  useEffect(() => {
+    if (
+      !pendingAgentStart
+      || !projectWorkbench
+      || projectWorkbench.context.rootPath !== pendingAgentStart.rootPath
+      || workspace?.path !== pendingAgentStart.rootPath
+    ) {
+      return;
+    }
+    const start = consumePendingAgentStart(pendingAgentStart.rootPath);
+    if (!start) return;
+    setAgentPreferredRuntime(start.runtimeId);
+    setRightSidebarSurface("chat");
+    setRightSidebarOpen(true);
+    setSwitcherOpen(false);
+    projectWorkbench.configure(auxiliaryWorkbenchContributions);
+    const recipe = agentChatRuntimeVisibility.activeRecipes.find((entry) => entry.id === start.runtimeId)
+      ?? AGENT_CHAT_CREATION_RECIPES.find((entry) => entry.id === start.runtimeId)
+      ?? null;
+    void projectWorkbench.create("agent-chat", null, recipe, null, null, {
+      initialPrompt: start.prompt,
+    });
+  }, [
+    agentChatRuntimeVisibility.activeRecipes,
+    auxiliaryWorkbenchContributions,
+    pendingAgentStart,
+    projectWorkbench,
+    setAgentPreferredRuntime,
+    setRightSidebarOpen,
+    setRightSidebarSurface,
+    workspace?.path,
+  ]);
   const handleOpenGitHistory = gitPresentation.openHistory;
   const handleBackToGitChanges = gitPresentation.backToChanges;
   const gitTitlebarStatus = getGitTitlebarStatus(activeGitStatus);
@@ -1695,6 +1739,7 @@ function AppContent() {
       onCreateCloudProject={createCloudProjectInSpace}
       onShareWithMyDevices={homepageFolderSharing.request
         ? (path) => homepageFolderSharing.request!(path, { opened: true }) : undefined}
+      onAgentProjectStarted={setPendingAgentStart}
       onImportSource={importSource}
       onConnectSource={connectImportSource}
       onListResources={listImportResources}
@@ -1819,6 +1864,9 @@ function AppContent() {
         listHeld={homepageListHeld}
         onOpenCloudProject={selectCloudProject}
         cloudOpening={accountCloud.opening}
+        cloudSession={cloudEnabled ? activeCloudSession : null}
+        cloudApiBaseUrl={cloudEnabled ? desktopCloudApiBaseUrl : null}
+        onOpenAgentSettings={() => openSettingsDialog("local-agents")}
         projectGroups={hostDevicesEnabled && window.puppyoneDesktop && activeCloudSession && desktopCloudApiBaseUrl
           ? (base) => <HomepageComputers key={`${activeCloudSession.user_id}:${activeCloudSession.session_generation}`}
               session={activeCloudSession} apiBase={desktopCloudApiBaseUrl} base={base}
@@ -1975,7 +2023,7 @@ function AppContent() {
   const renderCloudSidebar = (active: boolean) => <CloudWorkspaceSidebar sidebar={cloudSidebar}
     agent={cloudAgent} context={accountCloud.context} session={activeCloudSession} apiBaseUrl={desktopCloudApiBaseUrl}
     active={active} title={nativeCloudWorkbench.service?.workspace.name ?? ""}
-    revisionKey={String(nativeCloudWorkbench.refreshToken.sequence)} onSessionChange={updateCloudSession}
+    revisionKey={nativeCloudWorkbench.contentSettledKey} onSessionChange={updateCloudSession}
     workbenchPanel={AuxiliaryWorkbenchPanel} />;
   const editorTabsInHeaderEnabled = enableEditorTabsInHeader;
   const titlebarEditorTabs = editorTabsInHeaderEnabled ? (

@@ -23,6 +23,7 @@ export function HtmlPreviewFrame({
   folderAccess = null,
   documentNavigation,
   onLinkFailure,
+  onEditRequest,
 }: {
   path: string;
   title: string;
@@ -35,6 +36,7 @@ export function HtmlPreviewFrame({
   folderAccess?: HtmlFolderAccessSession | null;
   documentNavigation?: DocumentNavigationPort | null;
   onLinkFailure?: (reason: HtmlLinkFailure) => void;
+  onEditRequest?: () => void;
 }) {
   const { t } = useLocalization();
   const offline = interactive && !!folderAccess;
@@ -77,7 +79,7 @@ export function HtmlPreviewFrame({
   const waitingForProjection = useProjection && !resourceReady;
   const visibleFrameKey = `${frameKey}|${projectionUrl ?? String(waitingForProjection)}`;
   useHtmlLinkNavigation({ frame, channel: viewportChannel, generation: visibleFrameKey, path,
-    sourceBase, navigation: documentNavigation, offline, onFailure: onLinkFailure });
+    sourceBase, navigation: documentNavigation, offline, onFailure: onLinkFailure, onEditRequest });
   const frameReadiness = useVisibleFrameReadiness(visibleFrameKey);
   const onFrameLoad = useHtmlPageViewport({ frame, viewportState, channel: viewportChannel,
     enabled: interactive, waiting: waitingForProjection, onFrameLoad: frameReadiness.onFrameLoad });

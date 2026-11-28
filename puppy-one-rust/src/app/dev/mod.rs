@@ -1,0 +1,12 @@
+//! What only development builds compile: the offscreen capture scenarios
+//! (`dev-capture`) and the frame-cost benchmarks (tests on macOS).
+#[cfg(all(test, target_os = "macos"))]
+mod bench;
+#[cfg(feature = "dev-capture")]
+pub(super) mod capture_scenario;
+#[cfg(feature = "dev-capture")]
+mod home_lab;
+#[cfg(feature = "dev-capture")]
+mod screen_lab;
+#[cfg(feature = "dev-capture")]
+mod settings_lab;

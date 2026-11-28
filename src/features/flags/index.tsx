@@ -69,8 +69,15 @@ export function useAccountAvailable(): boolean {
  */
 export function useCloudEnabled(): boolean {
   const available = useAccountAvailable();
-  const enabled = useDesktopPreference((state) => state.experimentalSettings.enableCloudWorkspace);
+  const enabled = useDesktopPreference(
+    (state) => state.experimentalSettings.enableCloudWorkspace || state.experimentalSettings.enableComputerMode,
+  );
   return available && enabled;
+}
+
+/** Whether projects are framed as miniature Cloud and on-device computers. */
+export function useComputerModeEnabled(): boolean {
+  return useDesktopPreference((state) => state.experimentalSettings.enableComputerMode);
 }
 
 /** The release gate is independent of a saved experiment choice. */

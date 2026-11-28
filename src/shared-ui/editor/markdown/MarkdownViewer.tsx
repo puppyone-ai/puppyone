@@ -1,6 +1,8 @@
 "use client";
 
-import { MarkdownCodeMirrorEditor } from "./MarkdownCodeMirrorEditor";
+import { getMarkdownDocumentModel, MarkdownCodeMirrorEditor } from "./MarkdownCodeMirrorEditor";
+import { CodeMirrorCodeEditor } from "../viewers/code/CodeMirrorCodeEditor";
+import { useDocumentModelOwner } from "../document-session/DocumentModelOwner";
 import type { PresetViewerRenderContext } from "../registry/viewerTypes";
 import { TextEditorFrame } from "../viewers/shared/TextEditorFrame";
 
@@ -16,7 +18,7 @@ type MarkdownViewerProps = Pick<
   | "workspaceId"
   | "workspaceRoot"
   | "markdownEnvironment"
->;
+> & Partial<Pick<PresetViewerRenderContext, "documentControls">>;
 
 export function MarkdownViewer(context: MarkdownViewerProps) {
   return (
@@ -28,6 +30,7 @@ export function MarkdownViewer(context: MarkdownViewerProps) {
       defaultMode="live"
       canEdit={context.canEdit}
       hideSourceView={context.hideSourceView}
+      documentControls={context.documentControls}
       enableModeToggleShortcut
       modeControlPlacement="pane-menu"
       sourceSnapshotMode
@@ -54,6 +57,9 @@ export function MarkdownViewer(context: MarkdownViewerProps) {
           onSnapshotPortChange={controls.onSnapshotPortChange}
         />
       )}
+      renderSourcePanel={(value, canEdit) => (
+        <MarkdownSourcePanel value={value} nodeName={context.document.name} readOnly={!canEdit} />
+      )}
       renderSource={(value, controls) => (
         <MarkdownCodeMirrorEditor
           value={value}
@@ -75,6 +81,18 @@ export function MarkdownViewer(context: MarkdownViewerProps) {
       )}
     />
   );
+}
+
+/**
+ * The Markdown source beside the page. It follows the text the page's editor
+ * holds, so either side's edits show in the other at once; without a document
+ * owner there is no shared text, and the source only reads.
+ */
+function MarkdownSourcePanel({ value, nodeName, readOnly }: { value: string; nodeName: string; readOnly: boolean }) {
+  const owner = useDocumentModelOwner();
+  const model = owner ? getMarkdownDocumentModel(owner, value) : undefined;
+  return <CodeMirrorCodeEditor model={model} follow={Boolean(model)} content={value} nodeName={nodeName}
+    language="markdown" readOnly={readOnly || !model} lineWrapping />;
 }
 
 export function canEditMarkdown() {

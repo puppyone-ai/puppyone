@@ -104,6 +104,9 @@ function RenderFixture({ fixture, update }: { fixture: Fixture; update: (fixture
       latest.current.update({ ...latest.current.fixture, message, draft: "", stage: "preview" });
       return true;
     },
+    // The fixture never seeds a first prompt (`AgentChatTabPanel` asks on every render).
+    hasPendingInitialAutoSubmit: () => false,
+    consumeInitialAutoSubmit: () => null,
   }) as unknown as AgentSessionController, []);
   return <AgentChatTabPanel controller={controller} workspaceId="smoke" presented commandTarget={false}
     onPresentationChange={noOp} onOpenAccount={noOp} onOpenModelConnections={noOp}

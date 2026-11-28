@@ -12,6 +12,7 @@ const manifest = await readJson(path.join(localesRoot, "manifest.json"));
 const userFacingJsxAttributes = new Set(["alt", "aria-label", "placeholder", "title"]);
 const allowedUserInterfaceLiterals = new Set([
   // Product/provider brands and protocol vocabulary are proper nouns, not translatable copy.
+  "ChatGPT",
   "Claude",
   "Git",
   "GitHub",
@@ -26,6 +27,10 @@ const allowedUserInterfaceLiterals = new Set([
   // Decorative sharing example: keep the product URL identical in every locale.
   "puppyone.ai/…",
   "md",
+  // File-type tags on the first-run picture name formats, not words.
+  "MD",
+  "CSV",
+  "HTML",
 ]);
 
 const expectedLocales = ["en", "es", "pt-BR", "fr", "de", "ja", "ko", "zh-Hans"];

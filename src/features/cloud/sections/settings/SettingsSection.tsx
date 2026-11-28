@@ -9,10 +9,12 @@ import {
   type DesktopCloudSession,
 } from "../../../../lib/cloudApi";
 import type { CloudWorkspaceSection } from "../../types";
+import { CloudComputerSettings } from "../../sandbox/CloudComputerSettings";
+import { useDesktopPreference } from "../../../settings";
 import { copyText } from "../../utils";
 import { CloudIcon as Cloud } from "@puppyone/shared-ui";
 
-type SettingsTab = "general" | "access" | "connection";
+type SettingsTab = "general" | "access" | "connection" | "computer";
 
 const SETTINGS_TABS: SettingsTab[] = ["general", "access", "connection"];
 
@@ -42,6 +44,11 @@ export function CloudProjectSettingsSection({
 }) {
   const { t } = useLocalization();
   const [activeTab, setActiveTab] = useState<SettingsTab>("general");
+  // Each member owns their own Cloud Computer, so this tab is not project administration.
+  const computerScreenEnabled = useDesktopPreference(s => s.experimentalSettings.enableCloudComputerScreen);
+  const isolatedAgentsEnabled = useDesktopPreference(s => s.experimentalSettings.enableIsolatedAgentSandboxes);
+  const computerEnabled = computerScreenEnabled || isolatedAgentsEnabled;
+  const tabs: SettingsTab[] = computerEnabled ? [...SETTINGS_TABS, "computer"] : SETTINGS_TABS;
   const [currentProject, setCurrentProject] = useState(project);
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? "");
@@ -158,7 +165,7 @@ export function CloudProjectSettingsSection({
             aria-label={t("cloud.settings.tabsAria")}
             role="tablist"
           >
-            {SETTINGS_TABS.map((tab) => (
+            {tabs.map((tab) => (
               <button
                 className={activeTab === tab ? "active" : undefined}
                 key={tab}
@@ -181,7 +188,14 @@ export function CloudProjectSettingsSection({
             </div>
           ) : null}
 
-          {!canManage ? (
+          {activeTab === "computer" && computerEnabled && (
+            <CloudComputerSettings projectId={currentProject.id} session={cloudSession}
+              apiBaseUrl={apiBaseUrl} onSessionChange={onSessionChange}
+              showDesktopControls={computerScreenEnabled}
+              showIsolatedAgentsControl={isolatedAgentsEnabled}
+              canManageProjectSettings={canManage} />
+          )}
+          {activeTab !== "computer" && (!canManage ? (
             <section className="desktop-cloud-settings-panel desktop-cloud-settings-restricted" role="tabpanel">
               <span aria-hidden="true"><LockKeyhole size={20} /></span>
               <div>
@@ -300,7 +314,7 @@ export function CloudProjectSettingsSection({
                 ) : null}
               </div>
             </section>
-          )}
+          ))}
         </div>
       </main>
     </section>

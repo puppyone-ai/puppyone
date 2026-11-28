@@ -37,8 +37,25 @@ function parseWorkspaceEvent(frame) {
   }
   if (type !== 'change') return null;
   const value = JSON.parse(data.join('\n'));
-  if (typeof value.generation !== 'string' || value.reset !== true) throw new Error('Invalid Cloud file notification.');
-  return { type, generation: value.generation };
+  const paths = workspaceEventPaths(value.paths);
+  // `reset: true` with path hints is the legacy wire shape; a scoped event may
+  // omit the reset flag only when it names every changed path.
+  if (typeof value.generation !== 'string' || (value.reset !== true && !paths)) throw new Error('Invalid Cloud file notification.');
+  return paths ? { type, generation: value.generation, paths } : { type, generation: value.generation };
+}
+
+const MAX_EVENT_PATHS = 256;
+
+/** Workspace-relative path hints, or null when the scope must be treated as unknown. */
+function workspaceEventPaths(value) {
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_EVENT_PATHS) return null;
+  const paths = [];
+  for (const path of value) {
+    if (typeof path !== 'string' || !path || path.length > 4096 || path.startsWith('/') || /[\\\0]/.test(path)) return null;
+    if (path.split('/').some(segment => !segment || segment === '.' || segment === '..')) return null;
+    paths.push(path);
+  }
+  return [...new Set(paths)];
 }
 
 export function registerCloudWorkspaceEvents(ipcMain, auth, { retryDelays = [250, 1000, 3000], wait = delay } = {}) {

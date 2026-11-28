@@ -22,7 +22,9 @@ const FILE_MODE_CHANNELS = new Set([
   "platform:get-capabilities",
   "system:open-external-url",
   "theme:list",
-  "window-layout:get-cursor-point",
+  // The project window's Header: full screen moves its content, and a profile may draw the window controls.
+  "window-layout:get-chrome-state",
+  "window-layout:perform-window-action",
   "window-layout:set-chrome-profile",
   "window:get-initial-workspace",
   "workspace:revoke-file-url",

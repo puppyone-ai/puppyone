@@ -1,0 +1,2 @@
+@puppyone-theme { id: local.user.bad-control; name: Bad Control; version: 1.0.0; modes: light; }
+@puppyone markdown { @media print { @puppyone csv {} } }

@@ -1,0 +1,4 @@
+# Font decoding and deterministic asset checks used by tools/verify.py.
+fonttools[woff]==4.68.0
+brotli==1.2.1
+zopfli==0.4.3

@@ -381,7 +381,7 @@ describe("going Home from a project", () => {
 
   it("arrives at once, with the mark standing in for the list", async () => {
     await render({ ...local, listHeld: true });
-    expect(document.querySelector(".onboarding-project-toolbar")).not.toBeNull();
+    expect(document.querySelector(".onboarding-start-actions")).not.toBeNull();
     expect(document.querySelector('[aria-label="Loading…"]')).not.toBeNull();
     expect(mark()).not.toBeNull();
     expect(rows()).toEqual([]);

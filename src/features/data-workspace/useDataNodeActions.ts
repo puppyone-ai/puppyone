@@ -52,7 +52,8 @@ export function useDataNodeActions({
   getPathForCopy?: (path: string) => string;
   onEnterDataView: () => void;
   onLocalWorkspaceContentChanged: () => void;
-  onWorkspaceContentChanged: () => void;
+  /** Resources an action created, moved or removed; omitted when the scope is unknown. */
+  onWorkspaceContentChanged: (resources?: readonly string[]) => void;
   onResourceDeleted?: (path: string) => void | Promise<void>;
   onResourceMoved?: (previousPath: string, nextPath: string) => void | Promise<void>;
   onActivateNode: (node: DataNode) => void;
@@ -134,6 +135,7 @@ export function useDataNodeActions({
     try {
       let nextPath: string;
       let nextNode: DataNode;
+      let changedResources: string[] | null = null;
       if (kind === "slides") {
         const result = await dataPort.instantiateTemplate!({
           templateId: "slides.default",
@@ -141,6 +143,7 @@ export function useDataNodeActions({
           name: requestedName,
         });
         nextPath = result.openPath;
+        changedResources = [result.rootPath];
         const name = getDataResourceName(nextPath) || nextPath;
         nextNode = {
           id: nextPath,
@@ -182,7 +185,7 @@ export function useDataNodeActions({
       setNodeActionMenu(null);
       onEnterDataView();
       onActivateNode(nextNode);
-      onWorkspaceContentChanged();
+      onWorkspaceContentChanged(changedResources ?? [nextPath]);
       onLocalWorkspaceContentChanged();
     } catch (error) {
       setCreateEntryDraft((current) => current ? {
@@ -250,7 +253,7 @@ export function useDataNodeActions({
             ? { ...current, path: remapActivePathAfterRename(current.path, previousPath, nextPath) ?? current.path }
             : current
       ));
-      onWorkspaceContentChanged();
+      onWorkspaceContentChanged([previousPath, nextPath]);
       onLocalWorkspaceContentChanged();
     } catch (error) {
       setNodeActionMenu((current) => current ? {
@@ -299,7 +302,7 @@ export function useDataNodeActions({
       setActiveExplorerNode((current) => (
         deletedNodes.some((node) => current?.path === node.path || current?.path.startsWith(`${node.path}/`)) ? null : current
       ));
-      onWorkspaceContentChanged();
+      onWorkspaceContentChanged(deletedNodes.map((node) => node.path));
       onLocalWorkspaceContentChanged();
     }
 

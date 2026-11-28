@@ -16,8 +16,11 @@ export {
 } from "./history";
 export type { AccessPointCatalogKind } from "./access-points";
 export {
+  CloudSignInDialog,
+  closeCloudSignInDialog,
   getCloudAuthEmail,
   getCloudAuthSession,
+  openCloudSignInDialog,
   resolveCloudAuthState,
   useCloudSessionForEnvironment,
 } from "./auth";
@@ -49,3 +52,13 @@ export { loadBillingCatalog, loadBillingResource, loadBillingSummary, loadBillin
 export type { BillingReadScope } from "./billing/billingReadCache";
 export { createCloudBillingContextKey } from "./billing/cloudBillingState";
 export { SpaceMark, SpacePlanBadge, useSpaceName } from "./spaces/SpaceMark";
+export {
+  CloudScreenLiveViewport,
+  CloudScreenThumbnail,
+  ComputerScreenSidebarEntry,
+  ComputerScreenStage,
+  type CloudScreenRuntimeState,
+  type ComputerScreenPower,
+  type ComputerScreenStageMode,
+} from "./sandbox/CloudComputerScreen";
+export { cloudScreenViewer, type CloudScreenViewerStatus } from "./sandbox/screenTransports";

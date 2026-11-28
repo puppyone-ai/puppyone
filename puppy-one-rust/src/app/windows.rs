@@ -1,0 +1,686 @@
+//! Window ownership (`electron/main.mjs` `createWindow`, `windowStateById`,
+//! `createOrRevealWindow`). Every window hosts one `Shell`; process-wide
+//! owners (preferences, accounts) are shared, per-window state is not.
+//!
+//! - File/Dock → New Window opens a window on the Homepage.
+//! - A project opens in the window it was chosen from, even when another
+//!   window shows it too (`workspace-window-index.mjs`: the app "never
+//!   chooses a user's destination window").
+//! - A folder from Finder or a second launch opens in a new window; a
+//!   Markdown, CSV or HTML file in a file window of its own (the window
+//!   already showing it comes forward). At launch such a request replaces
+//!   the window the launch would otherwise open.
+//! - Menu-bar actions (and Undo/Redo) reach the active window's shell.
+//! - Quit asks every window to close through its own close barrier. On
+//!   macOS closing the last window leaves the app running; the Dock opens
+//!   the last active project (`readLastActiveWorkspaceComposition`), as
+//!   does a launch without arguments.
+use super::Shell;
+use crate::features::settings::PreferencesStore;
+use gpui::*;
+use std::path::PathBuf;
+
+#[derive(Default)]
+struct Registry {
+    windows: Vec<(AnyWindowHandle, WeakEntity<Shell>)>,
+    /// Quit is closing every window: individual closes do not end the app
+    /// early or change what the next launch restores.
+    quitting: bool,
+}
+impl Global for Registry {}
+
+/// The process-wide preference owner every window shares.
+struct SharedPreferences(Entity<PreferencesStore>);
+impl Global for SharedPreferences {}
+
+/// What the next shell opens with (the window being constructed).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Launch {
+    pub workspace: Option<PathBuf>,
+    /// A file window's file (`initialFilePath`).
+    pub file: Option<PathBuf>,
+    /// The project's document to open first (`initialOpenPath`), relative
+    /// to the project.
+    pub open: Option<PathBuf>,
+    /// The process arguments apply to the first window only.
+    pub from_args: bool,
+}
+/// What a window opens on, resolved from its [`Launch`] and (for the first
+/// window) the process arguments and the capture environment.
+pub(super) struct LaunchPlan {
+    /// A file window's file, and whether a capture holds it loading.
+    pub file: Option<(PathBuf, bool)>,
+    /// The folder to open.
+    pub workspace: Option<PathBuf>,
+    /// The document to open first, once the project is in: the arguments'
+    /// (when they were read), else the launch's.
+    pub open_first: Option<Option<PathBuf>>,
+    /// No project: open the last active one once preferences load
+    /// (`readLastActiveWorkspaceComposition`).
+    pub restore_last: bool,
+}
+impl Launch {
+    pub(super) fn plan(&self, fixture: bool) -> LaunchPlan {
+        let mut workspace = if cfg!(test) || !self.from_args {
+            self.workspace.clone()
+        } else {
+            std::env::var_os("PUPPYONE_WORKSPACE").map(PathBuf::from)
+        };
+        let mut open_first = None;
+        // `findLaunchTargetArg`: the first window opens the folder the
+        // command line names (a named file has its own window, from main).
+        if !cfg!(test) && self.from_args {
+            let cwd = std::env::current_dir().unwrap_or_default();
+            let parsed = parse_launch_args(std::env::args_os().skip(1), &cwd);
+            open_first = Some(parsed.open);
+            if let Some(path) = parsed.target.filter(|p| p.is_dir()) {
+                workspace = Some(path);
+            }
+        }
+        // Dev captures open a file window with `PUPPYONE_FILE_MODE` (a path
+        // that is not there opens on the unavailable state), and may hold
+        // it loading (`PUPPYONE_FILE_HOLD`).
+        #[cfg(feature = "dev-capture")]
+        let file = self.file.clone().or_else(|| {
+            std::env::var_os("PUPPYONE_FILE_MODE")
+                .filter(|_| self.from_args)
+                .map(PathBuf::from)
+                .map(|p| p.canonicalize().unwrap_or(p))
+        });
+        #[cfg(not(feature = "dev-capture"))]
+        let file = self.file.clone();
+        let hold =
+            cfg!(feature = "dev-capture") && std::env::var_os("PUPPYONE_FILE_HOLD").is_some();
+        if workspace.is_some() && self.open.is_some() {
+            open_first = Some(self.open.clone());
+        }
+        let restore_last =
+            file.is_none() && workspace.is_none() && self.from_args && !fixture && !cfg!(test);
+        LaunchPlan {
+            file: file.map(|file| (file, hold)),
+            workspace,
+            open_first,
+            restore_last,
+        }
+    }
+}
+struct PendingLaunch(Option<Launch>);
+impl Global for PendingLaunch {}
+
+pub(super) fn take_launch(cx: &mut App) -> Launch {
+    let first = !cx.has_global::<Registry>()
+        || cx.global::<Registry>().windows.is_empty() && !cx.global::<Registry>().quitting;
+    match cx.try_global::<PendingLaunch>().and_then(|p| p.0.clone()) {
+        Some(launch) => {
+            cx.set_global(PendingLaunch(None));
+            launch
+        }
+        None => Launch {
+            workspace: None,
+            file: None,
+            open: None,
+            from_args: first,
+        },
+    }
+}
+/// The preferences every window shares, once a window created them.
+pub(super) fn preferences(cx: &App) -> Option<Entity<PreferencesStore>> {
+    cx.try_global::<SharedPreferences>().map(|p| p.0.clone())
+}
+pub(super) fn shared_preferences(fixture: bool, cx: &mut App) -> Entity<PreferencesStore> {
+    if fixture {
+        return cx.new(|_| PreferencesStore::memory());
+    }
+    if let Some(shared) = cx.try_global::<SharedPreferences>() {
+        return shared.0.clone();
+    }
+    let store = cx.new(PreferencesStore::new);
+    cx.set_global(SharedPreferences(store.clone()));
+    store
+}
+pub(super) fn register(handle: AnyWindowHandle, shell: WeakEntity<Shell>, cx: &mut App) {
+    if !cx.has_global::<Registry>() {
+        cx.set_global(Registry::default());
+        super::dialogs::question::install();
+    }
+    let registry = cx.global_mut::<Registry>();
+    registry
+        .windows
+        .retain(|(h, s)| *h != handle && s.upgrade().is_some());
+    registry.windows.push((handle, shell));
+}
+pub(super) fn unregister(handle: AnyWindowHandle, cx: &mut App) {
+    if cx.has_global::<Registry>() {
+        cx.global_mut::<Registry>()
+            .windows
+            .retain(|(h, _)| *h != handle);
+    }
+}
+fn live(cx: &App) -> Vec<(AnyWindowHandle, Entity<Shell>)> {
+    cx.try_global::<Registry>()
+        .map(|r| {
+            r.windows
+                .iter()
+                .filter_map(|(h, s)| s.upgrade().map(|s| (*h, s)))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+/// The shell of `handle`'s window.
+pub(super) fn shell_of(handle: AnyWindowHandle, cx: &App) -> Option<Entity<Shell>> {
+    live(cx)
+        .into_iter()
+        .find_map(|(h, shell)| (h == handle).then_some(shell))
+}
+/// The shell of the key window, else the most recently registered one.
+pub fn active(cx: &App) -> Option<(AnyWindowHandle, Entity<Shell>)> {
+    let windows = live(cx);
+    let key = cx.active_window();
+    windows
+        .iter()
+        .find(|(h, _)| Some(*h) == key)
+        .or_else(|| windows.last())
+        .cloned()
+}
+pub fn count(cx: &App) -> usize {
+    live(cx).len()
+}
+pub fn quitting(cx: &App) -> bool {
+    cx.try_global::<Registry>().is_some_and(|r| r.quitting)
+}
+/// Whether the last window closing ends the app: always when quitting,
+/// otherwise governed by [`crate::platform::conventions::Conventions`].
+pub fn last_close_quits(cx: &App) -> bool {
+    quitting(cx) || crate::platform::conventions::Conventions::current().last_window_close_quits
+}
+/// Quit: every window closes through its own barrier; the last close quits.
+pub fn quit_all(cx: &mut App) {
+    if !cx.has_global::<Registry>() {
+        cx.quit();
+        return;
+    }
+    cx.global_mut::<Registry>().quitting = true;
+    let windows = live(cx);
+    if windows.is_empty() {
+        cx.quit();
+        return;
+    }
+    cx.defer(move |cx| {
+        for (handle, shell) in windows {
+            let _ = handle.update(cx, |_, window, cx| {
+                shell.update(cx, |s, cx| s.command(super::Command::Quit, window, cx))
+            });
+        }
+    });
+}
+/// A close or quit was refused (a document could not be saved): the app
+/// keeps running with the remaining windows.
+pub fn cancel_quit(cx: &mut App) {
+    if cx.has_global::<Registry>() {
+        cx.global_mut::<Registry>().quitting = false;
+    }
+    // `handleQuitCancelled`: a restart to update did not happen.
+    if let Some(updates) = crate::features::updates::global(cx) {
+        updates.update(cx, |u, cx| u.quit_cancelled(cx));
+    }
+}
+
+/// The running channel's application name (`application-identity.mjs`),
+/// disambiguated across local development worktrees and isolated data dirs.
+pub fn application_name() -> &'static str {
+    static NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    NAME.get_or_init(crate::platform::application_identity::current_application_name)
+}
+/// `createWindow`: a project window is 1180 × 760, centred.
+pub const WINDOW_SIZE: (f32, f32) = (1180., 760.);
+/// `DEFAULT_MACOS_WINDOW_BUTTON_POSITION`: the leading inset, and the
+/// buttons centred in the 40px Header lane (`(40 - 14) / 2`).
+pub const TRAFFIC_LIGHTS: (f32, f32) = (12., 13.);
+
+/// The window options shared by launch and New Window.
+pub fn window_options(bounds: Bounds<Pixels>, focus: bool) -> WindowOptions {
+    let conventions = crate::platform::conventions::Conventions::current();
+    let traffic_light_position = (conventions.window_controls_side
+        == crate::platform::conventions::WindowControlsSide::Leading)
+        .then_some(point(px(TRAFFIC_LIGHTS.0), px(TRAFFIC_LIGHTS.1)));
+    let window_decorations = conventions
+        .uses_client_window_decorations
+        .then_some(WindowDecorations::Client);
+    WindowOptions {
+        focus,
+        window_bounds: Some(WindowBounds::Windowed(bounds)),
+        titlebar: Some(TitlebarOptions {
+            title: Some(application_name().into()),
+            appears_transparent: true,
+            traffic_light_position,
+        }),
+        window_decorations,
+        window_background: WindowBackgroundAppearance::Opaque,
+        window_min_size: Some(size(
+            px(crate::theme::pane::WINDOW_MIN_WIDTH),
+            px(crate::theme::pane::WINDOW_MIN_HEIGHT),
+        )),
+        ..Default::default()
+    }
+}
+/// Opens a shell window; `workspace` opens that project, `None` the Homepage.
+pub fn open(workspace: Option<PathBuf>, cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
+    open_with(
+        Launch {
+            workspace,
+            file: None,
+            open: None,
+            from_args: false,
+        },
+        cx,
+    )
+}
+/// A new window on a project just created, its first document open
+/// (`openWorkspaceInNewWindow(path, { initialOpenPath })`).
+pub fn open_created(
+    workspace: PathBuf,
+    open: Option<PathBuf>,
+    cx: &mut App,
+) -> anyhow::Result<AnyWindowHandle> {
+    open_with(
+        Launch {
+            workspace: Some(workspace),
+            file: None,
+            open,
+            from_args: false,
+        },
+        cx,
+    )
+}
+/// `openPathFromSystem` for a file: the window already showing it comes
+/// forward, otherwise a file window opens.
+pub fn open_file(path: PathBuf, cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
+    if let Some((handle, _)) = live(cx).into_iter().find(|(_, shell)| {
+        shell
+            .read(cx)
+            .file
+            .as_ref()
+            .is_some_and(|f| f.read(cx).target.path == path)
+    }) {
+        let _ = handle.update(cx, |_, w, _| w.activate_window());
+        return Ok(handle);
+    }
+    open_with(
+        Launch {
+            workspace: None,
+            file: Some(path),
+            open: None,
+            from_args: false,
+        },
+        cx,
+    )
+}
+fn open_with(launch: Launch, cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
+    open_window(launch, true, cx)
+}
+/// A new window; `activate` brings the app to the front (a background
+/// request from the command line leaves focus where it was).
+fn open_window(launch: Launch, activate: bool, cx: &mut App) -> anyhow::Result<AnyWindowHandle> {
+    let (w, h) = if launch.file.is_some() {
+        super::file_mode::FILE_WINDOW_SIZE
+    } else {
+        WINDOW_SIZE
+    };
+    cx.set_global(PendingLaunch(Some(launch)));
+    // `center: true`: every new window is centred.
+    let bounds = Bounds::centered(None, size(px(w), px(h)), cx);
+    let handle = cx.open_window(window_options(bounds, activate), |window, cx| {
+        let view = cx.new(|cx| Shell::new(window, cx));
+        cx.new(|cx| gpui_kit::base::Root::new(view, window, cx))
+    })?;
+    if activate {
+        cx.activate(true);
+    }
+    Ok(handle.into())
+}
+
+/// What a file window opens, as the command line is told (`hello`).
+pub use super::file_mode::{MAX_EDITOR_BYTES, file_mode_extensions};
+
+/// `openPathFromSystem` for `puppyone open` (`createSystemOpenRoute` with
+/// `enforceSizeLimit`): a folder opens its project window and a file its
+/// own window; either already open comes forward instead. A refusal names
+/// its protocol code.
+pub fn open_from_cli(
+    requested: &str,
+    activate: bool,
+    cx: &mut App,
+) -> Result<crate::platform::cli_control::Opened, (&'static str, String)> {
+    use crate::platform::cli_control::Opened;
+    let path = std::path::Path::new(requested);
+    let real = path.canonicalize().map_err(|error| match error.kind() {
+        std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory => {
+            ("PATH_NOT_FOUND", format!("{requested} does not exist."))
+        }
+        _ => (
+            "OPEN_FAILED",
+            format!("{requested} cannot be read: {error}"),
+        ),
+    })?;
+    let metadata = std::fs::metadata(&real).map_err(|error| {
+        (
+            "OPEN_FAILED",
+            format!("{requested} cannot be read: {error}"),
+        )
+    })?;
+    let show = |handle: AnyWindowHandle, cx: &mut App| {
+        if activate {
+            let _ = handle.update(cx, |_, window, _| window.activate_window());
+            cx.activate(true);
+        }
+    };
+    let failed = |_| ("OPEN_FAILED", format!("{requested} could not be opened."));
+    if metadata.is_dir() {
+        if let Some(handle) = window_for_folder(&real, cx) {
+            show(handle, cx);
+            return Ok(Opened {
+                folder: true,
+                focused: true,
+            });
+        }
+        open_window(
+            Launch {
+                workspace: Some(real),
+                file: None,
+                open: None,
+                from_args: false,
+            },
+            activate,
+            cx,
+        )
+        .map_err(failed)?;
+        return Ok(Opened {
+            folder: true,
+            focused: false,
+        });
+    }
+    if !metadata.is_file() {
+        return Err((
+            "NOT_A_FILE_OR_FOLDER",
+            format!("{requested} is not a file or folder."),
+        ));
+    }
+    if !super::file_mode::is_file_mode_file(&real) {
+        return Err((
+            "UNSUPPORTED_TYPE",
+            format!("{requested} is not a Markdown, CSV or HTML file."),
+        ));
+    }
+    let existing = live(cx).into_iter().find(|(_, shell)| {
+        shell
+            .read(cx)
+            .file
+            .as_ref()
+            .is_some_and(|f| f.read(cx).target.path == real)
+    });
+    if let Some((handle, _)) = existing {
+        show(handle, cx);
+        return Ok(Opened {
+            folder: false,
+            focused: true,
+        });
+    }
+    // A window that can only say the file is too large is no use to a
+    // caller that can be told.
+    let max = super::file_mode::MAX_EDITOR_BYTES;
+    if metadata.len() > max {
+        return Err((
+            "FILE_TOO_LARGE",
+            format!("{requested} is larger than {max} bytes."),
+        ));
+    }
+    open_window(
+        Launch {
+            workspace: None,
+            file: Some(real),
+            open: None,
+            from_args: false,
+        },
+        activate,
+        cx,
+    )
+    .map_err(failed)?;
+    Ok(Opened {
+        folder: false,
+        focused: false,
+    })
+}
+/// The last active project recorded in `store`, when it still exists.
+pub(super) fn last_active_project_in(
+    store: &Entity<PreferencesStore>,
+    cx: &App,
+) -> Option<PathBuf> {
+    store
+        .read(cx)
+        .state
+        .recent_projects
+        .first()
+        .map(|p| p.path.clone())
+        .filter(|p| p.is_dir())
+}
+/// The last active project, when it still exists.
+pub fn last_active_project(cx: &App) -> Option<PathBuf> {
+    let shared = cx.try_global::<SharedPreferences>()?;
+    last_active_project_in(&shared.0, cx)
+}
+
+/// `queueTemplateIntent`: the app's own template link
+/// (`puppyone://templates/import?id=…`) shows its card in the window in
+/// front, or a new one. Anything else is not a template link.
+fn open_template_link(url: &str, cx: &mut App) -> bool {
+    use crate::platform::{build_identity, templates::link};
+    let channel = build_identity::current().channel;
+    if !url.starts_with(&format!("{}://templates/", link::scheme(channel))) {
+        return false;
+    }
+    let origin = link::store_origin();
+    let Ok(template) = link::parse(url, &origin, channel) else {
+        // Invalid external intents are ignored.
+        return true;
+    };
+    let share = link::share_link(&template, &origin);
+    let target = active(cx).or_else(|| {
+        let handle = open(None, cx).ok()?;
+        live(cx).into_iter().find(|(h, _)| *h == handle)
+    });
+    if let Some((handle, shell)) = target {
+        let _ = handle.update(cx, |_, window, cx| {
+            window.activate_window();
+            shell.update(cx, |s, cx| {
+                s.home
+                    .update(cx, |h, cx| h.open_template_link(share, window, cx))
+            });
+        });
+    }
+    true
+}
+/// `isDesktopReturnUrl`: the channel's own `<scheme>://open` brings the app
+/// forward. A cold launch makes its first window anyway, so the link adds
+/// nothing then.
+fn is_return_link(url: &str) -> bool {
+    use crate::platform::{build_identity, templates::link};
+    url == format!("{}://open", link::scheme(build_identity::current().channel))
+}
+/// Paths the platform asked us to open (`openPathFromSystem`): a folder in
+/// a new window; a Markdown, CSV or HTML file in its own file window. Other
+/// files cannot be opened on their own. `true` when a window now shows one.
+pub fn open_launch_urls(urls: Vec<String>, cx: &mut App) -> bool {
+    let mut shown = false;
+    for url in urls {
+        if open_template_link(&url, cx) {
+            shown = true;
+            continue;
+        }
+        if is_return_link(&url) {
+            if !live(cx).is_empty() {
+                reveal_or_create(cx);
+            }
+            continue;
+        }
+        let Some(path) = url::Url::parse(&url)
+            .ok()
+            .filter(|u| u.scheme() == "file")
+            .and_then(|u| u.to_file_path().ok())
+            .and_then(|p| p.canonicalize().ok())
+        else {
+            continue;
+        };
+        shown |= open_path(path, cx);
+    }
+    shown
+}
+
+/// `findProjectWindowForFolder`: the project window that shows `folder`,
+/// or is still opening or restoring it.
+fn window_for_folder(folder: &std::path::Path, cx: &App) -> Option<AnyWindowHandle> {
+    live(cx).into_iter().find_map(|(handle, shell)| {
+        let shell = shell.read(cx);
+        (shell.file.is_none()
+            && [shell.workspace_root(cx), shell.opening_folder(cx)]
+                .iter()
+                .any(|root| root.as_deref() == Some(folder)))
+        .then_some(handle)
+    })
+}
+
+/// `openPathFromSystem`: `true` when a window now shows `path`. A folder a
+/// project window already shows, or is still opening, comes forward there.
+pub fn open_path(path: PathBuf, cx: &mut App) -> bool {
+    if path.is_dir() {
+        let real = path.canonicalize().unwrap_or(path);
+        if let Some(handle) = window_for_folder(&real, cx) {
+            let _ = handle.update(cx, |_, window, _| window.activate_window());
+            cx.activate(true);
+            return true;
+        }
+        open(Some(real), cx).is_ok()
+    } else if super::file_mode::is_file_mode_file(&path) {
+        open_file(path, cx).is_ok()
+    } else {
+        po_platform::diagnosticln!(
+            "This file type cannot be opened on its own: {}",
+            path.display()
+        );
+        false
+    }
+}
+
+/// What a command line names (`findLaunchTargetArg`).
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct LaunchArgs {
+    /// The last folder or file named; anything that is not a path is
+    /// ignored, as are other flags.
+    pub target: Option<PathBuf>,
+    /// `--file <relative>`: the project's document to open first.
+    pub open: Option<PathBuf>,
+}
+/// Parse arguments (without the program) resolved against `cwd`; a
+/// `file://` URI names its path. `--workspace <folder>` and `--file
+/// <relative>` are the native build's own developer flags.
+pub fn parse_launch_args(
+    args: impl IntoIterator<Item = std::ffi::OsString>,
+    cwd: &std::path::Path,
+) -> LaunchArgs {
+    let resolve = |arg: &std::ffi::OsStr| {
+        let text = arg.to_string_lossy();
+        let path = match url::Url::parse(&text).ok().filter(|u| u.scheme() == "file") {
+            Some(url) => url.to_file_path().ok()?,
+            None => PathBuf::from(arg),
+        };
+        let path = cwd.join(path).canonicalize().ok()?;
+        (path.is_dir() || path.is_file()).then_some(path)
+    };
+    let mut parsed = LaunchArgs::default();
+    let mut args = args.into_iter();
+    while let Some(arg) = args.next() {
+        if arg == "--workspace" {
+            if let Some(path) = args.next().as_deref().and_then(resolve) {
+                parsed.target = Some(path);
+            }
+        } else if arg == "--file" {
+            parsed.open = args.next().map(PathBuf::from);
+        } else if !arg.to_string_lossy().starts_with('-')
+            && let Some(path) = resolve(&arg)
+        {
+            parsed.target = Some(path);
+        }
+    }
+    parsed
+}
+
+/// `handleSecondInstanceLaunch`: a later launch's command line. A template
+/// link shows its card; a file opens in its file window, a folder in a new
+/// window; otherwise (or when that fails) a window comes forward.
+pub fn second_instance(args: Vec<std::ffi::OsString>, cwd: PathBuf, cx: &mut App) {
+    if args
+        .iter()
+        .any(|arg| open_template_link(&arg.to_string_lossy(), cx))
+    {
+        return;
+    }
+    let parsed = parse_launch_args(args, &cwd);
+    if parsed.target.is_some_and(|path| open_path(path, cx)) {
+        return;
+    }
+    reveal_or_create(cx);
+}
+
+/// `createOrRevealWindow`: the window last in front comes forward, or a new
+/// one opens.
+fn reveal_or_create(cx: &mut App) {
+    let front = active(cx).or_else(|| live(cx).into_iter().next());
+    match front {
+        Some((handle, _)) => {
+            let _ = handle.update(cx, |_, window, _| window.activate_window());
+            cx.activate(true);
+        }
+        None => {
+            let _ = open(last_active_project(cx), cx);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+    use std::ffi::OsString;
+
+    #[test]
+    fn only_this_channels_open_link_is_a_return_link() {
+        // An unstamped test build is Dev.
+        assert!(is_return_link("puppyone-development://open"));
+        assert!(!is_return_link("puppyone://open"));
+        assert!(!is_return_link("puppyone-development://open/x"));
+        assert!(!is_return_link(
+            "puppyone-development://templates/import?id=a"
+        ));
+    }
+
+    #[test]
+    fn the_last_folder_or_file_on_the_command_line_is_the_target() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().canonicalize().unwrap();
+        std::fs::write(root.join("a.md"), "# A\n").unwrap();
+        std::fs::create_dir(root.join("notes")).unwrap();
+        let parse = |args: &[&str]| parse_launch_args(args.iter().map(OsString::from), &root);
+        // Flags and names that are not there are ignored; the last path wins.
+        assert_eq!(
+            parse(&["-psn_0_1", "missing.md", "a.md"]).target,
+            Some(root.join("a.md"))
+        );
+        assert_eq!(parse(&["a.md", "notes"]).target, Some(root.join("notes")));
+        let uri = url::Url::from_file_path(root.join("a.md")).unwrap();
+        assert_eq!(parse(&[uri.as_str()]).target, Some(root.join("a.md")));
+        assert_eq!(parse(&["--unknown"]), LaunchArgs::default());
+        // The native developer flags.
+        let parsed = parse(&["--workspace", "notes", "--file", "README.md"]);
+        assert_eq!(parsed.target, Some(root.join("notes")));
+        assert_eq!(parsed.open, Some(PathBuf::from("README.md")));
+    }
+}

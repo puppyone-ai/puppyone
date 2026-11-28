@@ -1,0 +1,718 @@
+//! Application adapter for GPUI Kit's Input / Textarea. Kit owns editing,
+//! selection, IME, clipboard and history; this adapter only bridges host events.
+pub use super::input::InputSnapshot;
+use crate::theme::Theme;
+use crate::ui::appearance::ActiveAppearance;
+use gpui::{prelude::*, *};
+use gpui_kit::component::input::{
+    InlineToken, InlineTokenContext, Input, InputContent, InputEvent as KitEvent, InputState,
+    Textarea, TextareaState,
+};
+use std::rc::Rc;
+
+mod accessibility;
+
+/// How an atomic inline token renders (a prompt mention's chip).
+pub type TokenRenderer = Rc<dyn Fn(&InlineTokenContext, &mut Window, &mut App) -> AnyElement>;
+#[derive(Clone, Debug)]
+pub enum InputEvent {
+    Changed,
+    Submit,
+}
+actions!(puppy_form, [NextField, PreviousField]);
+enum Field {
+    Single(Entity<InputState>),
+    Multi(Entity<TextareaState>),
+}
+macro_rules! dispatch {
+    ($field:expr,|$s:ident| $body:expr) => {
+        match $field {
+            Field::Single($s) => $body,
+            Field::Multi($s) => $body,
+        }
+    };
+}
+pub struct TextInput {
+    field: Field,
+    focus: FocusHandle,
+    value: SharedString,
+    placeholder: SharedString,
+    pending: Option<InputSnapshot>,
+    pub appearance: bool,
+    /// Kit's disabled field: no editing or focus, muted.
+    pub disabled: bool,
+    /// URL semantics for the native input method and accessibility role.
+    pub url: bool,
+    pub accessibility_label: Option<SharedString>,
+    /// The field's validation failure, exposed on its own accessibility node.
+    pub invalid_description: Option<String>,
+    #[cfg(any(test, feature = "test-support"))]
+    pub accessibility_node: Option<gpui::accesskit::Node>,
+    pub submit_on_enter: bool,
+    /// A paste of images or files is the host's ([`PastedFiles`]), not text.
+    pub paste_files: bool,
+    pub min_height: f32,
+    /// Prompt editors: Kit's smallest editor padding (4px inline, 0 block) so
+    /// the host owns the inset, with an explicit text size and line height.
+    pub prompt_text: Option<(f32, f32)>,
+    /// Draw the placeholder in this palette colour (Kit's follows the global
+    /// theme).
+    pub placeholder_color: Option<fn(&Theme) -> Rgba>,
+    /// Atomic inline tokens (prompt mentions) render through this.
+    pub token_renderer: Option<TokenRenderer>,
+    /// Text with tokens to install at the next render (a restored draft).
+    pending_content: Option<InputContent>,
+    max_chars: usize,
+    last_wrap_rows: usize,
+    _subscriptions: Vec<Subscription>,
+}
+impl EventEmitter<InputEvent> for TextInput {}
+
+/// Images or files pasted into an input with `paste_files`.
+#[derive(Clone)]
+pub struct PastedFiles {
+    pub images: Vec<gpui::Image>,
+    pub paths: Vec<std::path::PathBuf>,
+}
+impl EventEmitter<PastedFiles> for TextInput {}
+impl TextInput {
+    pub fn new(
+        placeholder: impl Into<SharedString>,
+        multiline: bool,
+        max_chars: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        if cx.try_global::<gpui_kit::component::Theme>().is_none() {
+            gpui_kit::init(cx);
+        }
+        let placeholder = placeholder.into();
+        let field = if multiline {
+            Field::Multi(cx.new(|cx| {
+                TextareaState::new(window, cx)
+                    .placeholder(placeholder.clone())
+                    .auto_grow(1, 12)
+            }))
+        } else {
+            Field::Single(cx.new(|cx| {
+                InputState::new(window, cx)
+                    .placeholder(placeholder.clone())
+                    .validate(move |text, _| text.chars().count() <= max_chars)
+            }))
+        };
+        let focus = dispatch!(&field, |s| s.focus_handle(cx));
+        let subscription = dispatch!(&field, |s| cx.subscribe_in(
+            s,
+            window,
+            |this, state, event: &KitEvent, w, cx| {
+                let (value, composing) = state.update(cx, |s, cx| {
+                    (s.value(), s.marked_text_range(w, cx).is_some())
+                });
+                this.value = value;
+                match event {
+                    KitEvent::Change => cx.emit(InputEvent::Changed),
+                    KitEvent::PressEnter {
+                        secondary: true, ..
+                    } if !composing => cx.emit(InputEvent::Submit),
+                    KitEvent::PressEnter { .. }
+                        if !composing && matches!(this.field, Field::Single(_)) =>
+                    {
+                        if this.submit_on_enter {
+                            cx.emit(InputEvent::Submit)
+                        } else {
+                            move_focus(false, w, cx)
+                        }
+                    }
+                    _ => {}
+                }
+                cx.notify();
+            }
+        ));
+        let mut subscriptions = vec![subscription];
+        if let Field::Multi(state) = &field {
+            subscriptions.push(cx.observe(state, |this, state, cx| {
+                let rows = state.read(cx).display_map().wrap_row_count();
+                if rows != this.last_wrap_rows {
+                    this.last_wrap_rows = rows;
+                    cx.notify();
+                }
+            }));
+        }
+        Self {
+            field,
+            focus,
+            value: "".into(),
+            placeholder,
+            pending: None,
+            appearance: true,
+            disabled: false,
+            url: false,
+            accessibility_label: None,
+            invalid_description: None,
+            #[cfg(any(test, feature = "test-support"))]
+            accessibility_node: None,
+            submit_on_enter: false,
+            paste_files: false,
+            prompt_text: None,
+            placeholder_color: None,
+            min_height: 22.,
+            token_renderer: None,
+            pending_content: None,
+            max_chars,
+            last_wrap_rows: 1,
+            _subscriptions: subscriptions,
+        }
+    }
+    /// `type="password"`: Kit masks the value and exposes it to no one.
+    pub fn masked(self, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        if let Field::Single(state) = &self.field {
+            state.update(cx, |s, cx| s.set_masked(true, window, cx));
+        }
+        self
+    }
+    pub fn text(&self) -> &str {
+        &self.value
+    }
+    /// Number of wrapped visual rows currently laid out by a multiline field.
+    pub fn wrap_row_count(&self, cx: &App) -> usize {
+        match &self.field {
+            Field::Single(_) => 1,
+            Field::Multi(state) => state.read(cx).display_map().wrap_row_count(),
+        }
+    }
+    /// Cap the auto-grow row ceiling of a multiline field before internal scrolling.
+    pub fn set_max_rows(&self, max_rows: usize, cx: &mut App) {
+        self.set_rows(1, max_rows, cx);
+    }
+    /// Set both the minimum and maximum auto-grow rows of a multiline field.
+    pub fn set_rows(&self, min_rows: usize, max_rows: usize, cx: &mut App) {
+        if let Field::Multi(state) = &self.field {
+            state.update(cx, |s, cx| s.set_auto_grow(min_rows, max_rows, cx));
+        }
+    }
+    /// The latest painted caret bounds of the underlying field, for alignment checks.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn cursor_bounds(&self, cx: &App) -> Option<Bounds<Pixels>> {
+        dispatch!(&self.field, |s| s.read(cx).cursor_layout().map(|(b, _)| b))
+    }
+    pub fn composing(&self, window: &mut Window, cx: &mut App) -> bool {
+        dispatch!(&self.field, |s| s
+            .update(cx, |s, cx| s.marked_text_range(window, cx).is_some()))
+    }
+    pub fn set_placeholder(&mut self, text: impl Into<SharedString>, cx: &mut Context<Self>) {
+        let next = text.into();
+        if self.placeholder != next {
+            self.placeholder = next;
+            cx.notify();
+        }
+    }
+    pub fn placeholder(&self) -> &str {
+        &self.placeholder
+    }
+    pub fn restore(&mut self, mut s: InputSnapshot, cx: &mut Context<Self>) {
+        s.text = s.text.chars().take(self.max_chars).collect();
+        s.anchor = s.anchor.min(s.text.len());
+        s.cursor = s.cursor.min(s.text.len());
+        self.value = s.text.clone().into();
+        self.pending = Some(s);
+        cx.notify();
+    }
+    /// Replace the value, placing the caret at the end.
+    pub fn set_text(&mut self, text: impl Into<String>, cx: &mut Context<Self>) {
+        let text = text.into();
+        let end = text.len();
+        self.restore(
+            InputSnapshot {
+                text,
+                marks: vec![],
+                anchor: end,
+                cursor: end,
+            },
+            cx,
+        );
+    }
+    /// `AgentPromptEditor`'s mention insertion: atomic tokens at the caret
+    /// (replacing a selection), a space between them, one before unless
+    /// whitespace precedes and one after unless whitespace or the end
+    /// follows; the caret lands after them. `(id, text)` per token.
+    pub fn insert_tokens(
+        &mut self,
+        tokens: &[(String, String)],
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        if tokens.is_empty() {
+            return true;
+        }
+        if let Some(content) = self.pending_content.take() {
+            dispatch!(&self.field, |s| s.update(cx, |s, cx| {
+                let end = content.text().len();
+                s.set_value(content, window, cx);
+                s.set_selected_range(end..end, cx);
+            }));
+        }
+        if let Some(value) = self.pending.take() {
+            dispatch!(&self.field, |s| s.update(cx, |s, cx| {
+                s.set_value(value.text, window, cx);
+                s.set_selected_range(
+                    value.anchor.min(value.cursor)..value.anchor.max(value.cursor),
+                    cx,
+                );
+            }));
+        }
+        let ok = dispatch!(&self.field, |s| s.update(cx, |s, cx| {
+            let value = s.value().to_string();
+            let range = s.selected_range();
+            let before = value[..range.start].chars().next_back();
+            let after = value[range.end..].chars().next();
+            if !range.is_empty() {
+                use gpui::EntityInputHandler as _;
+                let utf16 = |byte: usize| value[..byte].encode_utf16().count();
+                s.replace_text_in_range(Some(utf16(range.start)..utf16(range.end)), "", window, cx);
+            }
+            if before.is_some_and(|c| !c.is_whitespace()) {
+                s.insert(" ", window, cx);
+            }
+            for (index, (id, text)) in tokens.iter().enumerate() {
+                if index > 0 {
+                    s.insert(" ", window, cx);
+                }
+                let at = s.cursor();
+                if s.replace_range_with_token(
+                    at..at,
+                    InlineToken::new(id.clone(), text.clone()),
+                    window,
+                    cx,
+                )
+                .is_err()
+                {
+                    return false;
+                }
+            }
+            if after.is_some_and(|c| !c.is_whitespace()) {
+                s.insert(" ", window, cx);
+            }
+            true
+        }));
+        self.value = dispatch!(&self.field, |s| s.read(cx).value());
+        ok
+    }
+    /// Inserts plain text at the caret with automatic whitespace separation,
+    /// preserving any existing inline tokens.
+    pub fn insert_text(&mut self, text: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if text.is_empty() {
+            return;
+        }
+        if let Some(content) = self.pending_content.take() {
+            dispatch!(&self.field, |s| s.update(cx, |s, cx| {
+                let end = content.text().len();
+                s.set_value(content, window, cx);
+                s.set_selected_range(end..end, cx);
+            }));
+        }
+        if let Some(value) = self.pending.take() {
+            dispatch!(&self.field, |s| s.update(cx, |s, cx| {
+                s.set_value(value.text, window, cx);
+                s.set_selected_range(
+                    value.anchor.min(value.cursor)..value.anchor.max(value.cursor),
+                    cx,
+                );
+            }));
+        }
+        dispatch!(&self.field, |s| s.update(cx, |s, cx| {
+            let value = s.value().to_string();
+            let range = s.selected_range();
+            let before = value[..range.start].chars().next_back();
+            let after = value[range.end..].chars().next();
+            if !range.is_empty() {
+                use gpui::EntityInputHandler as _;
+                let utf16 = |byte: usize| value[..byte].encode_utf16().count();
+                s.replace_text_in_range(Some(utf16(range.start)..utf16(range.end)), "", window, cx);
+            }
+            if before.is_some_and(|c| !c.is_whitespace()) {
+                s.insert(" ", window, cx);
+            }
+            s.insert(text, window, cx);
+            if after.is_some_and(|c| !c.is_whitespace()) {
+                s.insert(" ", window, cx);
+            }
+        }));
+        self.value = dispatch!(&self.field, |s| s.read(cx).value());
+        cx.notify();
+    }
+    /// Deletes the token `id` as an edit, leaving the caret where it was
+    /// (`removeMentionFromEditor`).
+    pub fn remove_token(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        let removed = dispatch!(&self.field, |s| s.update(cx, |s, cx| {
+            let Some(range) = s
+                .tokens()
+                .iter()
+                .find(|span| span.token().id().as_ref() == id)
+                .map(|span| span.range())
+            else {
+                return false;
+            };
+            use gpui::EntityInputHandler as _;
+            let value = s.value().to_string();
+            let utf16 = |byte: usize| value[..byte].encode_utf16().count();
+            s.replace_text_in_range(Some(utf16(range.start)..utf16(range.end)), "", window, cx);
+            s.set_selected_range(range.start..range.start, cx);
+            true
+        }));
+        self.value = dispatch!(&self.field, |s| s.read(cx).value());
+        removed
+    }
+    /// The editor's text now, consistent with [`Self::token_spans`]; the
+    /// cached [`Self::text`] follows only once the edit's events ran.
+    pub fn current_text(&self, cx: &App) -> String {
+        dispatch!(&self.field, |s| s.read(cx).value().to_string())
+    }
+    /// The ids of the tokens in the text, in order.
+    pub fn token_ids(&self, cx: &App) -> Vec<String> {
+        dispatch!(&self.field, |s| s
+            .read(cx)
+            .tokens()
+            .iter()
+            .map(|span| span.token().id().to_string())
+            .collect())
+    }
+    /// The tokens in the text with their UTF-8 byte ranges, in order.
+    pub fn token_spans(&self, cx: &App) -> Vec<(String, std::ops::Range<usize>)> {
+        dispatch!(&self.field, |s| s
+            .read(cx)
+            .tokens()
+            .iter()
+            .map(|span| (span.token().id().to_string(), span.range()))
+            .collect())
+    }
+    /// Replace the value with text that carries tokens; the caret ends it.
+    pub fn restore_content(&mut self, content: InputContent, cx: &mut Context<Self>) {
+        self.pending = None;
+        self.value = content.text().clone();
+        self.pending_content = Some(content);
+        cx.notify();
+    }
+    /// Immediately replace the value and inline tokens when a `Window` is available.
+    pub fn set_content(
+        &mut self,
+        content: InputContent,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.pending = None;
+        self.pending_content = None;
+        self.value = content.text().clone();
+        dispatch!(&self.field, |s| s.update(cx, |s, cx| {
+            let end = content.text().len();
+            s.set_value(content, window, cx);
+            s.set_selected_range(end..end, cx);
+        }));
+        cx.notify();
+    }
+    pub fn clear(&mut self, cx: &mut Context<Self>) {
+        self.restore(
+            InputSnapshot {
+                text: String::new(),
+                marks: vec![],
+                anchor: 0,
+                cursor: 0,
+            },
+            cx,
+        );
+    }
+}
+impl Focusable for TextInput {
+    fn focus_handle(&self, _: &App) -> FocusHandle {
+        self.focus.clone()
+    }
+}
+impl Render for TextInput {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if let Some(content) = self.pending_content.take() {
+            dispatch!(&self.field, |s| s.update(cx, |s, cx| {
+                let end = content.text().len();
+                s.set_value(content, window, cx);
+                s.set_selected_range(end..end, cx);
+            }));
+        }
+        if let Some(value) = self.pending.take() {
+            dispatch!(&self.field, |s| s.update(cx, |s, cx| {
+                s.set_value(value.text, window, cx);
+                s.set_selected_range(
+                    value.anchor.min(value.cursor)..value.anchor.max(value.cursor),
+                    cx,
+                );
+            }));
+        }
+        // Keep cached value aligned with the underlying editor buffer so the
+        // placeholder overlay never drifts out of sync with live edits.
+        self.value = dispatch!(&self.field, |s| s.read(cx).value());
+        // A custom placeholder colour is drawn by this host over an empty field.
+        let kit_placeholder = if self.placeholder_color.is_some() {
+            SharedString::default()
+        } else {
+            self.placeholder.clone()
+        };
+        dispatch!(&self.field, |s| {
+            if s.read(cx).presentation().placeholder() != &kit_placeholder {
+                s.update(cx, |s, cx| {
+                    s.set_placeholder(kit_placeholder.clone(), window, cx)
+                });
+            }
+        });
+        let t = cx.palette();
+        let control = match &self.field {
+            Field::Single(s) => {
+                let input = Input::new(s)
+                    .when_some(self.token_renderer.clone(), |input, render| {
+                        input.token(move |token, window, cx| render(token, window, cx))
+                    })
+                    .when(self.url, |input| {
+                        input.content_type(gpui_kit::component::input::InputContentType::Url)
+                    })
+                    .when_some(self.accessibility_label.clone(), |input, label| {
+                        input.aria_label(label)
+                    })
+                    .appearance(self.appearance)
+                    .disabled(self.disabled)
+                    .w_full()
+                    .when_some(self.prompt_text, |input, (size, line)| {
+                        use gpui_kit::component::Sizable as _;
+                        input.xsmall().text_size(px(size)).line_height(px(line))
+                    });
+                let input = gpui::RenderOnce::render(input, window, cx).into_element();
+                let input = accessibility::ValidatedInput::new(
+                    input,
+                    self.disabled,
+                    self.invalid_description.clone(),
+                );
+                #[cfg(any(test, feature = "test-support"))]
+                {
+                    let mut node =
+                        gpui::accesskit::Node::new(input.a11y_role().expect("input role"));
+                    input.write_a11y_info(&mut node);
+                    self.accessibility_node = Some(node);
+                }
+                input.into_any_element()
+            }
+            Field::Multi(s) => Textarea::new(s)
+                .when_some(self.token_renderer.clone(), |area, render| {
+                    area.token(move |token, window, cx| render(token, window, cx))
+                })
+                .appearance(self.appearance)
+                .disabled(self.disabled)
+                .w_full()
+                // Override BaseInput's `items_center()` so the first line and
+                // caret always stay pinned to the top edge alongside `overlay`.
+                .items_start()
+                .when_some(self.prompt_text, |area, (size, line)| {
+                    use gpui_kit::component::Sizable as _;
+                    area.xsmall().text_size(px(size)).line_height(px(line))
+                })
+                .min_h(px(
+                    self.min_height + if self.prompt_text.is_some() { 0. } else { 16. }
+                ))
+                .into_any_element(),
+        };
+        let is_empty = self.value.is_empty();
+        let composing = is_empty && self.composing(window, cx);
+        let overlay = self
+            .placeholder_color
+            .filter(|_| is_empty && !composing)
+            .map(|color| color(&t))
+            .map(|color| {
+                use gpui_kit::component::Size;
+                let (size, line) = self.prompt_text.unwrap_or((14., 21.));
+                let tier = if self.prompt_text.is_some() {
+                    Size::XSmall
+                } else {
+                    Size::Medium
+                };
+                let pad_x = tier.input_px();
+                let pad_y = tier.input_py();
+                match &self.field {
+                    Field::Single(_) => div()
+                        .debug_selector(|| "form-input-placeholder".into())
+                        .absolute()
+                        .inset_0()
+                        .px(pad_x)
+                        .flex()
+                        .items_center()
+                        .child(
+                            div()
+                                .w_full()
+                                .min_w_0()
+                                .text_size(px(size))
+                                .line_height(px(line))
+                                .text_color(color)
+                                .truncate()
+                                .child(self.placeholder.clone()),
+                        ),
+                    Field::Multi(_) => div()
+                        .debug_selector(|| "form-input-placeholder".into())
+                        .absolute()
+                        .top(pad_y)
+                        .left(pad_x)
+                        .right(pad_x)
+                        .text_size(px(size))
+                        .line_height(px(line))
+                        .text_color(color)
+                        .truncate()
+                        .child(self.placeholder.clone()),
+                }
+            });
+        div()
+            .key_context("PuppyForm")
+            .relative()
+            .w_full()
+            .text_color(t.text)
+            .children(overlay)
+            .on_action(cx.listener(|_, _: &NextField, w, cx| {
+                move_focus(false, w, cx);
+            }))
+            .on_action(cx.listener(|_, _: &PreviousField, w, cx| {
+                move_focus(true, w, cx);
+            }))
+            .on_action(|_: &super::input::Undo, w, cx| {
+                w.dispatch_action(Box::new(gpui_kit::base::input::Undo), cx)
+            })
+            .on_action(|_: &super::input::Redo, w, cx| {
+                w.dispatch_action(Box::new(gpui_kit::base::input::Redo), cx)
+            })
+            .on_action(|_: &super::input::Copy, w, cx| {
+                w.dispatch_action(Box::new(gpui_kit::base::input::Copy), cx)
+            })
+            .on_action(|_: &super::input::Cut, w, cx| {
+                w.dispatch_action(Box::new(gpui_kit::base::input::Cut), cx)
+            })
+            .on_action(|_: &super::input::Paste, w, cx| {
+                w.dispatch_action(Box::new(gpui_kit::base::input::Paste), cx)
+            })
+            .on_action(|_: &super::input::SelectAll, w, cx| {
+                w.dispatch_action(Box::new(gpui_kit::base::input::SelectAll), cx)
+            })
+            .capture_action(cx.listener(|s, _: &gpui_kit::base::input::Paste, w, cx| {
+                if s.paste_files
+                    && let Some(item) = cx.read_from_clipboard()
+                {
+                    let mut pasted = PastedFiles {
+                        images: Vec::new(),
+                        paths: Vec::new(),
+                    };
+                    for entry in item.entries() {
+                        match entry {
+                            ClipboardEntry::Image(image) => pasted.images.push(image.clone()),
+                            ClipboardEntry::ExternalPaths(paths) => {
+                                pasted.paths.extend(paths.paths().iter().cloned())
+                            }
+                            ClipboardEntry::String(_) => {}
+                        }
+                    }
+                    if !pasted.images.is_empty() || !pasted.paths.is_empty() {
+                        cx.emit(pasted);
+                        cx.stop_propagation();
+                        return;
+                    }
+                }
+                if let Some(text) = cx.read_from_clipboard().and_then(|c| c.text()) {
+                    let text = s.bounded(None, &text, w, cx);
+                    dispatch!(&s.field, |field| field
+                        .update(cx, |field, cx| field.replace(text, w, cx)));
+                    s.value = dispatch!(&s.field, |field| field.read(cx).value());
+                }
+                cx.stop_propagation();
+            }))
+            .capture_action(
+                cx.listener(|_, _: &gpui_kit::base::input::IndentInline, w, cx| {
+                    move_focus(false, w, cx);
+                    cx.stop_propagation();
+                }),
+            )
+            .capture_action(
+                cx.listener(|_, _: &gpui_kit::base::input::OutdentInline, w, cx| {
+                    move_focus(true, w, cx);
+                    cx.stop_propagation();
+                }),
+            )
+            .capture_action(cx.listener(|s, a: &gpui_kit::base::input::Enter, w, cx| {
+                if s.composing(w, cx) {
+                    cx.stop_propagation();
+                    return;
+                }
+                // Multi-line prompts with `submit_on_enter` send on Enter and keep
+                // Shift+Enter for a new line (`AgentPromptEditor`'s keymap).
+                if a.secondary
+                    || (s.submit_on_enter && (matches!(s.field, Field::Single(_)) || !a.shift))
+                {
+                    cx.emit(InputEvent::Submit);
+                    cx.stop_propagation();
+                } else if matches!(s.field, Field::Multi(_)) {
+                    s.replace_text_in_range(None, "\n", w, cx);
+                    cx.stop_propagation();
+                }
+            }))
+            .child(PlatformInput {
+                host: cx.entity(),
+                child: control,
+            })
+    }
+}
+pub fn bind_keys(cx: &mut App) {
+    cx.bind_keys([
+        KeyBinding::new("tab", NextField, Some("PuppyForm")),
+        KeyBinding::new("shift-tab", PreviousField, Some("PuppyForm")),
+        KeyBinding::new(
+            "secondary-shift-z",
+            gpui_kit::base::input::Redo,
+            Some("Input"),
+        ),
+        KeyBinding::new(
+            "secondary-up",
+            gpui_kit::base::input::MoveToStart,
+            Some("Input"),
+        ),
+        KeyBinding::new(
+            "secondary-down",
+            gpui_kit::base::input::MoveToEnd,
+            Some("Input"),
+        ),
+        KeyBinding::new(
+            "secondary-shift-up",
+            gpui_kit::base::input::SelectToStart,
+            Some("Input"),
+        ),
+        KeyBinding::new(
+            "secondary-shift-down",
+            gpui_kit::base::input::SelectToEnd,
+            Some("Input"),
+        ),
+    ]);
+}
+
+mod platform_input;
+use platform_input::PlatformInput;
+
+#[cfg(test)]
+mod tests;
+
+// Kit owns the modal scope. Our form actions keep Tab navigation inside it,
+// including when Kit's text-area indentation action wins key dispatch.
+fn move_focus(backwards: bool, window: &mut Window, cx: &mut App) {
+    let trap = gpui_kit::base::active_focus_trap(window, cx);
+    let advance = if backwards {
+        Window::focus_prev
+    } else {
+        Window::focus_next
+    };
+    advance(window, cx);
+    if let Some(trap) = trap {
+        let first = window.focused(cx);
+        while !trap.contains_focused(window, cx) {
+            advance(window, cx);
+            if window.focused(cx) == first {
+                trap.focus(window, cx);
+                break;
+            }
+        }
+    }
+}

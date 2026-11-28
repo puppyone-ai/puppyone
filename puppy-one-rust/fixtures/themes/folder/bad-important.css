@@ -1,0 +1,2 @@
+@puppyone-theme { id: local.user.bad-important; name: Bad Important; version: 1.0.0; modes: light; }
+@puppyone application { :root { --po-accent: #ff0000 !important; } }

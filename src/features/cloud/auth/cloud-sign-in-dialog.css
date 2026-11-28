@@ -1,0 +1,189 @@
+@layer features {
+  .desktop-dialog-surface.cloud-sign-in-dialog {
+    --onboarding-hub-size: 228px;
+    --onboarding-hub-scale: 0.6;
+    --onboarding-carousel-gap: 10px;
+    position: relative;
+    display: grid;
+    width: auto;
+    max-width: calc(100vw - 32px);
+    grid-template-columns: auto 268px;
+    align-items: center;
+    gap: 40px;
+    overflow: visible auto;
+    padding-block: 36px 30px;
+    padding-inline: 34px 40px;
+    border: 1px solid var(--po-border);
+    border-radius: 14px;
+    background: var(--po-overlay);
+    box-shadow: 0 24px 48px var(--po-shadow);
+    color: var(--po-text);
+    font-family: var(--po-font-sans);
+  }
+
+  .cloud-sign-in-close {
+    position: absolute;
+    inset-block-start: 12px;
+    inset-inline-end: 12px;
+    width: 24px;
+    height: 24px;
+  }
+
+  .cloud-sign-in-copy {
+    display: grid;
+    min-width: 0;
+    gap: 0;
+  }
+
+  .cloud-sign-in-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-block-end: 10px;
+    color: var(--po-brand-blue);
+    font-size: var(--po-type-ui-meta, 13px);
+    font-weight: var(--po-text-weight-semibold, 600);
+    line-height: 1.3;
+  }
+
+  .cloud-sign-in-eyebrow svg {
+    flex: none;
+  }
+
+  .cloud-sign-in-moments {
+    display: grid;
+  }
+
+  .cloud-sign-in-moment {
+    grid-area: 1 / 1;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 420ms ease, visibility 0s linear 420ms;
+  }
+
+  .cloud-sign-in-moment.is-active {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 420ms ease 120ms, visibility 0s;
+  }
+
+  .cloud-sign-in-moment h2 {
+    margin: 0;
+    color: var(--po-text);
+    font-size: var(--po-type-ui-page-title, 21px);
+    font-weight: var(--po-text-weight-semibold, 600);
+    line-height: 1.3;
+    letter-spacing: -0.005em;
+    white-space: pre-line;
+  }
+
+  .cloud-sign-in-moment p {
+    margin: 10px 0 0;
+    color: var(--po-text-muted);
+    font-size: var(--po-type-ui-body, 14px);
+    line-height: 1.6;
+    text-wrap: balance;
+  }
+
+  .cloud-sign-in-actions {
+    display: grid;
+    gap: 4px;
+    margin-block-start: 24px;
+  }
+
+  .cloud-sign-in-primary {
+    display: flex;
+    width: 100%;
+    height: 36px;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 8px;
+    outline: none;
+    background: var(--po-brand-blue);
+    color: #fff;
+    font-family: inherit;
+    font-size: var(--po-type-ui-control, 14px);
+    font-weight: var(--po-text-weight-medium, 500);
+    line-height: 1;
+    cursor: var(--po-clickable-cursor, default);
+    transition: background 0.12s ease, opacity 0.12s ease;
+  }
+
+  .cloud-sign-in-primary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--po-brand-blue) 90%, #000);
+  }
+
+  .cloud-sign-in-primary:focus-visible {
+    outline: 2px solid var(--po-focus-ring);
+    outline-offset: 2px;
+  }
+
+  .cloud-sign-in-primary svg {
+    flex: none;
+  }
+
+  .cloud-sign-in-later {
+    display: flex;
+    width: 100%;
+    height: calc(var(--po-control-size) - 2px);
+    align-items: center;
+    justify-content: center;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 6px;
+    outline: none;
+    background: transparent;
+    color: var(--po-text-muted);
+    font-family: inherit;
+    font-size: var(--po-type-ui-meta, 13px);
+    font-weight: 400;
+    line-height: 1;
+    cursor: var(--po-clickable-cursor, default);
+    transition: color 0.12s ease, background 0.12s ease;
+  }
+
+  .cloud-sign-in-later:hover:not(:disabled) {
+    background: var(--po-hover);
+    color: var(--po-text);
+  }
+
+  .cloud-sign-in-later:focus-visible {
+    outline: 2px solid var(--po-focus-ring);
+    outline-offset: 0;
+  }
+
+  .cloud-sign-in-feedback {
+    margin: 10px 0 0;
+    color: var(--po-text-muted);
+    font-size: var(--po-text-size-meta, 12px);
+    line-height: 1.5;
+  }
+
+  .cloud-sign-in-feedback.is-error {
+    color: var(--po-danger);
+  }
+
+  @media (max-width: 660px) {
+    .desktop-dialog-surface.cloud-sign-in-dialog {
+      width: min(360px, calc(100vw - 32px));
+      grid-template-columns: minmax(0, 1fr);
+      justify-items: center;
+      gap: 24px;
+      padding: 32px 24px 24px;
+    }
+
+    .cloud-sign-in-copy {
+      width: 100%;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cloud-sign-in-moment,
+    .cloud-sign-in-moment.is-active {
+      transition: none;
+    }
+  }
+}

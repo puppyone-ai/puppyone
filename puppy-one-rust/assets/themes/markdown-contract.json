@@ -1,0 +1,545 @@
+{
+ "tokens": [
+  {
+   "name": "--po-md-selection-bg"
+  },
+  {
+   "name": "--po-md-selection-inactive-bg"
+  },
+  {
+   "name": "--po-md-surface-background"
+  },
+  {
+   "name": "--po-md-content-color"
+  },
+  {
+   "name": "--po-md-content-font"
+  },
+  {
+   "name": "--po-md-content-size",
+   "sizePresets": true
+  },
+  {
+   "name": "--po-md-content-weight"
+  },
+  {
+   "name": "--po-md-content-letter-spacing"
+  },
+  {
+   "name": "--po-md-content-line-height"
+  },
+  {
+   "name": "--po-md-source-line-gap"
+  },
+  {
+   "name": "--po-md-block-gap"
+  },
+  {
+   "name": "--po-md-block-radius"
+  },
+  {
+   "name": "--po-md-paragraph-gap-before"
+  },
+  {
+   "name": "--po-md-paragraph-gap-after"
+  },
+  {
+   "name": "--po-md-list-inset"
+  },
+  {
+   "name": "--po-md-list-marker-width"
+  },
+  {
+   "name": "--po-md-ordered-marker-suffix-width"
+  },
+  {
+   "name": "--po-md-list-marker-gap"
+  },
+  {
+   "name": "--po-md-list-indent-step"
+  },
+  {
+   "name": "--po-md-list-item-gap"
+  },
+  {
+   "name": "--po-md-heading-gap-before"
+  },
+  {
+   "name": "--po-md-heading-gap-after"
+  },
+  {
+   "name": "--po-md-h1-gap-before"
+  },
+  {
+   "name": "--po-md-h1-gap-after"
+  },
+  {
+   "name": "--po-md-h2-gap-before"
+  },
+  {
+   "name": "--po-md-h2-gap-after"
+  },
+  {
+   "name": "--po-md-h3-gap-before"
+  },
+  {
+   "name": "--po-md-h3-gap-after"
+  },
+  {
+   "name": "--po-md-h4-gap-before"
+  },
+  {
+   "name": "--po-md-h4-gap-after"
+  },
+  {
+   "name": "--po-md-h5-gap-before"
+  },
+  {
+   "name": "--po-md-h5-gap-after"
+  },
+  {
+   "name": "--po-md-h6-gap-before"
+  },
+  {
+   "name": "--po-md-h6-gap-after"
+  },
+  {
+   "name": "--po-md-heading-color"
+  },
+  {
+   "name": "--po-md-heading-weight"
+  },
+  {
+   "name": "--po-md-heading-line-height"
+  },
+  {
+   "name": "--po-md-heading-border-color"
+  },
+  {
+   "name": "--po-md-h1-size",
+   "sizePresets": true
+  },
+  {
+   "name": "--po-md-h2-size",
+   "sizePresets": true
+  },
+  {
+   "name": "--po-md-h3-size",
+   "sizePresets": true
+  },
+  {
+   "name": "--po-md-h4-size",
+   "sizePresets": true
+  },
+  {
+   "name": "--po-md-h5-size",
+   "sizePresets": true
+  },
+  {
+   "name": "--po-md-h6-size",
+   "sizePresets": true
+  },
+  {
+   "name": "--po-md-h1-weight"
+  },
+  {
+   "name": "--po-md-h2-weight"
+  },
+  {
+   "name": "--po-md-h3-weight"
+  },
+  {
+   "name": "--po-md-strong-weight"
+  },
+  {
+   "name": "--po-md-strong-color"
+  },
+  {
+   "name": "--po-md-rule-color"
+  },
+  {
+   "name": "--po-md-link-color"
+  },
+  {
+   "name": "--po-md-blockquote-color"
+  },
+  {
+   "name": "--po-md-blockquote-border-color"
+  },
+  {
+   "name": "--po-md-inline-code-background"
+  },
+  {
+   "name": "--po-md-inline-code-color"
+  },
+  {
+   "name": "--po-md-code-block-background"
+  },
+  {
+   "name": "--po-md-code-block-color"
+  },
+  {
+   "name": "--po-md-syntax-keyword"
+  },
+  {
+   "name": "--po-md-syntax-string"
+  },
+  {
+   "name": "--po-md-syntax-comment"
+  },
+  {
+   "name": "--po-md-syntax-constant"
+  },
+  {
+   "name": "--po-md-syntax-special"
+  },
+  {
+   "name": "--po-md-syntax-type"
+  },
+  {
+   "name": "--po-md-syntax-function"
+  },
+  {
+   "name": "--po-md-syntax-property"
+  },
+  {
+   "name": "--po-md-syntax-operator"
+  },
+  {
+   "name": "--po-md-syntax-meta"
+  },
+  {
+   "name": "--po-md-code-font"
+  },
+  {
+   "name": "--po-md-h6-color"
+  },
+  {
+   "name": "--po-md-emphasis-color"
+  },
+  {
+   "name": "--po-md-strikethrough-color"
+  },
+  {
+   "name": "--po-md-list-color"
+  },
+  {
+   "name": "--po-md-list-marker-color"
+  },
+  {
+   "name": "--po-md-list-marker-weight"
+  },
+  {
+   "name": "--po-md-list-marker-numeric-variant"
+  },
+  {
+   "name": "--po-md-ordered-marker-align"
+  },
+  {
+   "name": "--po-md-markup-color"
+  },
+  {
+   "name": "--po-md-blockquote-border-width"
+  },
+  {
+   "name": "--po-md-blockquote-padding-inline"
+  },
+  {
+   "name": "--po-md-inline-code-font-size",
+   "sizePresets": true
+  },
+  {
+   "name": "--po-md-inline-code-padding"
+  },
+  {
+   "name": "--po-md-inline-code-radius"
+  },
+  {
+   "name": "--po-md-code-block-font-size",
+   "sizePresets": true
+  },
+  {
+   "name": "--po-md-code-block-line-height"
+  },
+  {
+   "name": "--po-md-code-block-font-weight"
+  },
+  {
+   "name": "--po-md-code-block-padding"
+  },
+  {
+   "name": "--po-md-code-block-radius"
+  },
+  {
+   "name": "--po-md-code-focus-background"
+  },
+  {
+   "name": "--po-md-code-caret-color"
+  },
+  {
+   "name": "--po-md-table-font"
+  },
+  {
+   "name": "--po-md-table-font-size",
+   "sizePresets": true
+  },
+  {
+   "name": "--po-md-table-line-height"
+  },
+  {
+   "name": "--po-md-table-color"
+  },
+  {
+   "name": "--po-md-table-header-color"
+  },
+  {
+   "name": "--po-md-table-body-color"
+  },
+  {
+   "name": "--po-md-table-header-weight"
+  },
+  {
+   "name": "--po-md-table-background"
+  },
+  {
+   "name": "--po-md-table-border"
+  },
+  {
+   "name": "--po-md-table-cell-border"
+  },
+  {
+   "name": "--po-md-table-header-background"
+  },
+  {
+   "name": "--po-md-metadata-color"
+  },
+  {
+   "name": "--po-md-metadata-font"
+  },
+  {
+   "name": "--po-md-metadata-font-size",
+   "sizePresets": true
+  },
+  {
+   "name": "--po-md-metadata-font-weight"
+  },
+  {
+   "name": "--po-md-math-inline-font-size",
+   "sizePresets": true
+  },
+  {
+   "name": "--po-md-math-block-font-size",
+   "sizePresets": true
+  },
+  {
+   "name": "--po-md-error-color"
+  },
+  {
+   "name": "--po-md-media-background"
+  },
+  {
+   "name": "--po-md-metadata-line-height"
+  },
+  {
+   "name": "--po-md-code-block-gap-before"
+  },
+  {
+   "name": "--po-md-code-block-gap-after"
+  },
+  {
+   "name": "--po-md-table-cell-padding"
+  },
+  {
+   "name": "--po-md-task-completed-color"
+  },
+  {
+   "name": "--po-md-task-completed-decoration-color"
+  },
+  {
+   "name": "--po-md-placeholder-background"
+  },
+  {
+   "name": "--po-md-fallback-color"
+  },
+  {
+   "name": "--po-md-fallback-border"
+  },
+  {
+   "name": "--po-md-mermaid-background"
+  },
+  {
+   "name": "--po-md-mermaid-panel"
+  },
+  {
+   "name": "--po-md-mermaid-text"
+  },
+  {
+   "name": "--po-md-mermaid-muted"
+  },
+  {
+   "name": "--po-md-mermaid-accent"
+  },
+  {
+   "name": "--po-md-mermaid-border"
+  },
+  {
+   "name": "--po-md-mermaid-success"
+  },
+  {
+   "name": "--po-md-mermaid-warning"
+  },
+  {
+   "name": "--po-md-mermaid-danger"
+  },
+  {
+   "name": "--po-md-mermaid-font"
+  },
+  {
+   "name": "--po-md-mermaid-font-size",
+   "sizePresets": true
+  },
+  {
+   "name": "--po-md-content-size-small"
+  },
+  {
+   "name": "--po-md-content-size-medium"
+  },
+  {
+   "name": "--po-md-content-size-large"
+  },
+  {
+   "name": "--po-md-h1-size-small"
+  },
+  {
+   "name": "--po-md-h1-size-medium"
+  },
+  {
+   "name": "--po-md-h1-size-large"
+  },
+  {
+   "name": "--po-md-h2-size-small"
+  },
+  {
+   "name": "--po-md-h2-size-medium"
+  },
+  {
+   "name": "--po-md-h2-size-large"
+  },
+  {
+   "name": "--po-md-h3-size-small"
+  },
+  {
+   "name": "--po-md-h3-size-medium"
+  },
+  {
+   "name": "--po-md-h3-size-large"
+  },
+  {
+   "name": "--po-md-h4-size-small"
+  },
+  {
+   "name": "--po-md-h4-size-medium"
+  },
+  {
+   "name": "--po-md-h4-size-large"
+  },
+  {
+   "name": "--po-md-h5-size-small"
+  },
+  {
+   "name": "--po-md-h5-size-medium"
+  },
+  {
+   "name": "--po-md-h5-size-large"
+  },
+  {
+   "name": "--po-md-h6-size-small"
+  },
+  {
+   "name": "--po-md-h6-size-medium"
+  },
+  {
+   "name": "--po-md-h6-size-large"
+  },
+  {
+   "name": "--po-md-inline-code-font-size-small"
+  },
+  {
+   "name": "--po-md-inline-code-font-size-medium"
+  },
+  {
+   "name": "--po-md-inline-code-font-size-large"
+  },
+  {
+   "name": "--po-md-code-block-font-size-small"
+  },
+  {
+   "name": "--po-md-code-block-font-size-medium"
+  },
+  {
+   "name": "--po-md-code-block-font-size-large"
+  },
+  {
+   "name": "--po-md-table-font-size-small"
+  },
+  {
+   "name": "--po-md-table-font-size-medium"
+  },
+  {
+   "name": "--po-md-table-font-size-large"
+  },
+  {
+   "name": "--po-md-metadata-font-size-small"
+  },
+  {
+   "name": "--po-md-metadata-font-size-medium"
+  },
+  {
+   "name": "--po-md-metadata-font-size-large"
+  },
+  {
+   "name": "--po-md-math-inline-font-size-small"
+  },
+  {
+   "name": "--po-md-math-inline-font-size-medium"
+  },
+  {
+   "name": "--po-md-math-inline-font-size-large"
+  },
+  {
+   "name": "--po-md-math-block-font-size-small"
+  },
+  {
+   "name": "--po-md-math-block-font-size-medium"
+  },
+  {
+   "name": "--po-md-math-block-font-size-large"
+  },
+  {
+   "name": "--po-md-mermaid-font-size-small"
+  },
+  {
+   "name": "--po-md-mermaid-font-size-medium"
+  },
+  {
+   "name": "--po-md-mermaid-font-size-large"
+  }
+ ],
+ "integerSizes": [
+  "--po-md-content-size",
+  "--po-md-h1-size",
+  "--po-md-h2-size",
+  "--po-md-h3-size",
+  "--po-md-h4-size",
+  "--po-md-h5-size",
+  "--po-md-h6-size"
+ ],
+ "sizePresets": {
+  "choices": [
+   "small",
+   "medium",
+   "large"
+  ],
+  "default": "medium"
+ }
+}

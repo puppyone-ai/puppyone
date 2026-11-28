@@ -2,17 +2,56 @@
 export const HTML_FRAME_BRIDGE = String.raw`
 (() => {
   'use strict';
-  let port = null, selected = null, active = null, enabled = true, frame = 0, typing = null;
+  let port = null, selected = null, active = null, enabled = true, frame = 0, typing = null, editingNode = null, composing = false;
   const nodes = new Map();
   const attribute = 'data-puppyone-html-target';
-  document.querySelectorAll('[' + attribute + ']').forEach((node) => {
-    const id = node.getAttribute(attribute);
-    if (nodes.has(id)) { nodes.set(id, null); return; }
-    nodes.set(id, node);
-  });
+  const indexNodes = (ids) => {
+    nodes.clear();
+    const elements = document.querySelectorAll('[' + attribute + ']');
+    elements.forEach((node, idx) => {
+      const id = Array.isArray(ids) && ids[idx] ? ids[idx] : node.getAttribute(attribute);
+      if (Array.isArray(ids) && ids[idx]) node.setAttribute(attribute, id);
+      if (nodes.has(id)) { nodes.set(id, null); return; }
+      nodes.set(id, node);
+    });
+  };
+  indexNodes();
   const typingStyle = document.createElement('style');
-  typingStyle.textContent = '[data-puppyone-html-typing]{color:transparent!important;-webkit-text-fill-color:transparent!important;text-shadow:none!important}[' + attribute + ']:focus{outline:none!important}';
+  typingStyle.textContent = '[data-puppyone-html-typing]{color:transparent!important;-webkit-text-fill-color:transparent!important;text-shadow:none!important}[' + attribute + ']:focus{outline:none!important}[' + attribute + ']:hover:not([data-puppyone-html-selected]){outline:1.5px dashed rgba(37,99,235,0.45)!important;outline-offset:2px!important}[data-puppyone-html-editable]{cursor:text}a[data-puppyone-html-link]{text-decoration:underline;color:-webkit-link}';
   document.head.append(typingStyle);
+  const setSelectedAttr = (id) => {
+    document.querySelectorAll('[data-puppyone-html-selected]').forEach((el) => el.removeAttribute('data-puppyone-html-selected'));
+    if (id) nodes.get(id)?.setAttribute('data-puppyone-html-selected', '');
+  };
+  const activateEditable = (node) => {
+    if (editingNode && editingNode !== node) {
+      editingNode.removeAttribute('contenteditable');
+      editingNode.querySelectorAll('[' + attribute + ']').forEach((child) => child.removeAttribute('contenteditable'));
+    }
+    editingNode = null;
+    if (enabled && node && node.hasAttribute('data-puppyone-html-editable')) {
+      node.setAttribute('contenteditable', 'true');
+      node.querySelectorAll('[' + attribute + ']').forEach((child) => child.setAttribute('contenteditable', 'false'));
+      editingNode = node;
+    }
+  };
+  const readNodeText = (node) => {
+    const mode = node.getAttribute('data-puppyone-html-editable');
+    let out = '';
+    const walk = (parent) => {
+      for (const child of parent.childNodes) {
+        if (child.nodeType === 3) {
+          out += child.nodeValue || '';
+        } else if (child.nodeType === 1) {
+          if (child.tagName === 'BR') out += '\n';
+          else if (mode === 'inline' && child.hasAttribute(attribute)) out += '\u0001';
+          else walk(child);
+        }
+      }
+    };
+    walk(node);
+    return out;
+  };
   const setTyping = (id) => {
     if (typing) nodes.get(typing)?.removeAttribute('data-puppyone-html-typing');
     typing = id;
@@ -57,29 +96,62 @@ export const HTML_FRAME_BRIDGE = String.raw`
   };
   const schedule = () => {
     send({ type: 'viewport', x: scrollX, y: scrollY });
-    if (!frame) frame = requestAnimationFrame(() => { frame = 0; measure(); });
+    if (!frame) frame = requestAnimationFrame(() => { frame = 0; measure(true); });
   };
   const select = (event, edit) => {
-    event.preventDefault(); event.stopPropagation();
     if (!enabled || !port) return;
     const target = event.target instanceof Element ? event.target.closest('[' + attribute + ']') : null;
-    if (active && nodes.get(active)?.contains(target)) {
-      active = target.getAttribute(attribute); selected = active; measure(true, 'select'); return;
+    if (!target || !target.hasAttribute('data-puppyone-html-editable')) event.preventDefault();
+    event.stopPropagation();
+    if (!target) {
+      activateEditable(null);
+      setSelectedAttr(null);
+      selected = null;
+      active = null;
+      send({ type: 'clear' });
+      return;
     }
-    active = null;
-    if (!target) { selected = null; send({ type: 'clear' }); return; }
+    activateEditable(target);
     selected = target.getAttribute(attribute);
+    active = selected;
+    setSelectedAttr(selected);
     measure(edit, event.type === 'focusin' ? 'focus' : 'select');
   };
-  document.addEventListener('click', (event) => select(event, false), true);
-  document.addEventListener('dblclick', (event) => select(event, false), true);
-  document.addEventListener('focusin', (event) => select(event, false), true);
+  document.addEventListener('pointerdown', (event) => {
+    if (!enabled || !port || event.button !== 0) return;
+    const target = event.target instanceof Element ? event.target.closest('[' + attribute + ']') : null;
+    activateEditable(target);
+  }, true);
+  document.addEventListener('click', (event) => select(event, true), true);
+  document.addEventListener('dblclick', (event) => select(event, true), true);
+  document.addEventListener('focusin', (event) => select(event, true), true);
+  document.addEventListener('compositionstart', () => {
+    composing = true;
+    send({ type: 'composition', value: true });
+  }, true);
+  document.addEventListener('compositionend', () => {
+    composing = false;
+    send({ type: 'composition', value: false });
+    if (editingNode && selected) {
+      send({ type: 'input', id: selected, value: readNodeText(editingNode) });
+      schedule();
+    }
+  }, true);
+  document.addEventListener('input', () => {
+    if (!enabled || !editingNode || !selected || composing) return;
+    send({ type: 'input', id: selected, value: readNodeText(editingNode) });
+    schedule();
+  }, true);
+  document.addEventListener('paste', (event) => {
+    if (!enabled || !editingNode) return;
+    event.preventDefault();
+    const text = event.clipboardData?.getData('text/plain') || '';
+    if (text) document.execCommand('insertText', false, text);
+  }, true);
   document.addEventListener('pointermove', (event) => {
-    // Pointer movement is inert until an explicit click or keyboard focus selects a block.
     if (!enabled || !port || !selected) return;
     send({ type: 'pointer', x: event.clientX, y: event.clientY });
   }, true);
-  // Where the pointer is, at most once a frame, for the host's own chrome; the page cannot see it otherwise.
   let hover = null, hoverFrame = 0;
   document.addEventListener('pointermove', (event) => {
     hover = [event.clientX, event.clientY];
@@ -92,11 +164,61 @@ export const HTML_FRAME_BRIDGE = String.raw`
   document.addEventListener('submit', (event) => event.preventDefault(), true);
   document.addEventListener('dragstart', (event) => event.preventDefault(), true);
   document.addEventListener('keydown', (event) => {
-    if (event.isComposing) return;
+    if (event.isComposing || composing) return;
     if ((event.ctrlKey || event.metaKey) && (event.key.toLowerCase() === 'z' || event.ctrlKey && event.key.toLowerCase() === 'y')) {
       event.preventDefault(); if (enabled) send({ type: 'history', direction: event.shiftKey || event.key.toLowerCase() === 'y' ? 'redo' : 'undo' });
-    } else if (event.key === 'Enter') select(event, true);
-    else if (event.key === 'Escape') { selected = null; active = null; send({ type: 'clear' }); }
+      return;
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      if (editingNode) editingNode.blur();
+      activateEditable(null);
+      setSelectedAttr(null);
+      selected = null;
+      active = null;
+      send({ type: 'clear' });
+      return;
+    }
+    if (editingNode) {
+      if ((event.key === 'Backspace' || event.key === 'Delete') && editingNode.getAttribute('data-puppyone-html-editable') === 'inline') {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount) {
+          const range = sel.getRangeAt(0);
+          if (!range.collapsed) {
+            const frag = range.cloneContents();
+            if (frag.querySelector && frag.querySelector('[' + attribute + ']')) { event.preventDefault(); return; }
+          } else {
+            const container = range.startContainer;
+            const offset = range.startOffset;
+            if (container.nodeType === 1) {
+              const neighbor = event.key === 'Backspace' ? container.childNodes[offset - 1] : container.childNodes[offset];
+              if (neighbor && neighbor.nodeType === 1 && neighbor.hasAttribute(attribute)) { event.preventDefault(); return; }
+            } else if (container.nodeType === 3) {
+              if (event.key === 'Backspace' && offset === 0 && container.previousSibling?.nodeType === 1 && container.previousSibling.hasAttribute(attribute)) {
+                event.preventDefault(); return;
+              }
+              if (event.key === 'Delete' && offset === container.nodeValue.length && container.nextSibling?.nodeType === 1 && container.nextSibling.hasAttribute(attribute)) {
+                event.preventDefault(); return;
+              }
+            }
+          }
+        }
+      }
+      if (event.key === 'Enter') {
+        if (event.metaKey || event.ctrlKey) {
+          event.preventDefault();
+          editingNode.blur();
+          return;
+        }
+        if (!['PRE', 'CODE'].includes(editingNode.tagName)) {
+          event.preventDefault();
+          document.execCommand('insertLineBreak');
+          return;
+        }
+      }
+    } else if (event.key === 'Enter') {
+      select(event, true);
+    }
   }, true);
   addEventListener('scroll', schedule, true);
   addEventListener('resize', schedule);
@@ -111,11 +233,19 @@ export const HTML_FRAME_BRIDGE = String.raw`
     port.onmessage = ({ data }) => {
       if (!data || typeof data !== 'object') return;
       if (data.type === 'typing') { setTyping(nodes.has(data.id) ? data.id : null); return; }
-      if (data.type === 'active' && nodes.has(data.id)) { active = data.id; selected = active; measure(); return; }
-      if (data.type === 'clear') { selected = null; active = null; setTyping(null); return; }
-      if (data.type === 'enabled') { enabled = data.value === true; return; }
+      if (data.type === 'active' && nodes.has(data.id)) {
+        active = data.id; selected = active; setSelectedAttr(selected); activateEditable(nodes.get(selected)); measure(true); return;
+      }
+      if (data.type === 'clear') {
+        if (editingNode) editingNode.blur();
+        activateEditable(null); setSelectedAttr(null); selected = null; active = null; setTyping(null); return;
+      }
+      if (data.type === 'enabled') {
+        enabled = data.value === true;
+        if (!enabled) { activateEditable(null); setSelectedAttr(null); }
+        return;
+      }
       if (data.type === 'inset') {
-        // Room for chrome the host draws over the page's top.
         if (Number.isFinite(data.value) && data.value > 0 && data.value <= 400) document.documentElement.style.setProperty('padding-top', data.value + 'px', 'important');
         schedule(); return;
       }
@@ -163,7 +293,36 @@ export const HTML_FRAME_BRIDGE = String.raw`
       for (const patch of data.patches) {
         const node = nodes.get(patch.id);
         if (!node) continue;
+        if (patch.kind === 'structure') {
+          activateEditable(null);
+          if (patch.action === 'delete') {
+            node.remove();
+          } else if (patch.action === 'duplicate') {
+            const clone = node.cloneNode(true);
+            clone.removeAttribute('data-puppyone-html-selected');
+            clone.removeAttribute('contenteditable');
+            node.after(clone);
+          } else if (patch.action === 'move-up') {
+            const prev = node.previousElementSibling;
+            if (prev) prev.before(node);
+          } else if (patch.action === 'move-down') {
+            const next = node.nextElementSibling;
+            if (next) next.after(node);
+          }
+          indexNodes(patch.ids);
+          selected = patch.selectId && nodes.has(patch.selectId) ? patch.selectId : null;
+          active = selected;
+          setSelectedAttr(selected);
+          if (selected) {
+            activateEditable(nodes.get(selected));
+            measure(true, 'select');
+          } else {
+            send({ type: 'clear' });
+          }
+          continue;
+        }
         if (patch.kind === 'text' && typeof patch.value === 'string') {
+          if (editingNode === node) continue;
           if (!patch.lineBreaks) { node.textContent = patch.value; continue; }
           const children = [];
           patch.value.split('\n').forEach((line, i) => {
@@ -171,9 +330,15 @@ export const HTML_FRAME_BRIDGE = String.raw`
             children.push(document.createTextNode(line));
           });
           node.replaceChildren(...children);
-        } else if (patch.kind === 'attribute' && ['src', 'alt', 'style'].includes(patch.name)) {
-          if (patch.value === null) node.removeAttribute(patch.name);
-          else node.setAttribute(patch.name, patch.value);
+        } else if (patch.kind === 'attribute' && ['src', 'alt', 'style', 'href'].includes(patch.name)) {
+          if (patch.name === 'href') {
+            if (patch.value) node.setAttribute('data-puppyone-html-link', '');
+            else node.removeAttribute('data-puppyone-html-link');
+          } else if (patch.value === null) {
+            node.removeAttribute(patch.name);
+          } else {
+            node.setAttribute(patch.name, patch.value);
+          }
         }
       }
       schedule();

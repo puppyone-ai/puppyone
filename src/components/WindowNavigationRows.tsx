@@ -4,7 +4,7 @@ import { LocalIcon } from "@puppyone/shared-ui";
 import { DesktopMenuItem, DesktopMenuSeparator } from "./DesktopMenu";
 import { useWindowNavigation, type WindowNavigation } from "./WindowNavigation";
 import { useDesktopPlatformCapabilities } from "../platform";
-import { SpaceMark, useSpaceName, useCloudAuthController } from "../features/cloud";
+import { SpaceMark, openCloudSignInDialog, useSpaceName } from "../features/cloud";
 
 /** This computer's key among the places; a Space's is its id. */
 export const LOCAL_PLACE = "local";
@@ -75,10 +75,9 @@ export function WindowNavigationRows({ current = null, onHome, onDismiss }: Wind
     : [section])}</>;
 }
 
-/** Signed out, the account's place asks to sign in, with its own sign-in flow. */
+/** Signed out, the account's place asks to sign in, opening the Cloud explainer dialog. */
 function SignInRow({ apiBaseUrl, onDismiss }: { apiBaseUrl: string; onDismiss: () => void }) {
   const { t } = useLocalization();
-  const auth = useCloudAuthController({ cloudApiBaseUrl: apiBaseUrl });
   return <DesktopMenuItem icon={<LogIn size={15} />} label={t("cloud.auth.signIn")} data-account-row="sign-in"
-    onClick={() => { onDismiss(); auth.startSignIn(); }} />;
+    onClick={() => { onDismiss(); openCloudSignInDialog(apiBaseUrl); }} />;
 }

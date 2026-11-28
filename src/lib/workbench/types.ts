@@ -76,11 +76,16 @@ export type AuxiliaryWorkbenchCreationRecipe = Readonly<{
   availability?: "local-installation" | "bundled";
 }>;
 
+export type AuxiliaryWorkbenchCreationSeed = Readonly<{
+  initialPrompt?: string | null;
+}>;
+
 export type AuxiliaryWorkbenchPreparationContext = Readonly<{
   project: AuxiliaryWorkbenchProject;
   item: AuxiliaryWorkbenchItem;
   recipe: AuxiliaryWorkbenchCreationRecipe | null;
   historyTarget: AuxiliaryWorkbenchHistoryTarget | null;
+  seed?: AuxiliaryWorkbenchCreationSeed | null;
 }>;
 
 export type AuxiliaryWorkbenchCreationFailure = Readonly<{

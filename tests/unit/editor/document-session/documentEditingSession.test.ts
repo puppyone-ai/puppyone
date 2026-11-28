@@ -1,22 +1,26 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   DocumentPersistencePort,
   DocumentPersistenceRequest,
 } from "@puppyone/shared-ui";
 import { DocumentEditingSession } from "../../../../src/shared-ui/editor/document-session/DocumentEditingSession";
+import { AUTO_SAVE_IDLE_MS, AUTO_SAVE_MAX_WAIT_MS } from "../../../../src/shared-ui/editor/document-session/autoSavePolicy";
 import type { EditorSourceSnapshot } from "../../../../src/shared-ui/editor/sourceSnapshot";
 
 describe("DocumentEditingSession", () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
   it("fences a late Cloud save and preserves typing when Agent publication arrives", async () => {
     const write = deferred<{ ok: true; version: string }>();
     const persist = vi.fn(() => write.promise);
     const session = new DocumentEditingSession({ documentId: "notes.md", initialContent: "one", initialVersion: "v1",
       saveMode: "auto", persistence: { kind: "cloud", storageIdentity: "test:cloud-conflict", persist } });
     const source = bindSource(session, { revision: "r1", content: "one" });
-    source.change({ revision: "r2", content: "human draft" }); await nextMicrotask();
+    source.change({ revision: "r2", content: "human draft" }); await typingPause();
     expect(session.reconcileExternalBaseline("agent publication", "cloud-v2")).toBe("deferred");
     source.change({ revision: "r3", content: "newer human draft" });
-    write.resolve({ ok: true, version: "stale-save-v2" }); await nextMicrotask();
+    write.resolve({ ok: true, version: "stale-save-v2" }); await typingPause();
     expect(source.snapshot().content).toBe("newer human draft");
     expect(session.getState()).toMatchObject({ status: "error", storageVersion: "v1", error: { code: "external-conflict" } });
     await expect(session.requestSave()).rejects.toThrow("conflict");
@@ -40,15 +44,18 @@ describe("DocumentEditingSession", () => {
     expect(source.snapshot().content).toBe("agent publication");
     expect(persist).toHaveBeenCalledTimes(1); session.dispose();
   });
-  it("starts persistence in the next microtask without waiting for a timer", async () => {
+  it("waits for a typing pause before persisting the newest snapshot", async () => {
     const persist = vi.fn(async () => ({ ok: true as const, version: "v2" }));
     const session = createSession(persist);
     const source = bindSource(session, { revision: "r1", content: "one" });
 
     source.change({ revision: "r2", content: "two" });
-
+    await vi.advanceTimersByTimeAsync(AUTO_SAVE_IDLE_MS - 1);
     expect(persist).not.toHaveBeenCalled();
-    await nextMicrotask();
+    expect(session.getState().status).toBe("dirty");
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(persist).toHaveBeenCalledTimes(1);
     expect(persist).toHaveBeenCalledWith(expect.objectContaining({
       path: "notes.md",
       content: "two",
@@ -59,20 +66,88 @@ describe("DocumentEditingSession", () => {
     expect(session.getState().storageVersion).toBe("v2");
   });
 
-  it("coalesces edits from one JavaScript turn to the newest snapshot", async () => {
+  it("restarts the pause on every keystroke and coalesces them into one write", async () => {
+    const persist = vi.fn(async () => ({ ok: true as const, version: "v2" }));
+    const session = createSession(persist);
+    const source = bindSource(session, { revision: "r1", content: "one" });
+
+    source.change({ revision: "r2", content: "t" });
+    await vi.advanceTimersByTimeAsync(AUTO_SAVE_IDLE_MS / 2);
+    source.change({ revision: "r3", content: "tw" });
+    await vi.advanceTimersByTimeAsync(AUTO_SAVE_IDLE_MS / 2);
+    source.change({ revision: "r4", content: "two" });
+    await vi.advanceTimersByTimeAsync(AUTO_SAVE_IDLE_MS - 1);
+    expect(persist).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(persist).toHaveBeenCalledTimes(1);
+    expect(persist).toHaveBeenCalledWith(expect.objectContaining({ revision: "r4", content: "two" }));
+  });
+
+  it("writes at most every two seconds while typing never pauses", async () => {
+    const persist = vi.fn(async () => ({ ok: true as const, version: `v${persist.mock.calls.length + 1}` }));
+    const session = createSession(persist);
+    const source = bindSource(session, { revision: "r1", content: "one" });
+    const step = 100;
+    let typed = 0;
+    for (let elapsed = 0; elapsed < 5_000; elapsed += step) {
+      typed += 1;
+      source.change({ revision: `k${typed}`, content: `one${"x".repeat(typed)}` });
+      await vi.advanceTimersByTimeAsync(step);
+    }
+
+    // 50 keystrokes over five seconds: two bounded writes, never one per key.
+    expect(persist).toHaveBeenCalledTimes(Math.floor(5_000 / AUTO_SAVE_MAX_WAIT_MS));
+    await vi.advanceTimersByTimeAsync(AUTO_SAVE_IDLE_MS);
+    expect(persist).toHaveBeenCalledTimes(Math.floor(5_000 / AUTO_SAVE_MAX_WAIT_MS) + 1);
+    expect(persist).toHaveBeenLastCalledWith(expect.objectContaining({ revision: `k${typed}` }));
+    expect(session.hasUnpersistedChanges()).toBe(false);
+  });
+
+  it("writes a pending edit at once when the window asks, and only then", async () => {
+    const persist = vi.fn(async () => ({ ok: true as const, version: "v2" }));
+    const session = createSession(persist);
+    const source = bindSource(session, { revision: "r1", content: "one" });
+
+    session.flushPendingAutoSave();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(persist).not.toHaveBeenCalled();
+
+    source.change({ revision: "r2", content: "two" });
+    session.flushPendingAutoSave();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(persist).toHaveBeenCalledTimes(1);
+    expect(persist).toHaveBeenCalledWith(expect.objectContaining({ revision: "r2", reason: "edit" }));
+
+    await vi.advanceTimersByTimeAsync(AUTO_SAVE_MAX_WAIT_MS);
+    expect(persist).toHaveBeenCalledTimes(1);
+  });
+
+  it("drains pending typing on close without waiting for the pause", async () => {
     const persist = vi.fn(async () => ({ ok: true as const, version: "v2" }));
     const session = createSession(persist);
     const source = bindSource(session, { revision: "r1", content: "one" });
 
     source.change({ revision: "r2", content: "two" });
-    source.change({ revision: "r3", content: "three" });
-    await nextMicrotask();
+    await session.flushCurrent("document-close");
 
     expect(persist).toHaveBeenCalledTimes(1);
-    expect(persist).toHaveBeenCalledWith(expect.objectContaining({
-      revision: "r3",
-      content: "three",
-    }));
+    expect(persist).toHaveBeenCalledWith(expect.objectContaining({ revision: "r2", reason: "document-close" }));
+    expect(session.hasUnpersistedChanges()).toBe(false);
+    await vi.advanceTimersByTimeAsync(AUTO_SAVE_MAX_WAIT_MS);
+    expect(persist).toHaveBeenCalledTimes(1);
+  });
+
+  it("never writes in manual mode, however long typing pauses", async () => {
+    const persist = vi.fn(async () => ({ ok: true as const, version: "v2" }));
+    const session = createSession(persist, "manual");
+    const source = bindSource(session, { revision: "r1", content: "one" });
+
+    source.change({ revision: "r2", content: "two" });
+    session.flushPendingAutoSave();
+    await vi.advanceTimersByTimeAsync(AUTO_SAVE_MAX_WAIT_MS * 2);
+    expect(persist).not.toHaveBeenCalled();
+    expect(session.getState().status).toBe("dirty");
   });
 
   it("keeps one write in flight and persists only the newest following edit", async () => {
@@ -87,14 +162,14 @@ describe("DocumentEditingSession", () => {
     const source = bindSource(session, { revision: "r1", content: "one" });
 
     source.change({ revision: "r2", content: "two" });
-    await nextMicrotask();
+    await typingPause();
     source.change({ revision: "r3", content: "three" });
     source.change({ revision: "r4", content: "four" });
-    await nextMicrotask();
+    await typingPause();
 
     expect(requests.map(({ revision }) => revision)).toEqual(["r2"]);
     first.resolve({ ok: true, version: "v2" });
-    await nextMicrotask();
+    await typingPause();
     expect(requests.map(({ revision }) => revision)).toEqual(["r2", "r4"]);
     expect(requests[1]).toMatchObject({ content: "four", baseVersion: "v2" });
 
@@ -120,15 +195,15 @@ describe("DocumentEditingSession", () => {
     const source = bindSource(session, { revision: "r1", content: "one" });
 
     source.change({ revision: "r2", content: "two" });
-    await nextMicrotask();
+    await typingPause();
     source.change({ revision: "r3", content: "three" });
-    await nextMicrotask();
+    await typingPause();
 
     expect(session.reconcileExternalBaseline("two", "v2")).toBe("acknowledged");
     expect(session.getState()).toMatchObject({ status: "saving", error: null });
 
     first.resolve({ ok: true, version: "v2" });
-    await nextMicrotask();
+    await typingPause();
     expect(requests[1]).toMatchObject({ content: "three", baseVersion: "v2" });
 
     second.resolve({ ok: true, version: "v3" });
@@ -149,7 +224,7 @@ describe("DocumentEditingSession", () => {
     source.change({ revision: "r2", content: "agent and editor converged" });
     expect(session.reconcileExternalBaseline("agent and editor converged", "agent-v2"))
       .toBe("acknowledged");
-    await nextMicrotask();
+    await typingPause();
 
     expect(persist).not.toHaveBeenCalled();
     expect(session.hasUnpersistedChanges()).toBe(false);
@@ -167,7 +242,7 @@ describe("DocumentEditingSession", () => {
     const source = bindSource(session, { revision: "r1", content: "one" });
 
     source.change({ revision: "model:2", content: "projection-only replacement" }, false);
-    await nextMicrotask();
+    await typingPause();
 
     expect(persist).not.toHaveBeenCalled();
     expect(session.hasUnpersistedChanges()).toBe(false);
@@ -182,7 +257,7 @@ describe("DocumentEditingSession", () => {
     source.change({ revision: "r3", content: "one" });
 
     expect(session.reconcileExternalBaseline("agent edit", "agent-v2")).toBe("applied");
-    await nextMicrotask();
+    await typingPause();
     expect(source.snapshot().content).toBe("agent edit");
     expect(session.hasUnpersistedChanges()).toBe(false);
     expect(persist).not.toHaveBeenCalled();
@@ -275,12 +350,12 @@ describe("DocumentEditingSession", () => {
     const source = bindSource(session, { revision: "r1", content: "one" });
 
     source.change({ revision: "r2", content: "two" });
-    await nextMicrotask();
+    await typingPause();
     source.change({ revision: "r3", content: "three" });
     const drain = session.flushCurrent("document-switch");
 
     first.resolve({ ok: true, version: "v2" });
-    await nextMicrotask();
+    await typingPause();
     expect(requests[1]).toMatchObject({
       revision: "r3",
       content: "three",
@@ -301,12 +376,30 @@ describe("DocumentEditingSession", () => {
     session.dispose();
     await session.flushCurrent("destroy");
 
+    // Leaving the view already wrote the final snapshot; destroy only waits for it.
+    expect(persist).toHaveBeenCalledTimes(1);
     expect(persist).toHaveBeenCalledWith(expect.objectContaining({
       revision: "r2",
       content: "closing text",
-      reason: "destroy",
     }));
     expect(session.hasUnpersistedChanges()).toBe(false);
+  });
+
+  it("writes pending typing as soon as its view goes away, before a hidden external update", async () => {
+    const persist = vi.fn(async () => ({ ok: true as const, version: "v2" }));
+    const session = createSession(persist);
+    const source = bindSource(session, { revision: "r1", content: "one" });
+    source.change({ revision: "r2", content: "typed before switching tabs" });
+
+    source.detach();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(persist).toHaveBeenCalledTimes(1);
+    expect(persist).toHaveBeenCalledWith(expect.objectContaining({ content: "typed before switching tabs", reason: "edit" }));
+    expect(session.reconcileExternalBaseline("typed before switching tabs", "v2")).toBe("acknowledged");
+    expect(session.hasUnpersistedChanges()).toBe(false);
+    await vi.advanceTimersByTimeAsync(AUTO_SAVE_MAX_WAIT_MS);
+    expect(persist).toHaveBeenCalledTimes(1);
+    session.dispose();
   });
 
   it("drains a newer revision that arrives during an app-close write", async () => {
@@ -324,7 +417,7 @@ describe("DocumentEditingSession", () => {
     const closePromise = session.flushCurrent("app-close");
     source.change({ revision: "r3", content: "last close snapshot" });
     first.resolve({ ok: true, version: "v2" });
-    await nextMicrotask();
+    await typingPause();
 
     expect(requests[1]).toMatchObject({
       revision: "r3",
@@ -349,7 +442,7 @@ describe("DocumentEditingSession", () => {
     const session = createSession(persist);
     const source = bindSource(session, { revision: "r1", content: "one" });
     source.change({ revision: "r2", content: "two" });
-    await nextMicrotask();
+    await typingPause();
 
     source.change({ revision: "r3", content: "one" }, false);
     const drain = session.flushCurrent("document-switch");
@@ -367,7 +460,7 @@ describe("DocumentEditingSession", () => {
     const session = createSession(persist);
     const source = bindSource(session, { revision: "r1", content: "one" });
     source.change({ revision: "r2", content: "two" });
-    await nextMicrotask();
+    await typingPause();
 
     source.change({ revision: "r3", content: "two" });
     const drain = session.flushCurrent("document-switch");
@@ -401,7 +494,7 @@ describe("DocumentEditingSession", () => {
     const source = bindSource(session, { revision: "r1", content: "one" });
     source.change({ revision: "r2", content: "unsaved input" });
     session.reconcileExternalBaseline("disk content", "disk-v2");
-    await nextMicrotask();
+    await typingPause();
     expect(persist).not.toHaveBeenCalled();
     expect(source.snapshot().content).toBe("disk content");
     expect(session.hasUnpersistedChanges()).toBe(false);
@@ -415,10 +508,10 @@ describe("DocumentEditingSession", () => {
     const session = createSession(persist);
     const source = bindSource(session, { revision: "r1", content: "one" });
     source.change({ revision: "r2", content: "old input" });
-    await nextMicrotask();
+    await typingPause();
     session.reconcileExternalBaseline("disk content", "disk-v3");
     source.change({ revision: "r3", content: "disk content plus new typing" });
-    await nextMicrotask();
+    await typingPause();
     if (outcome === "success") first.resolve({ ok: true, version: "v2" });
     else first.reject(new Error("obsolete failure"));
     await session.flushCurrent("app-close");
@@ -437,7 +530,7 @@ describe("DocumentEditingSession", () => {
     const session = createSession(persist);
     const first = bindSource(session, { revision: "r1", content: "one" });
     first.change({ revision: "r2", content: "discarded input" });
-    await nextMicrotask();
+    await typingPause();
     first.detach();
     session.reconcileExternalBaseline("disk content", "disk-v3");
     const remounted = bindSource(session, { revision: "new:r1", content: "obsolete projection" });
@@ -454,11 +547,11 @@ describe("DocumentEditingSession", () => {
     const session = createSession(persist);
     const source = bindSource(session, { revision: "r1", content: "one" });
     source.change({ revision: "r2", content: "discarded input" });
-    await nextMicrotask();
+    await typingPause();
     session.reconcileExternalBaseline("disk content", "disk-v3");
     const closed = vi.fn();
     const closing = session.flushCurrent("app-close").then(closed);
-    await nextMicrotask();
+    await typingPause();
     expect(closed).not.toHaveBeenCalled();
     write.resolve({ ok: true, version: "v2" });
     await closing;
@@ -515,9 +608,9 @@ describe("DocumentEditingSession", () => {
     });
     const source = bindSource(session, { revision: "r1", content: "one" });
     source.change({ revision: "r2", content: "two" });
-    await nextMicrotask();
+    await typingPause();
     source.change({ revision: "r3", content: "three" });
-    await nextMicrotask();
+    await typingPause();
     expect(session.reconcileExternalBaseline("agent update", "agent-v2")).toBe("applied");
     first.resolve({ ok: true, version: "v2" });
     await session.flushCurrent("document-switch");
@@ -689,7 +782,7 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-async function nextMicrotask() {
-  await Promise.resolve();
-  await Promise.resolve();
+/** Settles pending promises and lets the auto-save idle delay pass. */
+async function typingPause() {
+  await vi.advanceTimersByTimeAsync(AUTO_SAVE_IDLE_MS);
 }

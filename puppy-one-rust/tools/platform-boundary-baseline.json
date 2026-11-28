@@ -1,0 +1,9 @@
+{
+  "description": "Shrink-only platform boundary baseline (puppyone#130). Resolve entries as OS logic moves into src/platform/ and src/web_host/backend/; run `--prune` to remove fixed items.",
+  "violations": [
+    "P1 src/capture.rs",
+    "P2 src/capture.rs",
+    "P3 Cargo.toml objc2",
+    "P3 Cargo.toml objc2-app-kit"
+  ]
+}

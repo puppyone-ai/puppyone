@@ -7,7 +7,7 @@ import { registerLocalAgentActivationIpcHandlers } from "./main/ipc/local-agent-
 import { createDatabasePreviewService, registerDatabasePreviewIpc } from "./main/database-preview/service.mjs";
 import { createCloudNativePreviewService, registerCloudNativePreviewIpc } from "./main/cloud-native-preview-service.mjs";
 import { createCloudPreviewResourceService, registerCloudPreviewResourceIpc } from "./main/cloud-preview-resource-service.mjs";
-import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, net, powerMonitor, protocol, safeStorage, screen, session as electronSession, shell, utilityProcess, webContents, WebContentsView } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, MessageChannelMain, nativeImage, nativeTheme, net, powerMonitor, protocol, safeStorage, session as electronSession, shell, utilityProcess, webContents, WebContentsView } from "electron";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { getDesktopReturnScheme, getDesktopReturnUrl, isDesktopReturnUrl } from "../shared/desktop/return-to-app-link.mjs";
 import fs from "node:fs";
@@ -158,6 +158,8 @@ import {
 import { createProjectLocationGrantStore } from "./main/project-location-grants.mjs";
 import { createDesktopLocaleService } from "./main/localization/desktop-locale-service.mjs";
 import { createWorkspaceWatchService } from "./main/workspace-watch-service.mjs";
+import { createLocalComputerService } from "./main/local-computers/local-computer-service.mjs";
+import { registerLocalComputerIpcHandlers } from "./main/ipc/local-computer-ipc.mjs";
 import { createWorkspaceMutationTracker } from "./main/workspace-mutation-tracker.mjs";
 import { createGitMetadataWatchService } from "./main/git-metadata-watch-service.mjs";
 import { createDesktopTelemetryHost } from "./main/telemetry/bootstrap/create-desktop-telemetry-host.mjs";
@@ -547,6 +549,21 @@ const workspaceStateStore = createWorkspaceStateStore({
   workspaceFromPath,
   resolveWorkspaceIdentity: resolveLocalWorkspaceIdentity,
 });
+const localComputerService = createLocalComputerService({
+  stateDirectory: path.join(app.getPath("userData"), "local-computers"),
+  canonicalizeWorkspacePath,
+  publishSnapshot: (snapshot) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      try {
+        if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
+          window.webContents.send("local-computers:changed", snapshot);
+        }
+      } catch {
+        // Window may close during delivery.
+      }
+    }
+  },
+});
 const projectEntryService = createProjectEntryService({
   journalDirectory: () => path.join(app.getPath("userData"), "project-initialization"),
   resolveTemplate: (source, locale) => templateMarketplaceService.resolveTemplate(source, locale),
@@ -714,8 +731,6 @@ async function createWindow(options = {}) {
   if (fileTarget) {
     workspaceWindows.add(fileTarget.rootPath, window);
     window.setRepresentedFilename?.(fileTarget.path);
-    // The file's title bar floats over the document, so scrolling over it scrolls the document.
-    desktopPlatformHost.windowChrome.passTitleBarScrollToPage?.(window);
     window.setTitle(fileTarget.name);
     // The page's own <title> would otherwise replace the file name on load.
     window.on("page-title-updated", (event) => event.preventDefault());
@@ -1265,6 +1280,7 @@ app.on("will-quit", () => {
     powerMonitor.removeListener("resume", gitAutoCommitHost.reconcileAfterResume);
   }
   gitAutoCommitHost.closeAll();
+  void localComputerService.closeAll().catch(() => {});
   workspaceWatchService.closeAll();
   gitMetadataWatchService.closeAll();
 });
@@ -1320,7 +1336,6 @@ function registerIpcHandlers() {
   registerWindowLayoutIpcHandlers({
     ipcMain: trustedIpcMain,
     BrowserWindow,
-    screen,
     platform: desktopPlatformHost.platform,
   });
   registerNativeSurfaceOcclusionIpcHandlers({
@@ -1494,6 +1509,13 @@ function registerIpcHandlers() {
   gitAutoCommitHost.registerIpcHandlers({
     ipcMain: trustedIpcMain,
     authorizeWorkspaceRoot,
+  });
+  registerLocalComputerIpcHandlers({
+    ipcMain: trustedIpcMain,
+    service: localComputerService,
+    requireRecentWorkspacePath: (folderPath) => (
+      workspaceStateStore.requireRecentWorkspacePath(folderPath)
+    ),
   });
   registerTerminalIpcHandlers({
     ipcMain: trustedIpcMain,

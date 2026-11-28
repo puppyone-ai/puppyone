@@ -8,6 +8,11 @@
   width: min(400px, calc(100vw - 32px));
 }
 
+.onboarding-entry-dialog.is-agent-start {
+  --onboarding-entry-inset: 22px;
+  width: min(500px, calc(100vw - 32px));
+}
+
 .onboarding-entry-dialog.is-import {
   --onboarding-entry-inset: 24px;
   width: min(440px, calc(100vw - 32px));
@@ -714,4 +719,118 @@
   color: var(--po-text-muted);
   font-size: var(--po-type-ui-meta, 13px);
   line-height: 18px;
+}
+
+/* Starting a project by handing its first brief to one of the person's Agents. */
+.onboarding-entry-dialog.is-agent-start .onboarding-entry-dialog-body {
+  display: grid;
+  gap: 14px;
+  padding-block: 6px 18px;
+}
+
+.onboarding-agent-start-leading .onboarding-agent-brand {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+}
+
+.onboarding-agent-start-ask {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 12px;
+  border: 1px solid var(--po-border-strong);
+  border-radius: 12px;
+  background: var(--po-panel-raised);
+  cursor: text;
+  transition: border-color 120ms ease;
+}
+
+.onboarding-agent-start-ask:focus-within {
+  border-color: var(--po-focus-ring);
+}
+
+.onboarding-agent-start-avatar {
+  display: inline-flex;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  margin-top: 1px;
+  align-items: center;
+  justify-content: center;
+}
+
+.onboarding-agent-start-avatar .onboarding-agent-brand {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+
+.onboarding-agent-start-ask-body {
+  display: grid;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 4px;
+}
+
+.onboarding-agent-start-prompt-label {
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-caption, 12px);
+  font-weight: var(--po-text-weight-regular, 400);
+  line-height: 16px;
+}
+
+.onboarding-agent-start-input {
+  width: 100%;
+  min-height: 66px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--po-text);
+  font-family: inherit;
+  font-size: var(--po-type-ui-body, 14px);
+  line-height: 1.55;
+  resize: vertical;
+  outline: none;
+}
+
+.onboarding-agent-start-input::placeholder {
+  color: var(--po-text-subtle);
+}
+
+.onboarding-agent-start-input:disabled {
+  color: var(--po-text-disabled);
+  cursor: default;
+}
+
+.onboarding-entry-dialog.is-agent-start .onboarding-entry-create-fields {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .onboarding-entry-dialog.is-agent-start .onboarding-entry-create-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.onboarding-agent-start-note {
+  color: var(--po-text-muted);
+  font-size: var(--po-type-ui-caption, 12px);
+  line-height: 1.55;
+}
+
+.onboarding-agent-start-submit {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.onboarding-agent-start-submit .onboarding-agent-brand {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border-radius: 4px;
 }

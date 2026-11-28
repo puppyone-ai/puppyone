@@ -118,6 +118,7 @@ export async function createDesktopReleaseManifest({
       baseVersion: identity.baseVersion,
       build: {
         id: identity.buildId,
+        ...(identity.runtime !== undefined ? { runtime: identity.runtime } : {}),
         platformBuildNumber: identity.platformBuildNumber,
         builtAt: identity.builtAt,
         sourceDirty: identity.sourceDirty,
@@ -224,6 +225,7 @@ export function inspectDesktopReleaseManifest(manifest) {
         const identity = assertDesktopBuildInfo({
           schemaVersion: 1,
           product: DESKTOP_RELEASE_PRODUCT,
+          ...(manifest?.build?.runtime !== undefined ? { runtime: manifest.build.runtime } : {}),
           channel: manifest.channel,
           baseVersion: manifest.baseVersion,
           version: manifest.version,
@@ -567,6 +569,7 @@ export async function verifyDesktopReleaseBundle(bundleDirectory, expected = {})
     const manifestIdentity = {
       schemaVersion: 1,
       product: manifest.product,
+      ...(manifest.build.runtime !== undefined ? { runtime: manifest.build.runtime } : {}),
       channel: manifest.channel,
       baseVersion: manifest.baseVersion,
       version: manifest.version,

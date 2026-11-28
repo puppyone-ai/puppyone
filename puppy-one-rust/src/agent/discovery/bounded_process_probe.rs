@@ -1,0 +1,390 @@
+//! `platform/common/bounded-process-probe.mjs`: one short-lived child with
+//! bounded output, a hard deadline and cancellation. Runtime probes and
+//! platform environment acquisition share these budgets.
+use super::command_environment::EnvMap;
+use crate::agent::agent_error::{AgentError, AgentResult};
+use crate::agent::discovery::windows::process_invocation::resolve_process_invocation;
+use crate::agent::tasks::CancelSignal;
+use crate::platform::paths::flavor::{posix_is_absolute, win32_is_absolute};
+use crate::text;
+use futures_util::future::LocalBoxFuture;
+use std::path::PathBuf;
+use std::rc::Rc;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::Duration;
+use tokio::io::{AsyncRead, AsyncReadExt};
+
+/// `runBoundedProcessProbe(file, args, options)` options.
+#[derive(Clone)]
+pub struct ProbeOptions {
+    /// `None` inherits the host environment.
+    pub env: Option<EnvMap>,
+    pub cwd: Option<PathBuf>,
+    pub timeout_ms: u64,
+    pub max_output_bytes: usize,
+    pub signal: Option<CancelSignal>,
+    pub label: String,
+    pub platform: String,
+    pub isolated_process_group: bool,
+}
+
+impl Default for ProbeOptions {
+    fn default() -> Self {
+        Self {
+            env: None,
+            cwd: None,
+            timeout_ms: 1_500,
+            max_output_bytes: 16 * 1024,
+            signal: None,
+            label: "Desktop process probe".into(),
+            platform: node_platform().into(),
+            isolated_process_group: false,
+        }
+    }
+}
+
+/// `{ stdout, stderr, code, signal }`.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ProbeResult {
+    pub stdout: String,
+    pub stderr: String,
+    pub code: Option<i32>,
+    pub signal: Option<String>,
+}
+
+/// An injectable probe (`runProbe`).
+pub type ProbeRunner = Rc<
+    dyn Fn(String, Vec<String>, ProbeOptions) -> LocalBoxFuture<'static, AgentResult<ProbeResult>>,
+>;
+
+/// The default runner.
+pub fn default_probe_runner() -> ProbeRunner {
+    Rc::new(|file, args, options| {
+        Box::pin(async move { run_bounded_process_probe(&file, &args, options).await })
+    })
+}
+
+/// `process.platform`.
+pub fn node_platform() -> &'static str {
+    crate::platform::process::node_platform()
+}
+
+fn validate_launch(executable_path: &str, args: &[String]) -> AgentResult<()> {
+    let unsafe_text = |value: &str| value.contains(['\r', '\n', '\0']);
+    if !(posix_is_absolute(executable_path) || win32_is_absolute(executable_path))
+        || unsafe_text(executable_path)
+    {
+        return Err(
+            AgentError::new("Local Agent probes require a safe absolute executable path.")
+                .with_name("TypeError"),
+        );
+    }
+    if args.len() > 16
+        || args
+            .iter()
+            .any(|arg| text::len16(arg) > 4_096 || unsafe_text(arg))
+    {
+        return Err(
+            AgentError::new("Local Agent probe arguments are invalid.").with_name("TypeError")
+        );
+    }
+    Ok(())
+}
+
+async fn read_bounded(
+    mut reader: impl AsyncRead + Unpin,
+    total: Arc<AtomicUsize>,
+    limit: usize,
+) -> Result<Vec<u8>, ()> {
+    let mut bytes = Vec::new();
+    let mut buffer = [0u8; 8192];
+    loop {
+        match reader.read(&mut buffer).await {
+            Ok(0) | Err(_) => return Ok(bytes),
+            Ok(count) => {
+                if total.fetch_add(count, Ordering::Relaxed) + count > limit {
+                    return Err(());
+                }
+                bytes.extend_from_slice(&buffer[..count]);
+            }
+        }
+    }
+}
+
+/// `runBoundedProcessProbe(executablePath, args, options)`.
+pub async fn run_bounded_process_probe(
+    executable_path: &str,
+    args: &[String],
+    options: ProbeOptions,
+) -> AgentResult<ProbeResult> {
+    validate_launch(executable_path, args)?;
+    let label = options.label.clone();
+    let failure = |reason: &str| AgentError::new(format!("{label} {reason}"));
+    if options
+        .signal
+        .as_ref()
+        .is_some_and(CancelSignal::is_cancelled)
+    {
+        return Err(failure("was cancelled."));
+    }
+    let inherited: EnvMap;
+    let env = match options.env.as_ref() {
+        Some(env) => env,
+        None => {
+            inherited = std::env::vars().collect();
+            &inherited
+        }
+    };
+    let invocation = resolve_process_invocation(executable_path, args, &options.platform, env)
+        .map_err(|_| failure("could not start."))?;
+    let mut command = tokio::process::Command::new(&invocation.file);
+    crate::platform::process::apply_tokio_args(
+        &mut command,
+        &invocation.args,
+        invocation.verbatim_arguments,
+    );
+    command
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .kill_on_drop(true);
+    if let Some(cwd) = options.cwd.as_ref() {
+        command.current_dir(cwd);
+    }
+    if let Some(env) = options.env.as_ref() {
+        command.env_clear().envs(env);
+    }
+    if options.isolated_process_group {
+        crate::platform::process::isolate_tokio(&mut command);
+    } else {
+        crate::platform::process::hide_console_window(&mut command);
+    }
+    let mut child = command.spawn().map_err(|error| {
+        #[cfg(test)]
+        if std::env::var_os("PUPPYONE_TEST_PROBE_DIAGNOSTICS").is_some() {
+            eprintln!("probe spawn: {executable_path} {error:?}");
+        }
+        let _ = error;
+        failure("could not start.")
+    })?;
+    let subtree = options
+        .isolated_process_group
+        .then(|| crate::platform::process::SubtreeGuard::attach_pid(child.id()));
+    let kill = |child: &mut tokio::process::Child| {
+        if subtree.as_ref().is_some_and(|guard| guard.terminate(true)) {
+            return;
+        }
+        let _ = child.start_kill();
+    };
+    let total = Arc::new(AtomicUsize::new(0));
+    let stdout = child.stdout.take().expect("piped stdout");
+    let stderr = child.stderr.take().expect("piped stderr");
+    let limit = options.max_output_bytes;
+    let output = async {
+        // Stop as soon as either stream crosses the shared budget. Waiting for
+        // both streams to close lets a noisy child keep the other pipe open
+        // until the deadline instead of enforcing the output limit.
+        tokio::try_join!(
+            read_bounded(stdout, total.clone(), limit),
+            read_bounded(stderr, total.clone(), limit)
+        )
+    };
+    let deadline =
+        tokio::time::Instant::now() + Duration::from_millis(options.timeout_ms.clamp(1, 10_000));
+    let cancelled = async {
+        match options.signal.as_ref() {
+            Some(signal) => {
+                signal.cancelled().await;
+            }
+            None => futures_util::future::pending::<()>().await,
+        }
+    };
+    enum Outcome {
+        Output(Result<(Vec<u8>, Vec<u8>), ()>),
+        Timeout,
+        Cancelled,
+    }
+    let outcome = tokio::select! {
+        output = output => Outcome::Output(output),
+        _ = tokio::time::sleep_until(deadline) => Outcome::Timeout,
+        _ = cancelled => Outcome::Cancelled,
+    };
+    let (stdout, stderr) = match outcome {
+        Outcome::Output(Ok(output)) => output,
+        Outcome::Output(Err(())) => {
+            kill(&mut child);
+            let _ = child.wait().await;
+            return Err(failure("output exceeded the safety limit."));
+        }
+        Outcome::Timeout => {
+            kill(&mut child);
+            let _ = child.wait().await;
+            return Err(failure("timed out."));
+        }
+        Outcome::Cancelled => {
+            kill(&mut child);
+            let _ = child.wait().await;
+            return Err(failure("was cancelled."));
+        }
+    };
+    let status = tokio::select! {
+        status = child.wait() => status.map_err(|_| failure("could not start."))?,
+        _ = async {
+            match options.signal.as_ref() {
+                Some(signal) => { signal.cancelled().await; }
+                None => futures_util::future::pending::<()>().await,
+            }
+        } => {
+            kill(&mut child);
+            let _ = child.wait().await;
+            return Err(failure("was cancelled."));
+        },
+        _ = tokio::time::sleep_until(deadline) => {
+            kill(&mut child);
+            let _ = child.wait().await;
+            return Err(failure("timed out."));
+        }
+    };
+    let signal = crate::platform::process::exit_signal_name(&status);
+    let result = ProbeResult {
+        stdout: String::from_utf8_lossy(&stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&stderr).into_owned(),
+        code: status.code(),
+        signal,
+    };
+    #[cfg(test)]
+    if std::env::var_os("PUPPYONE_TEST_PROBE_DIAGNOSTICS").is_some() {
+        eprintln!("bounded probe {executable_path}: {result:?}");
+    }
+    Ok(result)
+}
+
+#[cfg(all(test, unix))]
+#[path = "probe_lifecycle_tests.rs"]
+mod lifecycle_tests;
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use crate::agent::application::tests_support::run_local;
+    use std::pin::Pin;
+    use std::task::{Context, Poll};
+    use tokio::io::ReadBuf;
+
+    struct ByteChunks<'a>(&'a [u8]);
+    impl AsyncRead for ByteChunks<'_> {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            _: &mut Context<'_>,
+            buf: &mut ReadBuf<'_>,
+        ) -> Poll<std::io::Result<()>> {
+            if !self.0.is_empty() && buf.remaining() > 0 {
+                buf.put_slice(&self.0[..1]);
+                self.0 = &self.0[1..];
+            }
+            Poll::Ready(Ok(()))
+        }
+    }
+    #[test]
+    fn unicode_probe_output_survives_byte_chunks_and_real_pipe_boundaries() {
+        run_local(async {
+            let text = "PATH=/工具/命令/bin\0";
+            let bytes = read_bounded(
+                ByteChunks(text.as_bytes()),
+                Arc::new(AtomicUsize::new(0)),
+                100,
+            )
+            .await
+            .unwrap();
+            assert_eq!(bytes, text.as_bytes());
+            // Also exercise the public child-process path with more than one
+            // read buffer, including multi-byte scalars spanning its boundary.
+            let directory = tempfile::tempdir().unwrap();
+            let file = directory.path().join("unicode.txt");
+            let expected = text.repeat(1_024);
+            std::fs::write(&file, &expected).unwrap();
+            let result = run_bounded_process_probe(
+                "/bin/cat",
+                &[file.to_string_lossy().into_owned()],
+                ProbeOptions {
+                    max_output_bytes: expected.len(),
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+            assert_eq!(result.stdout, expected);
+            assert_eq!(result.code, Some(0));
+            assert!(result.stderr.is_empty());
+        });
+    }
+}
+
+#[cfg(all(test, windows))]
+mod windows_tests {
+    use super::*;
+    use crate::agent::application::tests_support::run_local;
+    use std::path::Path;
+    use std::time::Instant;
+
+    fn cmd_exe() -> String {
+        let root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into());
+        Path::new(&root)
+            .join("System32")
+            .join("cmd.exe")
+            .to_string_lossy()
+            .into_owned()
+    }
+
+    #[test]
+    fn windows_batch_probe_preserves_spaces_in_path_and_arguments() {
+        run_local(async {
+            let directory = tempfile::tempdir().unwrap();
+            let nested = directory.path().join("space dir");
+            std::fs::create_dir_all(&nested).unwrap();
+            let script = nested.join("echo probe.cmd");
+            std::fs::write(&script, "@echo off\r\necho [%~1][%~2]\r\n").unwrap();
+            let result = run_bounded_process_probe(
+                script.to_str().unwrap(),
+                &["hello world".into(), "second arg".into()],
+                ProbeOptions {
+                    timeout_ms: 5_000,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap();
+            assert_eq!(result.code, Some(0));
+            assert_eq!(result.stdout.trim(), "[hello world][second arg]");
+            assert!(result.stderr.is_empty());
+        });
+    }
+
+    #[test]
+    fn windows_isolated_probe_timeout_reaps_descendants_via_subtree_guard() {
+        run_local(async {
+            let started = Instant::now();
+            let error = run_bounded_process_probe(
+                &cmd_exe(),
+                &["/d".into(), "/c".into(), "ping -n 30 127.0.0.1 >nul".into()],
+                ProbeOptions {
+                    timeout_ms: 250,
+                    isolated_process_group: true,
+                    ..Default::default()
+                },
+            )
+            .await
+            .unwrap_err();
+            assert!(
+                error.message.contains("timed out"),
+                "unexpected probe error: {}",
+                error.message
+            );
+            assert!(
+                started.elapsed() < Duration::from_secs(3),
+                "isolated Windows probe timeout took too long"
+            );
+        });
+    }
+}

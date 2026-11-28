@@ -7,6 +7,7 @@ import type {
 } from "@puppyone/shared-ui";
 import type { AppLanguagePreference, LocaleState } from "@puppyone/localization/core";
 import type { LocalAgentSetupRequest, LocalAgentSetupSnapshot, LocalAgentSetupAction, LocalAgentSetupActionResult } from "../../shared/local-agent-installation/setup-types";
+import type { LocalComputersBridge } from "../../shared/local-computers/types";
 import type { HostCatalogDevice, HostFileOperation, HostFolderEvent, HostFolderResult, HostLauncher, HostSession,
   HostSharingStatus, HostTerminalEvent, RecentHostFolder } from "../../shared/host-contract/types";
 import type { ModelConnectionSnapshot, ModelConnectionCandidate, ModelConnectionResult, SaveModelConnectionRequest } from "../../shared/model-connections/types";
@@ -732,6 +733,16 @@ export type FolderAvailability = "available" | "missing" | "disconnected" | "den
 export type FolderMatch = "same-folder" | "same-cloud-project" | "different";
 export type FolderCandidate = { token: string; path: string; name: string; match: FolderMatch };
 export type FolderStatus = { path: string; state: FolderAvailability; suggestion?: FolderCandidate };
+export type ProjectAssetPreviewKind = "html" | "md" | "csv" | "other";
+export type ProjectAssetPreview = {
+  name: string;
+  kind: ProjectAssetPreviewKind;
+  snippet: string | null;
+};
+export type ProjectFolderPreviews = {
+  path: string;
+  previews: ProjectAssetPreview[];
+};
 export type FolderLocateResult =
   | { status: "cancelled" | "unchanged" }
   | ({ status: "selected" } & FolderCandidate);
@@ -1028,8 +1039,6 @@ declare global {
       connectTerminalSession: (request: import("../../shared/session-transport/types").TerminalConnectionRequest) => Promise<import("../../shared/session-transport/types").SessionConnectionResult>;
       onSessionRuntimeFailure: (listener: (failure: import("../../shared/session-transport/types").SessionRuntimeFailure) => void) => () => void;
       getWindowChromeState: () => Promise<{ fullScreen: boolean; maximized: boolean }>;
-      /** Where the pointer is over this window's content, or null when it is elsewhere. */
-      getWindowCursorPoint: () => Promise<{ x: number; y: number } | null>;
       setWindowChromeProfile: (request: {
         titlebar: string;
       }) => Promise<{
@@ -1283,6 +1292,7 @@ declare global {
         }) => Promise<ProjectAppearance>;
         onChanged: (callback: (appearance: ProjectAppearance) => void) => () => void;
       };
+      localComputers?: LocalComputersBridge;
       removeRecentWorkspace: (folderPath: string) => Promise<{
         ok: true;
         removed: true;
@@ -1312,6 +1322,8 @@ declare global {
       detachFolder: (folderPath: string) => Promise<WorkspaceDetachResult>;
       /** Whether each known project folder can be opened now; a renamed one comes with where it is. */
       getFolderStatus: (paths: readonly string[]) => Promise<FolderStatus[]>;
+      /** Up to three top-level files from each recent project folder, sorted HTML > MD > CSV > other. */
+      getProjectPreviews: (paths: readonly string[]) => Promise<ProjectFolderPreviews[]>;
       /** The person points at where a project's folder is now, in the system dialog. */
       locateFolder: (folderPath: string) => Promise<FolderLocateResult>;
       /** Use a confirmed new place for the project from now on. */
@@ -1403,7 +1415,8 @@ declare global {
       watchCloudWorkspace: (request: { id: string; apiBaseUrl: string; projectId: string; generation: string;
         expectedSession: { userId: string; generation: string } }) => Promise<{ id: string }>;
       stopCloudWorkspaceWatch: (request: { id: string }) => Promise<void>;
-      onCloudWorkspaceEvent: (callback: (event: { id: string; type: "change" | "reconnecting" | "unavailable"; generation?: string; message?: string }) => void) => () => void;
+      /** `paths` are workspace-relative hints; absent means the changed scope is unknown. */
+      onCloudWorkspaceEvent: (callback: (event: { id: string; type: "change" | "reconnecting" | "unavailable"; generation?: string; paths?: string[]; message?: string }) => void) => () => void;
       retainCloudPreviewResource: (request: import("../platform/cloudNativePreviewClient").CloudPreviewSource) => Promise<{ url: string }>;
       revokeCloudPreviewResource: (request: { url: string }) => Promise<void>;
       convertOfficeDocumentToDocx: (

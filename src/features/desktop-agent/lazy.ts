@@ -36,6 +36,7 @@ export async function prepareAgentChatWorkbenchItem(context: AuxiliaryWorkbenchP
     context.project,
     context.item.id,
     context.recipe?.id ?? null,
+    context.seed?.initialPrompt ?? null,
   );
 }
 

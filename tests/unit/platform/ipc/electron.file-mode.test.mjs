@@ -83,6 +83,8 @@ describe("File Mode IPC gate", () => {
       "platform:get-capabilities",
       "theme:list",
       "window-layout:set-chrome-profile",
+      "window-layout:get-chrome-state",
+      "window-layout:perform-window-action",
       "appearance:set-window-background",
       "document-session:flush-result",
       "mermaid:render",

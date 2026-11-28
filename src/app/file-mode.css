@@ -1,228 +1,50 @@
 @layer features {
+  /*
+   * A project window's Header (styles/titlebar.css) over the document, so both
+   * windows read as one app: the Header's own fill and divider, the native
+   * window controls' insets, and the file's controls as Header commands.
+   */
   .file-mode-window {
-    position: relative;
     display: flex;
     flex-direction: column;
     width: 100%;
     height: 100vh;
     min-height: 0;
-    /* One surface from the window's top edge: the title bar shares the document's colour. */
     background: var(--po-editor-bg);
     color: var(--po-text);
   }
 
-  /*
-   * The project titlebar's geometry and type (styles/titlebar.css), so both
-   * windows read as one app, but no bar of its own: it floats over the
-   * document's top with no fill or divider, and the document scrolls on under
-   * it to the window's edge. Header text uses the muted ink. Overlay chrome
-   * draws the native window controls over this row.
-   */
-  .file-mode-window__titlebar {
-    --file-mode-titlebar-safe-start: 0px;
-    --file-mode-titlebar-safe-end: 0px;
-    /* The file's own controls: up to two icon commands. */
-    --file-mode-titlebar-controls-room: calc(var(--desktop-chrome-control-size) * 2 + 3px);
-    --file-mode-titlebar-side: max(
-      var(--file-mode-titlebar-safe-start),
-      calc(var(--file-mode-titlebar-safe-end) + var(--file-mode-titlebar-controls-room))
-    );
-    position: absolute;
-    z-index: 1;
-    inset-block-start: 0;
-    inset-inline: 0;
-    display: grid;
-    /* Equal sides keep the name in the middle of the window, clear of the window's controls and the file's. */
-    grid-template-columns:
-      minmax(var(--file-mode-titlebar-side), 1fr)
-      minmax(0, auto)
-      minmax(var(--file-mode-titlebar-side), 1fr);
-    align-items: center;
-    height: var(--desktop-chrome-height);
-    padding-inline: 6px;
-    color: var(--po-text-muted);
-    font-family: var(--po-font-ui);
-    font-size: var(--po-type-header-content);
-    font-weight: var(--desktop-sidebar-font-weight, var(--po-text-weight-regular, 400));
-    line-height: var(--po-type-header-line-height, 20px);
-    /*
-     * Scrolling over the bar scrolls the document under it, as anywhere else
-     * in the window: only the file's controls take the pointer. Pressing the
-     * bar still drags the window, since it stays a native drag region; on
-     * macOS, main hands the page the scrolling that region would swallow
-     * (platform/macos/title-bar-scroll.mjs).
-     */
-    pointer-events: none;
-  }
-
-  /* Mirrors the project titlebar's traffic-light inset. */
-  .file-mode-window__titlebar[data-window-platform="macos"][data-window-chrome-mode="overlay"] {
-    --file-mode-titlebar-safe-start: 80px;
-  }
-
-  /* Windows reports the area left free by its caption buttons. */
-  .file-mode-window__titlebar[data-window-platform="windows"][data-window-chrome-mode="overlay"] {
-    --file-mode-titlebar-safe-start: env(titlebar-area-x, 0px);
-    --file-mode-titlebar-safe-end: calc(
-      100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 138px))
-    );
-  }
-
-  .file-mode-window__name {
-    grid-column: 2;
-    min-width: 0;
-    padding-inline: 6px;
-    text-align: center;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    transition: opacity 0.16s ease-out;
-  }
-
-  /*
-   * While reading further down, the bar steps back entirely: the name fades
-   * out and comes back with the controls when the pointer nears the top, or
-   * once the document is back at its top.
-   */
-  .file-mode-window:has(> .file-mode-window__document[data-scrolled]):not([data-controls-revealed])
-    .file-mode-window__name {
-    opacity: 0;
-  }
-
-  /*
-   * The editor's view and settings, spaced as a project pane menu's commands.
-   * Like a project pane's chrome they keep out of the way of reading: they
-   * appear while the pointer is in the top third of the window, and stay while
-   * one of their menus is open or the keyboard is on them. Hidden, they still
-   * take the pointer, so the first press never falls through to the bar.
-   */
-  .file-mode-window__controls {
-    grid-column: 3;
-    justify-self: end;
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    margin-inline-end: var(--file-mode-titlebar-safe-end);
-    pointer-events: auto;
-    opacity: 0;
-    transition: opacity 90ms ease;
-  }
-
-  .file-mode-window[data-controls-revealed] .file-mode-window__controls,
-  .file-mode-window__controls:hover,
-  .file-mode-window__controls:has(:focus-visible, [aria-expanded="true"]) {
-    opacity: 1;
-  }
-
-  /* Each control is an icon command on the project titlebar's terms. */
-  .file-mode-window__action {
+  .file-mode-window > .desktop-titlebar {
     flex: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: var(--desktop-chrome-control-size);
-    height: var(--desktop-titlebar-control-height);
-    padding: 0;
-    border: 0;
-    border-radius: var(--desktop-toolbar-action-radius);
-    outline: 0;
-    background: transparent;
-    box-shadow: none;
-    /* A shade lighter than the name at rest, as a project pane's handle is. */
-    color: color-mix(in srgb, var(--po-text-muted) 68%, transparent);
-    cursor: var(--po-clickable-cursor, default);
-    transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
   }
 
-  /* Touched, an icon takes the name's ink, and the fill says hover, focus or open. */
-  .file-mode-window__action:hover {
-    background: var(--po-hover);
-    color: var(--po-text-muted);
-  }
-
-  .file-mode-window__action:focus-visible {
-    background: var(--po-hover);
-    box-shadow: inset 0 0 0 1px var(--po-focus-ring);
-    color: var(--po-text-muted);
-  }
-
-  .file-mode-window__action[aria-expanded="true"] {
-    background: var(--po-selected);
-    color: var(--po-text-muted);
-  }
-
-  /* One size and weight for every icon here, the project titlebar's, whichever editor drew it. */
-  .file-mode-window__action svg {
+  /* One size and weight for every icon in the Header, a project Header's, whichever editor drew it. */
+  .file-mode-window .desktop-titlebar-action svg {
     width: 15px;
     height: 15px;
-    stroke-width: 1.85;
+    stroke-width: 1.8;
   }
 
-  /* A notice sits where the document would start, below the title bar's row. */
+  /* An open menu holds its command down, as an open dialog does a project's. */
+  .file-mode-window .desktop-titlebar-action[aria-haspopup="menu"][aria-expanded="true"] {
+    background: var(--desktop-titlebar-active);
+    color: var(--desktop-titlebar-text);
+  }
+
   .file-mode-window__notice {
     flex: none;
     margin: 0;
-    margin-block-start: var(--desktop-chrome-height);
     padding: 8px 16px;
     color: var(--po-text-muted);
     font-size: var(--po-type-header-content);
     line-height: var(--po-type-header-line-height);
   }
 
-  /*
-   * The document fills the window from its top edge. Editors keep the title
-   * bar's row as room above their content (--po-editor-chrome-inset-block-start),
-   * so at rest nothing sits under it; scrolled, content passes beneath it.
-   * Its own stacking context keeps everything in it under the bar.
-   */
   .file-mode-window__document {
-    --po-editor-chrome-inset-block-start: var(--desktop-chrome-height);
-    position: relative;
-    z-index: 0;
     flex: 1;
     display: flex;
     flex-direction: column;
     min-width: 0;
     min-height: 0;
-    transition: --file-mode-scroll-fade 0.16s ease-out;
   }
-
-  /* Below a notice the document already starts clear of the bar. */
-  .file-mode-window__document:has(> .file-mode-window__notice) {
-    --po-editor-chrome-inset-block-start: 0px;
-  }
-
-  /*
-   * Content scrolled up to the window's edge fades out across the title bar's
-   * row instead of meeting a line, so the name and window controls stay clear.
-   * Nothing fades at the top of the document, where the first row (a table's
-   * header, a page's banner) has to stay whole, nor around a table's pinned
-   * header row, which is already the edge and holds the column names, nor
-   * for a page in a frame (HTML): it has its own background, and fading it
-   * into the window's would draw a band. The fade runs the full width.
-   */
-  .file-mode-window__document[data-scrolled]:not([data-scrolled="frame"], :has(.csv-table-editor__table > thead)) {
-    --file-mode-scroll-fade: var(--desktop-chrome-height);
-    mask-image: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(0 0 0 / 0.5) calc(var(--file-mode-scroll-fade) * 0.45),
-      #000 var(--file-mode-scroll-fade)
-    );
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .file-mode-window__document,
-    .file-mode-window__controls,
-    .file-mode-window__name {
-      transition: none;
-    }
-  }
-}
-
-/* Registered so the fade can grow in as the document leaves its top. */
-@property --file-mode-scroll-fade {
-  syntax: "<length>";
-  inherits: false;
-  initial-value: 0px;
 }

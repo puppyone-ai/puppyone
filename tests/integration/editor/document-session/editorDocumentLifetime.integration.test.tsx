@@ -9,6 +9,7 @@ import type { DataPort, DocumentDataNode, DocumentPersistencePort } from "../../
 import { createWorkspaceContentChange } from "../../../../src/shared-ui/core/workspaceContentChange";
 import { CodeMirrorDocumentModel } from "../../../../src/shared-ui/editor/document-session/CodeMirrorDocumentModel";
 import { DocumentSessionBoundary } from "../../../../src/shared-ui/editor/document-session/DocumentSessionBoundary";
+import { AUTO_SAVE_IDLE_MS } from "../../../../src/shared-ui/editor/document-session/autoSavePolicy";
 import { closeAllDocumentWorkingCopies, getOrCreateDocumentWorkingCopy } from "../../../../src/shared-ui/editor/document-session/documentWorkingCopies";
 import { MarkdownCodeMirrorEditor } from "../../../../src/shared-ui/editor/markdown/MarkdownCodeMirrorEditor";
 import { getDocumentInputRuntime, invalidateDocumentInputs, retireAllDocumentInputs } from "../../../../src/shared-ui/editor/resource/DocumentInputRuntime";
@@ -70,6 +71,7 @@ describe.each(["code", "markdown"] as const)("%s document lifetime", (kind) => {
     await act(async () => render(true));
     const original = view(container);
     await act(async () => original.dispatch({ changes: { from: 5, insert: " edited" }, userEvent: "input.type" }));
+    await typingPause();
     expect(disk).toBe("alpha edited");
     await act(async () => render(false));
     const saves = persist.mock.calls.length;
@@ -79,8 +81,10 @@ describe.each(["code", "markdown"] as const)("%s document lifetime", (kind) => {
     expect(restored.state.doc.toString()).toBe("alpha edited");
     expect(persist).toHaveBeenCalledTimes(saves);
     await act(async () => { expect(undo(restored)).toBe(true); });
+    await typingPause();
     expect(disk).toBe("alpha");
     await act(async () => { expect(redo(restored)).toBe(true); });
+    await typingPause();
     expect(disk).toBe("alpha edited");
   });
 
@@ -123,3 +127,5 @@ function view(container: HTMLElement): EditorView {
   return requireEditorView(element);
 }
 async function ticks() { for (let count = 0; count < 12; count++) await Promise.resolve(); }
+/** Auto-save writes after the person stops typing. */
+async function typingPause() { await act(async () => { await new Promise((resolve) => setTimeout(resolve, AUTO_SAVE_IDLE_MS + 20)); }); }

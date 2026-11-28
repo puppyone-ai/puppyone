@@ -6,7 +6,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, dialog, Menu } from "electron";
 import { workspaceFromPath } from "../../../../electron/local-api/workspace.mjs";
-import { loadMacosTitleBarScroll } from "../../../../electron/main/platform/macos/title-bar-scroll.mjs";
 import { createWorkspaceStateStore } from "../../../../electron/main/workspace-state-store.mjs";
 import { getDesktopBuildChannelPolicy } from "../../../../shared/desktop-build-identity.mjs";
 
@@ -58,57 +57,85 @@ const exists = (window, selector) => evaluate(window, `!!document.querySelector(
 const windows = () => BrowserWindow.getAllWindows();
 const windowNamed = (title) => windows().find((window) => !window.isDestroyed() && window.getTitle() === title);
 const openFromSystem = (target) => app.emit("open-file", { preventDefault() {} }, target);
-/** The editor's controls in the title bar: one button per control, the view menu's options, the settings menu's items. Controls left inside the editor are reported, not hidden. */
-const titlebarControls = (window) => evaluate(window, `(async () => {
+/** The file window's Header: the product Header, above the document. */
+const HEADER = ".file-mode-window > .desktop-titlebar";
+/**
+ * Source of a page function that opens a Header menu and resolves with it, or null. An editor
+ * taking focus as it mounts closes a menu opened that moment, so press again until it stays.
+ */
+const openMenu = `(async (trigger, menuSelector) => {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    if (trigger.getAttribute("aria-expanded") !== "true") trigger.click();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const menu = document.querySelector(menuSelector);
+    if (menu && trigger.getAttribute("aria-expanded") === "true") return menu;
+  }
+  return null;
+})`;
+/** The editor's controls in the Header: one button per control, the view menu's options, the settings menu's items. Controls left inside the editor are reported, not hidden. */
+const headerControls = (window) => evaluate(window, `(async () => {
   if (document.querySelector(".file-mode-window__document :is(.csv-table-editor__settings, .html-editor-options)")) return "inside the editor";
-  const bar = document.querySelector(".file-mode-window__titlebar");
+  const actions = document.querySelector("${HEADER} .desktop-titlebar-actions");
   const settle = () => new Promise((resolve) => setTimeout(resolve, 300));
   const count = async (trigger, menuSelector, itemSelector) => {
     if (!trigger) return 0;
-    trigger.click();
-    await settle();
-    const found = document.querySelector(menuSelector)?.querySelectorAll(itemSelector).length ?? -1;
+    const found = (await ${openMenu}(trigger, menuSelector))?.querySelectorAll(itemSelector).length ?? -1;
     trigger.click();
     await settle();
     return found;
   };
-  // At rest an icon is the name's ink, a shade lighter.
-  const alpha = (colour) => Number(/[/,]\\s*([\\d.]+)\\)$/.exec(colour)?.[1] ?? 1);
-  const name = getComputedStyle(bar.querySelector(".file-mode-window__name")).color;
+  const buttons = [...actions.querySelectorAll("button")];
   return {
-    buttons: bar.querySelectorAll("button").length,
-    iconsLighterThanTheName: [...bar.querySelectorAll("button svg")].every((icon) => icon.getBoundingClientRect().width === 15 && alpha(getComputedStyle(icon).color) < alpha(name)),
-    views: await count(bar.querySelector(".file-mode-window__view-mode"), ".desktop-editor-view-mode-menu", "[role=menuitemradio]"),
-    settings: await count(bar.querySelector(".file-mode-window__action:not(.file-mode-window__view-mode)"), ".desktop-editor-pane-menu:not(.desktop-editor-view-mode-menu)", "[role^=menuitem]"),
+    buttons: buttons.length,
+    // The document's own switches, pressed or not, such as Edit and the source panel.
+    switches: [...actions.querySelectorAll(".file-mode-window__toggle")].map((button) => button.dataset.control + (button.getAttribute("aria-pressed") === "true" ? ":on" : ":off")),
+    // Header commands, in sight without the pointer anywhere near, at the project Header's icon size.
+    headerCommands: buttons.every((button) => button.classList.contains("desktop-titlebar-action")
+      && getComputedStyle(button).opacity === "1" && button.querySelector("svg").getBoundingClientRect().width === 15),
+    views: await count(actions.querySelector(".file-mode-window__view-mode"), ".desktop-editor-view-mode-menu", "[role=menuitemradio]"),
+    settings: await count(actions.querySelector(".file-mode-window__settings"), ".desktop-editor-pane-menu:not(.desktop-editor-view-mode-menu)", "[role^=menuitem]"),
   };
 })()`);
-/** Moves the real pointer to `fraction` of the window's height and reports whether the file's controls show. */
-async function controlsShowWithPointerAt(window, fraction) {
-  const [width, height] = window.getContentSize();
-  window.webContents.sendInputEvent({ type: "mouseMove", x: Math.round(width / 2), y: Math.round(height * fraction) });
-  await wait(250);
-  return evaluate(window, `getComputedStyle(document.querySelector(".file-mode-window__controls")).opacity === "1"`);
-}
 /** Clicks the middle of `selector` with the real mouse. */
 async function clickWithMouse(window, selector) {
   const { x, y } = await evaluate(window, `(() => {
     const { left, top, width, height } = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect();
     return { x: Math.round(left + width / 2), y: Math.round(top + height / 2) };
   })()`);
+  // As a real pointer does: onto the target, then press.
+  window.webContents.sendInputEvent({ type: "mouseMove", x, y });
   for (const type of ["mouseDown", "mouseUp"]) window.webContents.sendInputEvent({ type, x, y, button: "left", clickCount: 1 });
   await wait(300);
 }
-/** Picks a view from the title bar's view menu by its place in the list. */
-const chooseView = (window, index) => evaluate(window, `(async () => {
-  document.querySelector(".file-mode-window__titlebar .file-mode-window__view-mode").click();
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  document.querySelectorAll(".desktop-editor-view-mode-menu [role=menuitemradio]")[${index}].click();
-})()`);
+/** The Header switch for `control` ("document-editing" or "document-source-panel"). */
+const switchSelector = (control) => `${HEADER} .file-mode-window__toggle[data-control="${control}"]`;
+const switchOn = (window, control) => evaluate(window, `document.querySelector(${JSON.stringify(switchSelector(control))})?.getAttribute("aria-pressed") === "true"`);
+/**
+ * Presses a Header switch with the real mouse until it is `on`. A loaded machine can drop
+ * a synthetic press, so one that did not take is pressed again.
+ */
+async function setSwitch(window, control, on) {
+  for (let attempt = 0; attempt < 3 && await switchOn(window, control) !== on; attempt += 1) {
+    await clickWithMouse(window, switchSelector(control));
+    await until(async () => (await switchOn(window, control)) === on, `${control} to turn ${on ? "on" : "off"}`, 3_000).catch(() => undefined);
+  }
+  check(`${control} turns ${on ? "on" : "off"}`, await switchOn(window, control), on);
+}
+const SOURCE_PANEL = ".document-source-split__source .cm-editor";
+/** Types into the source panel, at the end of its text. */
+async function typeInSource(window, text) {
+  await evaluate(window, `document.querySelector(${JSON.stringify(`${SOURCE_PANEL} .cm-content`)}).focus()`);
+  // The editor's own go-to-end shortcut.
+  const modifiers = [process.platform === "darwin" ? "meta" : "control"];
+  for (const type of ["keyDown", "keyUp"]) window.webContents.sendInputEvent({ type, keyCode: "End", modifiers });
+  await wait(100);
+  window.webContents.insertText(text);
+}
 /** Source of a page function: the colour an element shows, from itself or the nearest painted ancestor. */
 const visibleColour = `((element) => { for (; element; element = element.parentElement) { const colour = getComputedStyle(element).backgroundColor; if (colour !== "rgba(0, 0, 0, 0)") return colour; } return null; })`;
-const editorText = (window) => evaluate(window, `document.querySelector(".cm-content")?.innerText ?? ""`);
+const editorText = (window) => evaluate(window, `document.querySelector(".document-source-split__page .cm-content")?.innerText ?? ""`);
 async function type(window, text) {
-  await evaluate(window, `document.querySelector(".cm-content").focus()`);
+  await evaluate(window, `document.querySelector(".document-source-split__page .cm-content").focus()`);
   window.webContents.insertText(text);
   await until(async () => (await editorText(window)).includes(text), "the typed text");
 }
@@ -164,7 +191,6 @@ async function prepareFixtures() {
   await fs.writeFile(inDocs("wide-code.md"), `# Wide code\n\n\`\`\`js\nconst first = 1;\nconst line = "${"x".repeat(400)}";\nconst last = 3;\n\`\`\`\n\n$$\n${"a+".repeat(200)}a\n$$\n`);
   await fs.writeFile(inDocs("rows.csv"), `name,amount\n${"Ada,100\n".repeat(300)}`);
   await fs.writeFile(inDocs("plain-rows.csv"), "Ada,London\n".repeat(300));
-  await fs.writeFile(inDocs("long.md"), `# Long\n\n${"A paragraph long enough to scroll under the title bar.\n\n".repeat(80)}`);
   for (const name of ["save.md", "clean.md", "second.md", "theme.md", LONG_NAME]) {
     await fs.writeFile(inDocs(name), `# ${name}\n`);
   }
@@ -180,6 +206,8 @@ async function prepareFixtures() {
   await fs.writeFile(path.join(site, "style.css"), "h1 { color: rgb(0, 187, 102); }\n");
   await fs.writeFile(path.join(site, "long-page.html"), `<!doctype html><html><head><meta charset="utf-8"></head><body>
 <h1 id="banner">Long page</h1>${"<p>A paragraph long enough to scroll under the title bar.</p>".repeat(120)}</body></html>`);
+  await fs.writeFile(path.join(site, "editable.html"), `<!doctype html><html><head><meta charset="utf-8"></head><body><h1 id="title">Editable</h1>
+<p id="body">A page to edit beside its source.</p></body></html>`);
   await fs.writeFile(path.join(site, "page.html"), `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="style.css"></head>
 <body><h1 id="title">Page</h1><pre id="out">running</pre><script>
 (async () => {
@@ -226,79 +254,41 @@ async function coldStart() {
   check("cold start shows only the file, not the last project", windows().length, 1);
   check("window is in File Mode", window.webContents.getURL().endsWith("#file-mode"));
   check("title is the file name", window.getTitle(), "plan.md");
-  check("title bar names the file", await evaluate(window, `document.querySelector(".file-mode-window__name").textContent`), "plan.md");
-  // macOS draws its traffic lights over the left of this bar; the name starts where the project titlebar's content does.
-  check("title sits in the middle of the window", await evaluate(window, `(() => { const { left, right } = document.querySelector(".file-mode-window__name").getBoundingClientRect(); return Math.abs((left + right) / 2 - innerWidth / 2) <= 1; })()`));
-  check("title bar shares the document's colour", await evaluate(window, `${visibleColour}(document.querySelector(".file-mode-window__titlebar")) === getComputedStyle(document.querySelector(".markdown-codemirror-editor")).backgroundColor`));
-  check("title bar can drag the window", await evaluate(window, `getComputedStyle(document.querySelector(".file-mode-window__titlebar")).webkitAppRegion`), "drag");
-  check("Markdown shows its current view in the title bar", await titlebarControls(window), { buttons: 1, iconsLighterThanTheName: true, views: 2, settings: 0 });
-  // Like a project pane's chrome, the controls keep out of the way until the pointer comes near the top.
-  check("title bar controls stay hidden while reading lower down", await controlsShowWithPointerAt(window, 0.6), false);
-  check("title bar controls show in the top third of the window", await controlsShowWithPointerAt(window, 0.2), true);
-  await screenshot(window, "controls-revealed");
-  check("title bar controls hide again below it", await controlsShowWithPointerAt(window, 0.4), false);
-  await evaluate(window, `document.querySelector(".file-mode-window__view-mode").click()`);
-  check("title bar controls stay while their menu is open", await controlsShowWithPointerAt(window, 0.6), true);
-  await evaluate(window, `document.querySelector(".file-mode-window__view-mode").click()`);
-  check("title bar controls hide once the menu closes", await controlsShowWithPointerAt(window, 0.6), false);
-  // Picking a view with the mouse leaves focus on the control, but no reason to keep it in sight.
-  await controlsShowWithPointerAt(window, 0.05);
-  await clickWithMouse(window, ".file-mode-window__view-mode");
-  await clickWithMouse(window, '.desktop-editor-view-mode-menu [role=menuitemradio][aria-checked="true"]');
-  check("the view menu closes after a mouse pick", await exists(window, ".desktop-editor-view-mode-menu"), false);
-  check("title bar controls hide below the top third after a mouse pick", await controlsShowWithPointerAt(window, 0.6), false);
+  check("Header names the file", await evaluate(window, `document.querySelector("${HEADER} .desktop-titlebar-context-name").textContent`), "plan.md");
+  if (process.platform === "darwin") {
+    // As in a project window: the name starts where the project Header's content does, clear of the traffic lights.
+    check("the name starts where a project's does", await evaluate(window, `document.querySelector("${HEADER} .desktop-titlebar-context-item").getBoundingClientRect().left`), 86);
+  }
+  check("Header can drag the window", await evaluate(window, `getComputedStyle(document.querySelector("${HEADER}")).webkitAppRegion`), "drag");
+  check("Header draws the project Header's divider", await evaluate(window, `getComputedStyle(document.querySelector("${HEADER}"), "::after").content !== "none"`));
+  check("the document starts below the Header", await evaluate(window, `document.querySelector(".file-mode-window__document").getBoundingClientRect().top === document.querySelector("${HEADER}").getBoundingClientRect().bottom`));
+  check("Markdown offers Edit and its source in the Header", await headerControls(window), {
+    buttons: 2, switches: ["document-editing:off", "document-source-panel:off"], headerCommands: true, views: 0, settings: 0,
+  });
   check("project shell is not mounted", await exists(window, ".desktop-editor-pane"), false);
   check("project application is not loaded", await evaluate(window, `performance.getEntriesByType("resource").some((entry) => /\\/src\\/App\\.tsx/.test(entry.name))`), false);
   await until(() => evaluate(window, `[...document.querySelectorAll("img")].some((image) => image.complete && image.naturalWidth > 0)`), "the relative image");
   check("relative image shows", true);
   await until(() => exists(window, ".cm-md-mermaid-svg-root"), "the Mermaid diagram");
   check("Mermaid shows", true);
-  const beforeViews = await read(inDocs("plan.md"));
-  await chooseView(window, 1);
-  await until(async () => !(await exists(window, ".cm-md-mermaid-svg-root")), "the Markdown source view");
-  await chooseView(window, 0);
-  await until(() => exists(window, ".cm-md-mermaid-svg-root"), "the rendered Markdown again");
-  check("Markdown switches between rendered and source from the title bar", true);
-  check("switching views leaves the file unchanged", await read(inDocs("plan.md")), beforeViews);
   check("document uses the window width", await evaluate(window, `document.querySelector(".cm-editor").getBoundingClientRect().width === innerWidth`));
   await screenshot(window, "markdown");
+  await markdownEditAndSource(window);
 
-  // A name too long for the bar gives way on both sides before it reaches the traffic lights or the file's controls.
+  // A name too long for the Header gives way before it reaches the traffic lights or the file's controls.
   const long = await openAndWait(inDocs(LONG_NAME), ".cm-editor");
   long.setSize(720, 520);
   await wait(300);
-  check("a long title gives way before the window's controls and the file's", await evaluate(long, `(() => {
-    const name = document.querySelector(".file-mode-window__name");
+  check("a long name gives way before the window's controls and the file's", await evaluate(long, `(() => {
+    const name = document.querySelector("${HEADER} .desktop-titlebar-context-name");
     const { left, right } = name.getBoundingClientRect();
-    const control = document.querySelector(".file-mode-window__titlebar button").getBoundingClientRect();
+    const control = document.querySelector("${HEADER} .desktop-titlebar-actions button").getBoundingClientRect();
     return name.scrollWidth > name.clientWidth && left >= ${process.platform === "darwin" ? 86 : 6} && right <= control.left;
   })()`));
+  await screenshot(long, "long-name");
   await closeAndWait(long);
-  await scrollEdge();
   await scrollbars();
   return window;
-}
-
-/** Whether the document is scrolled under the title bar, and whether it fades there. */
-const scrollEdgeOf = (window) => evaluate(window, `(() => {
-  const surface = document.querySelector(".file-mode-window__document");
-  return { scrolled: surface.hasAttribute("data-scrolled"), masked: getComputedStyle(surface).maskImage !== "none" };
-})()`);
-
-/**
- * One native scroll wheel event, down, at `top` pixels into the window's middle: the title bar's
- * empty middle by default, where the file name is. Reports whether main handed it past the
- * window frame to the page, and whether `position` moved. macOS only.
- */
-async function nativeScroll(window, position, top = 16) {
-  const before = await position();
-  const passedToPage = loadMacosTitleBarScroll().scrollForTesting(window.getNativeWindowHandle(), Math.round(window.getContentSize()[0] / 2), top, -6);
-  let moved = false;
-  for (let attempt = 0; attempt < 20 && !moved; attempt += 1) {
-    await wait(100);
-    moved = (await position()) > before;
-  }
-  return { passedToPage, moved };
 }
 
 /** Scrollers in the window that overflow but are left to the platform's native scrollbar. */
@@ -327,35 +317,68 @@ async function scrollbars() {
   await closeAndWait(window);
 }
 
-/** No divider under the bar: text scrolled up under it fades out, and only once the document has left its top. */
-async function scrollEdge() {
-  const window = await openAndWait(inDocs("long.md"), ".cm-scroller");
-  const edge = () => scrollEdgeOf(window);
-  const scrollTo = (top) => evaluate(window, `document.querySelector(".cm-scroller").scrollTop = ${top}`);
-  check("title bar draws no divider", await evaluate(window, `getComputedStyle(document.querySelector(".file-mode-window__titlebar"), "::after").content`), "none");
-  check("nothing fades at the top of the document", await edge(), { scrolled: false, masked: false });
-  if (process.platform === "darwin") {
-    const top = () => evaluate(window, `document.querySelector(".cm-scroller").scrollTop`);
-    check("Markdown: scrolling over the title bar scrolls the document", await nativeScroll(window, top), { passedToPage: true, moved: true });
-    check("Markdown: scrolling over the document is left to the page", await nativeScroll(window, top, 300), { passedToPage: false, moved: true });
-    await scrollTo(0);
-    await until(async () => !(await edge()).scrolled, "the edge to clear");
+/** A Markdown file opens to read; Edit lets it change; the source beside it edits the same text. */
+async function markdownEditAndSource(window) {
+  const file = inDocs("plan.md");
+  const original = await read(file);
+  const pageEditor = ".document-source-split__page .markdown-codemirror-editor";
+  check("Markdown opens to read", await evaluate(window, `document.querySelector(${JSON.stringify(pageEditor)}).dataset.readonly`), "true");
+  // Real keystrokes, as a reader presses them. (insertText, an IME commit, crashes Chromium's
+  // renderer on a focused page that cannot be edited; no reader's typing takes that path.)
+  await clickWithMouse(window, ".document-source-split__page .cm-line");
+  for (const key of "nope") {
+    for (const type of ["keyDown", "char", "keyUp"]) window.webContents.sendInputEvent({ type, keyCode: key });
   }
-  // Leaves a line half under the bar, where the fade shows.
-  await scrollTo(430);
-  await until(async () => (await edge()).masked, "the edge to fade");
-  check("text scrolled under the title bar fades out", await edge(), { scrolled: true, masked: true });
-  await wait(250);
-  await screenshot(window, "scrolled-under-title-bar");
-  await scrollTo(0);
-  await until(async () => !(await edge()).scrolled, "the edge to clear");
-  check("back at the top, nothing fades", await edge(), { scrolled: false, masked: false });
-  await closeAndWait(window);
+  await wait(600);
+  check("typing while reading changes nothing", await read(file), original);
+
+  await setSwitch(window, "document-editing", true);
+  check("Edit lets the page change", await evaluate(window, `document.querySelector(${JSON.stringify(pageEditor)}).dataset.readonly`), "false");
+  await setSwitch(window, "document-editing", false);
+
+  await setSwitch(window, "document-source-panel", true);
+  await until(() => exists(window, SOURCE_PANEL), "the source panel");
+  check("the source opens beside the page, which keeps its diagram", await evaluate(window, `(() => {
+    const page = document.querySelector(".document-source-split__page").getBoundingClientRect();
+    const source = document.querySelector(".document-source-split__source").getBoundingClientRect();
+    return { besideThePage: source.left >= page.right, diagram: !!document.querySelector(".document-source-split__page .cm-md-mermaid-svg-root") };
+  })()`), { besideThePage: true, diagram: true });
+  check("the source shows the file", await evaluate(window, `document.querySelector(${JSON.stringify(`${SOURCE_PANEL} .cm-content`)}).innerText.startsWith("# Plan")`));
+  check("opening the source leaves the file unchanged", await read(file), original);
+
+  // The page still only reads; the source edits, and the page shows it at once.
+  await typeInSource(window, "\nFrom the source panel.");
+  await until(async () => (await editorText(window)).includes("From the source panel."), "the page to show the source edit");
+  await until(async () => (await read(file)).includes("From the source panel."), "the source edit to reach the file");
+  check("an edit in the source shows on the page and reaches the file", true);
+
+  await setSwitch(window, "document-editing", true);
+  await type(window, "From the page. ");
+  await until(() => evaluate(window, `document.querySelector(${JSON.stringify(`${SOURCE_PANEL} .cm-content`)}).innerText.includes("From the page. ")`), "the source to show the page edit");
+  check("an edit on the page shows in the source", true);
+  await screenshot(window, "markdown-source-panel");
+
+  // The divider moves with the keyboard as well as the mouse.
+  const sourceWidth = () => evaluate(window, `document.querySelector(".document-source-split__source").getBoundingClientRect().width`);
+  const before = await sourceWidth();
+  await evaluate(window, `document.querySelector(".document-source-split__divider").focus()`);
+  for (const type of ["keyDown", "keyUp"]) window.webContents.sendInputEvent({ type, keyCode: "Left" });
+  await until(async () => (await sourceWidth()) > before, "the source panel to widen");
+  check("the divider widens the source panel", true);
+
+  await setSwitch(window, "document-source-panel", false);
+  await setSwitch(window, "document-editing", false);
+  check("closing the source leaves the page alone", await exists(window, SOURCE_PANEL), false);
+  // Back to the file as the saving checks expect it.
+  await fs.writeFile(file, original);
+  await evaluate(window, `window.dispatchEvent(new Event("focus"))`);
+  await until(async () => !(await editorText(window)).includes("From the source panel."), "the page to take the restored file");
 }
 
 async function savingAndOutsideChanges(window) {
   const file = inDocs("plan.md");
   const original = await read(file);
+  await setSwitch(window, "document-editing", true);
   // As in a project window: what is typed is in the file, with no save step and nothing asking to save.
   await type(window, "typed ");
   await until(async () => (await read(file)).includes("typed "), "the edit to reach the file");
@@ -411,7 +434,7 @@ async function routing(window) {
 async function csv() {
   const window = await openAndWait(inDocs("table.csv"), ".csv-table-editor__table");
   await screenshot(window, "csv");
-  check("CSV settings sit behind the title bar menu", await titlebarControls(window), { buttons: 1, iconsLighterThanTheName: true, views: 0, settings: 4 });
+  check("CSV settings sit behind the Header menu", await headerControls(window), { buttons: 1, switches: [], headerCommands: true, views: 0, settings: 4 });
   await evaluate(window, `(() => {
     const cell = document.querySelector('input[data-csv-row="1"][data-csv-column="1"]');
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(cell, "Paris");
@@ -420,22 +443,6 @@ async function csv() {
   await until(async () => (await read(inDocs("table.csv"))).includes("Paris"), "the CSV edit to reach the file");
   check("CSV edit saves itself and keeps its line endings", await read(inDocs("table.csv")), "name,city\r\nAda,Paris\r\n");
   await closeAndWait(window);
-
-  for (const [file, selector, masked, name] of [
-    ["rows.csv", ".csv-table-editor__table thead", false, "a table's pinned header row does not fade"],
-    ["plain-rows.csv", ".csv-table-editor__table tbody", true, "rows without a header fade under the title bar"],
-  ]) {
-    const rows = await openAndWait(inDocs(file), selector);
-    if (process.platform === "darwin") {
-      check(`${file}: scrolling over the title bar scrolls the table`, await nativeScroll(rows, () => evaluate(rows, `document.querySelector(".csv-table-editor__scroll").scrollTop`)), { passedToPage: true, moved: true });
-    }
-    await evaluate(rows, `document.querySelector(".csv-table-editor__scroll").scrollTop = 400`);
-    await until(async () => (await scrollEdgeOf(rows)).scrolled, `${file} to scroll under the title bar`);
-    check(name, await scrollEdgeOf(rows), { scrolled: true, masked });
-    await wait(250);
-    await screenshot(rows, `${file}-scrolled`);
-    await closeAndWait(rows);
-  }
 }
 
 async function dataSafety() {
@@ -463,7 +470,9 @@ async function html() {
   check("page scripts cannot read local files", results, {
     "fetch sibling": "BLOCKED", "fetch nested": "BLOCKED", "xhr sibling": "BLOCKED", "json module": "BLOCKED",
   });
-  check("HTML shows its current view in the title bar", await titlebarControls(window), { buttons: 1, iconsLighterThanTheName: true, views: 3, settings: 0 });
+  check("HTML offers Edit and its source in the Header", await headerControls(window), {
+    buttons: 2, switches: ["document-editing:off", "document-source-panel:off"], headerCommands: true, views: 0, settings: 0,
+  });
   check("page still loads its own stylesheet", await frame.executeJavaScript(`getComputedStyle(document.getElementById("title")).color`), "rgb(0, 187, 102)");
   const area = await evaluate(window, `(() => { const { width, height } = document.querySelector("iframe").getBoundingClientRect(); return { width, height, windowWidth: innerWidth, windowHeight: innerHeight }; })()`);
   report.htmlArea = area;
@@ -485,52 +494,40 @@ async function pageFrame(window, selector, exclude = null) {
   }, "the page frame");
 }
 
-/**
- * Moves the pointer inside the page's own frame, where a real mouse over the page is seen (the window
- * itself is not told), and reports whether the file's controls show. null leaves the page.
- */
-async function controlsShowWithPagePointerAt(window, frame, fraction) {
-  const [width, height] = window.getContentSize();
-  const top = await evaluate(window, `document.querySelector(".file-mode-window__document iframe").getBoundingClientRect().top`);
-  await frame.executeJavaScript(fraction === null
-    ? `document.dispatchEvent(new PointerEvent("pointerout", { bubbles: true, relatedTarget: null }))`
-    : `document.body.dispatchEvent(new PointerEvent("pointermove", { bubbles: true, clientX: ${Math.round(width / 2)}, clientY: ${Math.round(height * fraction - top)} }))`);
-  await wait(250);
-  return evaluate(window, `getComputedStyle(document.querySelector(".file-mode-window__controls")).opacity === "1"`);
+/** An HTML page opens to interact with; its source edits beside it, and the page follows; Edit edits the page itself. */
+async function htmlEditAndSource() {
+  const file = path.join(site, "editable.html");
+  const window = await openAndWait(file, "iframe");
+  let frame = await pageFrame(window, "#title");
+  await setSwitch(window, "document-source-panel", true);
+  await until(() => exists(window, SOURCE_PANEL), "the HTML source panel");
+  check("the page stays beside its source", await exists(window, ".document-source-split__page iframe"));
+
+  await typeInSource(window, '\n<p id="added">Added in the source.</p>');
+  await until(async () => (await read(file)).includes("Added in the source."), "the source edit to reach the file");
+  frame = await pageFrame(window, "#added");
+  check("the page beside the source shows an edit made there", await frame.executeJavaScript(`document.getElementById("added").textContent`), "Added in the source.");
+  await screenshot(window, "html-source-panel");
+
+  await setSwitch(window, "document-editing", true);
+  await until(() => exists(window, ".document-source-split__page .html-visual-editor"), "the page to open for editing");
+  check("Edit edits the page with its source still open", await exists(window, SOURCE_PANEL));
+  await screenshot(window, "html-editing-with-source");
+  await setSwitch(window, "document-editing", false);
+  await setSwitch(window, "document-source-panel", false);
+  await closeAndWait(window);
 }
 
-/** An HTML page scrolls and takes the pointer inside its own frame; the window treats it as it treats Markdown. */
-async function htmlEdges() {
+/** An HTML page sits below the Header and scrolls inside its own frame on the product scrollbar. */
+async function htmlScrolling() {
   const page = await openAndWait(path.join(site, "long-page.html"), "iframe");
-  let frame = await pageFrame(page, "#banner");
+  const frame = await pageFrame(page, "#banner");
   check("a page without scrollbar styles of its own gets the product scrollbar", await frame.executeJavaScript(`!!document.getElementById("puppyone-html-page-scrollbar")`));
-  for (const view of ["preview", "visual edit"]) {
-    check(`${view}: over the page, the title bar controls stay hidden lower down`, await controlsShowWithPagePointerAt(page, frame, 0.6), false);
-    check(`${view}: over the page, the title bar controls show in the top third`, await controlsShowWithPagePointerAt(page, frame, 0.2), true);
-    check(`${view}: over the page, the title bar controls hide again below it`, await controlsShowWithPagePointerAt(page, frame, 0.6), false);
-    await controlsShowWithPagePointerAt(page, frame, 0.2);
-    check(`${view}: leaving the page hides the title bar controls`, await controlsShowWithPagePointerAt(page, frame, null), false);
-    check(`${view}: nothing fades at the top of the page`, await scrollEdgeOf(page), { scrolled: false, masked: false });
-    await frame.executeJavaScript(`scrollTo(0, 430)`);
-    await until(async () => (await scrollEdgeOf(page)).scrolled, `the ${view} page to scroll under the title bar`);
-    // The page keeps its own background to the window's edge; a fade into the window's would draw a band.
-    check(`${view}: a page scrolls on under the title bar without fading into the window`, await scrollEdgeOf(page), { scrolled: true, masked: false });
-    await wait(250);
-    await screenshot(page, `html-${view.replace(" ", "-")}-scrolled`);
-    await frame.executeJavaScript(`scrollTo(0, 0)`);
-    await until(async () => !(await scrollEdgeOf(page)).scrolled, `the ${view} edge to clear`);
-    check(`${view}: back at the top of the page, nothing fades`, await scrollEdgeOf(page), { scrolled: false, masked: false });
-    if (process.platform === "darwin") {
-      check(`${view}: scrolling over the title bar scrolls the page`, await nativeScroll(page, () => frame.executeJavaScript("scrollY")), { passedToPage: true, moved: true });
-      await frame.executeJavaScript(`scrollTo(0, 0)`);
-      await until(async () => !(await scrollEdgeOf(page)).scrolled, `the ${view} edge to clear again`);
-    }
-    if (view === "preview") {
-      await chooseView(page, 1);
-      frame = await pageFrame(page, "[data-puppyone-html-target]", frame);
-      await until(() => evaluate(page, `document.querySelector(".html-visual-editor iframe")?.getAttribute("aria-busy") === "false"`), "the visual editor");
-    }
-  }
+  check("a page starts below the Header", await evaluate(page, `document.querySelector(".file-mode-window__document iframe").getBoundingClientRect().top >= document.querySelector("${HEADER}").getBoundingClientRect().bottom`));
+  await frame.executeJavaScript(`scrollTo(0, 430)`);
+  await until(() => frame.executeJavaScript("scrollY > 0"), "the page to scroll");
+  await wait(250);
+  await screenshot(page, "html-scrolled");
   await closeAndWait(page);
 }
 
@@ -540,6 +537,7 @@ async function closing() {
 
   // Closed the moment after typing, before anything else happens: the edit is still saved.
   const save = await openAndWait(inDocs("save.md"), ".cm-editor");
+  await setSwitch(save, "document-editing", true);
   await evaluate(save, `document.querySelector(".cm-content").focus()`);
   save.webContents.insertText("written ");
   await closeAndWait(save);
@@ -552,16 +550,17 @@ async function projectWindows(window) {
   const project = await until(() => windows().find((candidate) => !candidate.isDestroyed() && !candidate.webContents.getURL().includes("#file-mode") && candidate.webContents.getURL()), "the folder's project window");
   await until(() => exists(project, ".desktop-titlebar-workspace-name"), "the project's title bar", 60_000);
   check("a folder from the system opens as a project", true);
-  // The file window draws no divider; its document fades out under the bar instead.
+  // One Header in both windows: its fill, divider, height and the name's type.
   const look = (target, header, name) => evaluate(target, `(() => {
-    const style = (selector, properties) => { const computed = getComputedStyle(document.querySelector(selector)); return properties.map((property) => computed[property]); };
+    const style = (selector, properties, pseudo) => { const computed = getComputedStyle(document.querySelector(selector), pseudo); return properties.map((property) => computed[property]); };
     return [
-      ...style(${JSON.stringify(header)}, ["height"]),
+      ...style(${JSON.stringify(header)}, ["height", "backgroundColor"]),
+      ...style(${JSON.stringify(header)}, ["backgroundColor"], "::after"),
       ...style(${JSON.stringify(name)}, ["color", "fontFamily", "fontSize", "fontWeight", "lineHeight"]),
     ].join(" | ");
   })()`);
-  check("file and project title bars share size and type",
-    await look(window, ".file-mode-window__titlebar", ".file-mode-window__name"),
+  check("file and project windows share one Header",
+    await look(window, HEADER, ".desktop-titlebar-context-name"),
     await look(project, ".desktop-titlebar", ".desktop-titlebar-workspace-name"));
   check("project windows keep their full access", await evaluate(project, `window.puppyoneDesktop.listFolderChildren({ rootPath: ${JSON.stringify(docs)}, folderPath: null }).then((children) => children.length > 0)`));
 
@@ -580,7 +579,15 @@ async function projectWindows(window) {
   check("file windows follow theme changes", true);
   // Sub-theme colours only reach elements under an appearance root, as in a project window.
   await until(() => evaluate(window, `document.querySelector(".file-mode-window").dataset.subThemeId === "default.github"`), "the file window to take the sub-theme", 8_000);
-  check("title bar takes the sub-theme's document colour", await evaluate(window, `${visibleColour}(document.querySelector(".file-mode-window__titlebar"))`), before === "dark" ? "rgb(255, 255, 255)" : "rgb(13, 17, 23)");
+  check("the document takes the sub-theme's colour", await evaluate(window, `${visibleColour}(document.querySelector(".markdown-codemirror-editor"))`), before === "dark" ? "rgb(255, 255, 255)" : "rgb(13, 17, 23)");
+  check("the Header takes the sub-theme's Header colour", await evaluate(window, `(() => {
+    const probe = document.createElement("div");
+    probe.style.background = "var(--po-header)";
+    document.querySelector(".file-mode-window").append(probe);
+    const expected = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return getComputedStyle(document.querySelector("${HEADER}")).backgroundColor === expected;
+  })()`));
   check("Markdown takes the sub-theme's styles", await evaluate(window, `getComputedStyle(document.querySelector(".markdown-codemirror-editor")).getPropertyValue("--po-host-md-link-color").trim()`), before === "dark" ? "#4183c4" : "#b8c0c8");
   await closeAndWait(project);
 }
@@ -623,7 +630,7 @@ async function run() {
     report.stage = "cold start";
     const window = await coldStart();
     for (const [stage, scenario] of Object.entries({
-      windowAuthority, routing, savingAndOutsideChanges, csv, dataSafety, html, htmlEdges, closing, projectWindows,
+      windowAuthority, routing, savingAndOutsideChanges, csv, dataSafety, html, htmlEditAndSource, htmlScrolling, closing, projectWindows,
     })) {
       report.stage = stage;
       await scenario(window);

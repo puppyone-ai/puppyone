@@ -7,6 +7,7 @@ import {
   isDataResourceUri,
   getEditorSourceRequirement,
   resolveFileFormat,
+  ResourceOperationQueue,
   type DataNode,
   type DataPort,
   type DocumentPersistenceResult,
@@ -21,8 +22,8 @@ import type { ProjectCloudContext } from "../project/context/projectCloudContext
 import type { ResolvedWorkbenchDataResource } from "../../data-workspace";
 import { createCloudNativePreviewPorts } from "../../../platform";
 import { waitForCloudRead } from "./cloudFileReads";
-import { createCloudWorkspaceClient, encodeWorkspaceBytes } from "./cloudWorkspaceClient";
-import { statusOf, type CloudEntry } from "./contracts";
+import { createCloudWorkspaceClient, encodeWorkspaceBytes, type CloudWorkspaceChange } from "./cloudWorkspaceClient";
+import { statusOf, type CloudEntry, type CloudSandbox, type CloudSandboxSettings, type CloudScreenSession } from "./contracts";
 import type { CloudWorkspaceOpeningProgress } from "./cloudWorkspaceOpening";
 import type { CloudWorkspaceHandoff } from "./cloudWorkspaceHandoff";
 
@@ -32,7 +33,8 @@ export type NativeCloudDataService = Readonly<{
   dataPort: DataPort;
   writable: boolean;
   invalidateReads: () => void;
-  watch?: (changed: () => void, failed: (error: Error) => void) => () => void;
+  /** Provider-relative changed paths, or null when the scope is unknown. */
+  watch?: (changed: (paths: CloudWorkspaceChange) => void, failed: (error: Error) => void) => () => void;
   resume?: () => Promise<unknown>;
   openingProgress?: CloudWorkspaceOpeningProgress;
   handoff?: () => CloudWorkspaceHandoff | undefined;
@@ -40,6 +42,10 @@ export type NativeCloudDataService = Readonly<{
   getPathForCopy: (path: string) => string;
   /** Last accepted text snapshot; this never loads a resource or exposes draft edits. */
   getCachedFileContent?: (path: string) => FileContent | null;
+  /** Sandbox Profile and Features of the opened workspace. */
+  sandbox?: () => CloudSandbox;
+  setSandboxSettings?: (settings: CloudSandboxSettings) => Promise<CloudSandbox>;
+  screenSession?: () => Promise<CloudScreenSession>;
 }>;
 
 /** Cloud owns the bytes. The renderer never mirrors them into a local checkout. */
@@ -92,7 +98,8 @@ export function createCloudDataService({
   };
   const snapshots = new Map<string, Map<string, string>>();
   const snapshotUrls = new Set<string>();
-  let mutationTail: Promise<unknown> = Promise.resolve();
+  // Mutations on overlapping paths keep their order; unrelated paths do not wait.
+  const mutations = new ResourceOperationQueue();
   const assertCurrent = () => {
     if (!isCurrent()) throw new Error("Cloud workspace session changed. Reopen the Cloud workspace.");
   };
@@ -138,11 +145,15 @@ export function createCloudDataService({
       throw error;
     }
   };
-  const serializeMutation = <T>(operation: () => Promise<T>): Promise<T> => {
-    const pending = mutationTail.then(() => { assertCurrent(); return operation(); });
-    mutationTail = pending.catch(() => undefined);
-    return pending;
-  };
+  const mutate = <T>(remotePaths: readonly string[], operation: () => Promise<T>): Promise<T> => mutations.run(
+    remotePaths.map((path) => ({ storageIdentity, resource: path || null })),
+    () => { assertCurrent(); return operation(); });
+  /** Workspace-relative event paths inside this provider's scope, as provider paths. */
+  const providerPaths = (paths: readonly string[]): string[] => paths.flatMap((path) => {
+    if (!scopePath) return [path];
+    if (path === scopePath) return [""];
+    return path.startsWith(`${scopePath}/`) ? [path.slice(scopePath.length + 1)] : [];
+  });
   const move = async (from: string, to: string) => {
     if (!relativePath(from) || !relativePath(to)) throw new Error("The Cloud repository root cannot be moved.");
     const oldPath = remotePath(from);
@@ -154,7 +165,7 @@ export function createCloudDataService({
       }
     }
   };
-  const persist: NonNullable<DataPort["documentPersistence"]>["persist"] = (input) => serializeMutation(async (): Promise<DocumentPersistenceResult> => {
+  const persist: NonNullable<DataPort["documentPersistence"]>["persist"] = (input) => mutate([remotePath(input.path)], async (): Promise<DocumentPersistenceResult> => {
     try {
       if (!relativePath(input.path) || !input.baseVersion) throw new Error("Reload this Cloud file before saving.");
       const result = await files.write(remotePath(input.path), input.content, input.baseVersion);
@@ -265,35 +276,43 @@ export function createCloudDataService({
     },
     ...(writable ? {
       documentPersistence: { kind: "cloud" as const, storageIdentity, persist },
-      createFolder: (path: string) => serializeMutation(async () => {
+      createFolder: (path: string) => mutate([remotePath(path)], async () => {
         if (!relativePath(path)) throw new Error("The Cloud repository root already exists.");
-        const remote = remotePath(path);
-        await files.change("mkdir", remote);
+        await files.change("mkdir", remotePath(path));
       }),
-      createFile: (path: string, content = "") => serializeMutation(async () => {
-        const relative = relativePath(path);
-        if (!relative) throw new Error("A Cloud file name is required.");
-        const parent = relative.includes("/") ? relative.slice(0, relative.lastIndexOf("/")) : null;
-        const directory = await list(parent);
-        if (directory.entries.some((entry) => normalizeProviderPath(entry.path) === remotePath(path))) {
-          throw new Error("A Cloud file already exists at this path.");
+      // A null expected revision is the existence check: the server never
+      // replaces a file that is already there.
+      createFile: (path: string, content = "") => mutate([remotePath(path)], async () => {
+        if (!relativePath(path)) throw new Error("A Cloud file name is required.");
+        try {
+          await files.write(remotePath(path), content, null);
+        } catch (error) {
+          if (statusOf(error) === 409) throw Object.assign(new Error("A Cloud file already exists at this path."), { status: 409 });
+          throw error;
         }
-        await files.write(remotePath(path), content, null);
       }),
-      renameNode: (path: string, name: string) => serializeMutation(async () => {
+      renameNode: async (path: string, name: string) => {
         if (!name || name === "." || name === ".." || /[\/\\\0]/.test(name)) throw new Error("Invalid Cloud file name.");
         const relative = relativePath(path);
         const parent = relative.includes("/") ? relative.slice(0, relative.lastIndexOf("/")) : "";
-        await move(path, createWorkspaceResourceUri(rootUri, [parent, name].filter(Boolean).join("/")));
-      }),
-      moveNode: (from: string, to: string) => serializeMutation(() => move(from, to)),
-      deleteNode: (path: string) => serializeMutation(async () => {
+        const target = createWorkspaceResourceUri(rootUri, [parent, name].filter(Boolean).join("/"));
+        return mutate([remotePath(path), remotePath(target)], () => move(path, target));
+      },
+      moveNode: async (from: string, to: string) => mutate([remotePath(from), remotePath(to)], () => move(from, to)),
+      deleteNode: (path: string) => mutate([remotePath(path)], async () => {
         if (!relativePath(path)) throw new Error("The Cloud repository root cannot be deleted.");
         await files.change("remove", remotePath(path));
       }),
     } : {}),
   };
-  return { workspace, folder, dataPort, writable, openingProgress: files.openingProgress, watch: files.watch, resume: files.resume, handoff: files.handoff,
+  return { workspace, folder, dataPort, writable, openingProgress: files.openingProgress,
+    watch: (changed, failed) => files.watch((paths) => {
+      if (!paths) { changed(null); return; }
+      const scoped = providerPaths(paths);
+      if (scoped.length > 0) changed(scoped);
+    }, failed),
+    resume: files.resume, handoff: files.handoff,
+    sandbox: files.sandbox, setSandboxSettings: files.setSandboxSettings, screenSession: files.screenSession,
     getCachedFileContent: (path) => {
       assertCurrent();
       const versions = snapshots.get(remotePath(path));

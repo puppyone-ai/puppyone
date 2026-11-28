@@ -25,11 +25,12 @@ import { HtmlBlockActionRail, type HtmlActionBounds } from "./HtmlBlockActionRai
 import type { HtmlPageViewport } from "./htmlPageViewport";
 import { readEmbeddedChromeInset, relayEmbeddedPointer, relayEmbeddedScroll } from "../../host/embeddedFrameRelay";
 
-export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, viewportState, registerPrepare, onUnavailable }: {
+export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, viewportState, registerPrepare, onUnavailable, onSelectRange }: {
   model: CodeMirrorDocumentModel; path: string; title: string; fileUrl?: string | null; canEdit: boolean;
   onUnavailable: () => void;
   registerPrepare: (prepare: (() => void | Promise<void>) | null) => void;
   viewportState?: HtmlPageViewport;
+  onSelectRange?: (range: { from: number; to: number } | null) => void;
 }) {
   const { t } = useLocalization();
   const assets = useDocumentAssetImport();
@@ -64,6 +65,20 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, viewpo
   const enabled = useRef(canEdit); enabled.current = canEdit;
   const resourceUrl = useRef(fileUrl); resourceUrl.current = fileUrl;
   const selected = useRef(selection); selected.current = selection;
+  const inlineGesture = useRef(crypto.randomUUID());
+  const selectRangeRef = useRef(onSelectRange); selectRangeRef.current = onSelectRange;
+  const reportSelectionRange = useCallback((session: HtmlVisualSession | undefined | null, id: string | null) => {
+    if (!session?.valid || !id || !session.index.targets.has(id)) {
+      selectRangeRef.current?.(null);
+      return;
+    }
+    try {
+      const read = session.read(id);
+      selectRangeRef.current?.({ from: read.start, to: read.end });
+    } catch {
+      selectRangeRef.current?.(null);
+    }
+  }, []);
   const registerTextPrepare = useCallback((prepare: (() => void) | null) => { prepareText.current = prepare; }, []);
   const setComposing = useCallback((value: boolean) => { composing.current = value; }, []);
   const setNativeControl = useCallback((value: boolean) => { nativeControl.current = value; }, []);
@@ -135,6 +150,7 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, viewpo
   const dismiss = useCallback(() => {
     try { prepareText.current?.(); } catch { setError(t("editor.html.finishComposition")); return; }
     setTextInput(null); setSelection(null); selected.current = null; setActive(null); focusPencil.current = false;
+    selectRangeRef.current?.(null);
     port.current?.postMessage({ type: "clear" });
   }, [t, setActive]);
   const presence = useHtmlEditPresence({ viewport, selection: selected, handleBounds, leave: dismiss,
@@ -180,7 +196,14 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, viewpo
         port.current?.postMessage({ type: "check-style", request, id: current.id, property: operation.property, value: operation.value });
         return true;
       }
-      patch(projection.session.apply(current.id, model.revision, operation, gesture));
+      const patches = projection.session.apply(current.id, model.revision, operation, gesture);
+      patch(patches);
+      const structurePatch = patches.find((item) => item.kind === "structure");
+      if (structurePatch && structurePatch.kind === "structure") {
+        reportSelectionRange(projection.session, structurePatch.selectId);
+      } else {
+        reportSelectionRange(projection.session, current.id);
+      }
       setError(null); return true;
     } catch { setError(t("editor.html.editFailed")); return false; }
   };
@@ -229,18 +252,27 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, viewpo
         }
         else if (message.type === "clear") dismiss();
         else if (message.type === "history") model.moveHistory(message.direction);
+        else if (message.type === "composition") composing.current = message.value;
+        else if (message.type === "input" && session.index.targets.has(message.id)) {
+          try {
+            session.apply(message.id, model.revision, { kind: "text", value: message.value }, inlineGesture.current);
+            reportSelectionRange(session, message.id);
+            setError(null);
+          } catch { setError(t("editor.html.editFailed")); }
+        }
         else if (message.type === "selection" && session.index.targets.has(message.id)) {
           // A queued layout measurement cannot resurrect dismissed UI or change the active target.
           if (message.reason === "measure" && selected.current?.id !== message.id) return;
-          const continueEditing = !!active.current && message.edit;
           if (selected.current?.id !== message.id) {
             try { prepareText.current?.(); } catch { setError(t("editor.html.finishComposition")); return; }
-            setTextInput(null); setActive(continueEditing ? message.id : null);
+            inlineGesture.current = crypto.randomUUID();
+            setTextInput(null); setActive(message.id);
             presence.keep();
+          } else if (!active.current) {
+            setActive(message.id);
           }
           selected.current = message; setSelection(message);
-          if (continueEditing) startText(message);
-          else if (message.edit) focusPencil.current = true;
+          reportSelectionRange(session, message.id);
         }
       }
     };
@@ -306,17 +338,21 @@ export function HtmlVisualSurface({ model, path, title, fileUrl, canEdit, viewpo
       </FloatingNotice>
     </FloatingNoticeStack>}
     <div className="html-visual-editor__body">
-      <div className="html-visual-editor__viewport" ref={viewport} onPointerMove={presence.pointerMove} onPointerLeave={presence.away}>
+      <div className="html-visual-editor__viewport" ref={viewport} onPointerMove={presence.pointerMove}>
         {projection && <iframe key={projection.session.id} ref={frame} className="native-preview-frame"
           aria-label={title} sandbox="allow-scripts" referrerPolicy="no-referrer" src={projection.url}
           srcDoc={projection.url ? undefined : projection.source} onLoad={connect} aria-busy={!ready} />}
-        {rect && <div className="html-editor-selection" data-editing={!!editing} style={overlayStyle} />}
+        {rect && <div className="html-editor-selection" data-editing={!!editing} data-near-top={rect.y < 22} style={overlayStyle}>
+          {target && <span className="html-editor-selection__tag">{target.tag}</span>}
+        </div>}
         {selection && ready && canEdit && <HtmlBlockActionRail selection={selection} viewport={viewport}
           handle={pencil} bounds={handleBounds} active={!!editing} keep={presence.keep} activate={() => {
             presence.keep(); setActive(selection.id); port.current?.postMessage({ type: "active", id: selection.id }); startText(selection);
           }}>
           {target && editing && <HtmlFloatingToolbar key={`${projection?.session.id}:${target.id}`} selection={selection} viewport={viewport}
             text={!target.image} image={target.image} alt={target.attrs.get("alt") ?? ""}
+            link={target.link} href={target.attrs.get("href") ?? ""}
+            blockMovable={target.blockMovable} canMoveUp={!!target.prevSiblingId} canMoveDown={!!target.nextSiblingId}
             disabled={!ready || !canEdit || importing} canImport={!!assets} apply={apply} importImage={importImage} dismiss={dismiss}
             onNativeControl={setNativeControl} onCompositionChange={setComposing} />}
         </HtmlBlockActionRail>}

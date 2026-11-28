@@ -688,5 +688,11 @@
   "plan.storageUsed": "Your storage",
   "plan.storageNearLimit": "Storage is almost full",
   "plan.storageFull": "Storage is full",
-  "plan.storagePolicy": "When full, free up space or expand storage. Existing files remain available."
+  "plan.storagePolicy": "When full, free up space or expand storage. Existing files remain available.",
+  "experimental.cloudComputerScreen.title": "Cloud Computer screen",
+  "experimental.cloudComputerScreen.detail": "Show the Cloud Computer's screen below the files of Cloud projects. Until its desktop is ready, the screen is a preview.",
+  "experimental.computerMode.title": "Computer mode",
+  "experimental.computerMode.detail": "Present Cloud spaces and workspaces on this computer as miniature computers with screens, keeping plain folders quiet at the bottom.",
+  "experimental.isolatedAgentSandboxes.title": "Isolated Agent sandboxes",
+  "experimental.isolatedAgentSandboxes.detail": "Show a per-project switch in Cloud Computer settings to run each external Agent in its own isolated sandbox mounted onto the shared workspace."
 }

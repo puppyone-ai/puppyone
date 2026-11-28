@@ -132,7 +132,93 @@ describe("packaged Desktop Build Identity verification", () => {
       windowsSigningMode: "unsigned",
     })).rejects.toThrow(/must not claim an Authenticode publisher name/);
   });
+
+  // The fixture runs the bundle's executable, a POSIX shell script.
+  it.skipIf(process.platform === "win32")("verifies a native GPUI macOS bundle via its stamped executable identity", async () => {
+    const fixture = await createGpuiFixture();
+    await expect(verifyPackagedDesktopBuild({
+      releaseDirectory: fixture.releaseDirectory,
+      buildInfo: fixture.buildInfo,
+    })).resolves.toMatchObject({
+      applications: [fixture.applicationPath],
+    });
+  });
+
+  // The fixture runs the bundle's executable, a POSIX shell script.
+  it.skipIf(process.platform === "win32")("rejects a native GPUI macOS bundle whose executable embeds the wrong update feed", async () => {
+    const fixture = await createGpuiFixture({
+      stampedFeedUrl: "https://downloads.puppyone.ai/desktop/internal/mac/latest",
+    });
+    await expect(verifyPackagedDesktopBuild({
+      releaseDirectory: fixture.releaseDirectory,
+      buildInfo: fixture.buildInfo,
+    })).rejects.toThrow(/canonical update feed/);
+  });
 });
+
+async function createGpuiFixture({ stampedFeedUrl = DESKTOP_STABLE_UPDATE_FEED_URL } = {}) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-packaged-gpui-identity-"));
+  temporaryDirectories.push(root);
+  const releaseDirectory = path.join(root, "release");
+  const baseBuildInfo = resolveDesktopBuildIdentity({
+    baseVersion: "1.5.0",
+    buildNumber: 88,
+    builtAt: "2026-11-16T00:00:00.000Z",
+    channel: "stable",
+    commitSha: "c".repeat(40),
+  });
+  const buildInfo = { ...baseBuildInfo, runtime: "gpui" };
+  const policy = getDesktopBuildChannelPolicy(buildInfo.channel);
+  const applicationPath = path.join(releaseDirectory, `${policy.applicationName}.app`);
+  const macosDirectory = path.join(applicationPath, "Contents", "MacOS");
+  const resourcesDirectory = path.join(applicationPath, "Contents", "Resources");
+  await fs.mkdir(macosDirectory, { recursive: true });
+  await fs.mkdir(resourcesDirectory, { recursive: true });
+  const executablePath = path.join(macosDirectory, "puppy-one-rust");
+  const stampedJson = JSON.stringify({
+    runtime: "gpui",
+    channel: buildInfo.channel,
+    version: buildInfo.version,
+    buildId: buildInfo.buildId,
+    commitSha: buildInfo.commitSha,
+    builtAt: buildInfo.builtAt,
+    sourceDirty: false,
+    updateFeedUrl: stampedFeedUrl,
+  });
+  await fs.writeFile(
+    executablePath,
+    `#!/bin/sh\nif [ "$1" = "--puppyone-build-identity" ]; then\n  printf '%s\\n' '${stampedJson}'\n  exit 0\nfi\nexit 1\n`,
+  );
+  await fs.chmod(executablePath, 0o755);
+  await fs.writeFile(
+    path.join(resourcesDirectory, "build-info.json"),
+    `${JSON.stringify(buildInfo, null, 2)}\n`,
+  );
+  await fs.writeFile(
+    path.join(applicationPath, "Contents", "Info.plist"),
+    buildPlist({
+      CFBundleExecutable: "puppy-one-rust",
+      CFBundleIdentifier: policy.applicationId,
+      CFBundleName: policy.applicationName,
+      CFBundleDisplayName: policy.applicationName,
+      CFBundleShortVersionString: buildInfo.baseVersion,
+      CFBundleVersion: buildInfo.platformBuildNumber,
+    }),
+  );
+  await fs.writeFile(
+    path.join(releaseDirectory, `puppyone-${buildInfo.version}-arm64.dmg`),
+    "dmg",
+  );
+  await fs.writeFile(
+    path.join(releaseDirectory, `puppyone-${buildInfo.version}-arm64.zip`),
+    "zip",
+  );
+  await fs.writeFile(
+    path.join(releaseDirectory, `${policy.updateChannel}-mac.yml`),
+    `version: ${buildInfo.version}\npath: puppyone-${buildInfo.version}-arm64.zip\n`,
+  );
+  return { applicationPath, buildInfo, releaseDirectory };
+}
 
 async function createFixture() {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "puppyone-packaged-identity-"));

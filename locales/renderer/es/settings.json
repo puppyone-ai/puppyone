@@ -688,5 +688,11 @@
   "plan.storageUsed": "Tu almacenamiento",
   "plan.storageNearLimit": "El almacenamiento está casi lleno",
   "plan.storageFull": "El almacenamiento está lleno",
-  "plan.storagePolicy": "Si se llena, libera espacio o amplía el almacenamiento. Los archivos existentes siguen disponibles."
+  "plan.storagePolicy": "Si se llena, libera espacio o amplía el almacenamiento. Los archivos existentes siguen disponibles.",
+  "experimental.cloudComputerScreen.title": "Cloud Computer screen",
+  "experimental.cloudComputerScreen.detail": "Show the Cloud Computer's screen below the files of Cloud projects. Until its desktop is ready, the screen is a preview.",
+  "experimental.computerMode.title": "Modo computadora",
+  "experimental.computerMode.detail": "Muestra los espacios en la nube y en este equipo como pequeñas computadoras con pantalla, dejando las carpetas normales abajo.",
+  "experimental.isolatedAgentSandboxes.title": "Sandboxes aislados para Agents",
+  "experimental.isolatedAgentSandboxes.detail": "Muestra un interruptor por proyecto en la configuración de Cloud Computer para ejecutar cada Agent externo en su propio sandbox aislado montado sobre el espacio compartido."
 }

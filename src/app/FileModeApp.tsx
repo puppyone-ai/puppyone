@@ -6,8 +6,8 @@ import {
   createDocumentNavigationPort,
   DEFAULT_EDITOR_INTERACTION_PREFERENCES,
   EditorPaneMenuContributionProvider,
-  EMBEDDED_SCROLL_EVENT,
   EMPTY_MARKDOWN_WORKSPACE_ENVIRONMENT,
+  FileGlyphIcon,
   FilePreview,
   getEditorProviderPolicy,
   isDocumentDataNode,
@@ -17,22 +17,25 @@ import {
   type DocumentDataNode,
   type EditorPaneMenuContribution,
   type EditorPaneMenuSegmentedControl,
-  type EmbeddedScrollDetail,
+  type EditorPaneMenuToggle,
   type MarkdownWorkspaceEnvironment,
 } from "@puppyone/shared-ui";
+import { DesktopWindowChrome } from "../components/DesktopWindowChrome";
 import { EditorPaneActionsMenu } from "../components/EditorPaneActionsMenu";
 import { EditorViewModeMenu } from "../components/EditorViewModeMenu";
-import { PANE_HANDLE_REVEAL_RATIO, useEditorPaneChromeReveal } from "../components/useEditorPaneChromeReveal";
 import { PageLoading } from "../components/loading";
-import { useDesktopPlatformCapabilities } from "../platform/useDesktopPlatformCapabilities";
 import { resolveSurfaceAppearance, SurfaceAppearanceProvider } from "../features/appearance/AppearanceRuntime";
-import { useDesktopAppearance, useDesktopPreference, useDesktopPreferenceEffects } from "../features/settings";
+import {
+  selectFileIconTheme,
+  useDesktopAppearance,
+  useDesktopPreference,
+  useDesktopPreferenceEffects,
+} from "../features/settings";
 import { useSubThemeCatalog } from "../features/themes/useSubThemeCatalog";
 import { useTypographyCatalog, useTypographyRuntime } from "../features/typography";
 import {
   createLocalDataPort,
   getInitialWorkspace,
-  getWindowCursorPoint,
   openExternalUrl,
   subscribeFileModeFileChanges,
 } from "../lib/localFiles";
@@ -48,18 +51,13 @@ type OpenedFile = Readonly<{ target: FileModeTarget; dataPort: DataPort; node: D
 export function FileModeApp() {
   const { locale, t } = useLocalization();
   const subThemeCatalog = useSubThemeCatalog();
-  useDesktopPreferenceEffects(subThemeCatalog.snapshot);
+  useDesktopPreferenceEffects(subThemeCatalog.snapshot, { syncComputerMode: false });
   const appearance = useFileModeAppearance(locale);
-  const platformCapabilities = useDesktopPlatformCapabilities();
   const [opened, setOpened] = useState<OpenedFile | null>(null);
   const [failed, setFailed] = useState(false);
   const [menuContribution, setMenuContribution] = useState<EditorPaneMenuContribution | null>(null);
-  const documentRef = useRef<HTMLElement>(null);
-  useScrolledUnderTitlebar(documentRef);
-  // The file's controls appear as a project pane's do: only near the top of the window.
-  const windowRef = useRef<HTMLDivElement>(null);
-  const pointerNearTopOutsideDocument = usePointerNearTopOutsideDocument(windowRef);
-  const controlsReveal = useEditorPaneChromeReveal(windowRef, pointerNearTopOutsideDocument);
+  const controls = useMemo(() => splitMenuContribution(menuContribution), [menuContribution]);
+  const name = opened?.target.name ?? null;
 
   useEffect(() => {
     let cancelled = false;
@@ -76,26 +74,18 @@ export function FileModeApp() {
     <SurfaceAppearanceProvider value={appearance}>
       <div
         {...appearance.rootProps}
-        ref={windowRef}
         className={`file-mode-window${appearance.appearance.effectiveColorMode === "dark" ? " dark" : ""}`}
-        data-controls-revealed={controlsReveal.revealed ? "true" : undefined}
-        onPointerMove={controlsReveal.onPointerMove}
-        onPointerLeave={controlsReveal.onPointerLeave}
       >
-        <header
-          className="file-mode-window__titlebar"
-          data-window-drag-region="true"
-          data-window-chrome-mode={platformCapabilities?.windowChrome.mode}
-          data-window-platform={platformCapabilities?.platform}
-        >
-          <span className="file-mode-window__name" dir="auto">{opened?.target.name}</span>
-          <FileControls name={opened?.target.name ?? null} contribution={menuContribution} />
-        </header>
-        <main ref={documentRef} className="file-mode-window__document">
+        {/* A project window's Header: the file stands where a project does, its controls where a project's tools do. */}
+        <DesktopWindowChrome
+          context={name && <FileHeaderContext name={name} />}
+          actions={controls && <FileControls name={name} {...controls} />}
+        />
+        <main className="file-mode-window__document">
           {failed && <FileUnavailable />}
           {opened?.target.tooLarge && <FileUnavailable sizeLimit={opened.target.sizeLimit} />}
           {opened?.node && (
-            // Editors hand their view switch and settings to the title bar, as they do to a project pane's menu.
+            // Editors hand their view switch and settings to the Header, as they do to a project pane's menu.
             <EditorPaneMenuContributionProvider onContributionChange={setMenuContribution}>
               <FileModeDocument target={opened.target} dataPort={opened.dataPort} node={opened.node} />
             </EditorPaneMenuContributionProvider>
@@ -109,35 +99,78 @@ export function FileModeApp() {
   );
 }
 
+/** The file's kind and name, set as a project's name is in its Header. */
+function FileHeaderContext({ name }: { name: string }) {
+  const fileIconTheme = useDesktopPreference(selectFileIconTheme);
+  return (
+    <div className="desktop-titlebar-context">
+      <div className="desktop-titlebar-context-item">
+        <FileGlyphIcon name={name} size={15} theme={fileIconTheme} />
+        <span className="desktop-titlebar-context-name" dir="auto">{name}</span>
+      </div>
+    </div>
+  );
+}
+
+type FileHeaderControls = Readonly<{
+  /** The document's own switches, such as Edit and the source panel: pressed commands. */
+  toggles: readonly EditorPaneMenuToggle[];
+  switches: readonly EditorPaneMenuSegmentedControl[];
+  settings: EditorPaneMenuContribution | null;
+}>;
+
+const isHeaderToggle = (item: EditorPaneMenuContribution["viewItems"][number]): item is EditorPaneMenuToggle =>
+  item.kind === "toggle" && item.icon !== undefined;
+
 /**
- * What the editor hands a project pane's menu, in the title bar: its view as one
- * control showing the current view, anything else behind the pane's menu.
+ * What the editor hands a project pane's menu, split for the Header: its own
+ * switches as pressed commands, a view as one control showing the current
+ * view, anything else behind the pane's menu. Null when it hands over nothing.
  */
-function FileControls({ name, contribution }: { name: string | null; contribution: EditorPaneMenuContribution | null }) {
+function splitMenuContribution(contribution: EditorPaneMenuContribution | null): FileHeaderControls | null {
+  if (!contribution) return null;
+  const toggles = contribution.viewItems.filter(isHeaderToggle);
+  const switches = contribution.viewItems.filter(
+    (item): item is EditorPaneMenuSegmentedControl => item.kind === "segmented",
+  );
+  const settingsItems = contribution.viewItems.filter((item) => item.kind !== "segmented" && !isHeaderToggle(item));
+  if (!toggles.length && !switches.length && !settingsItems.length) return null;
+  return { toggles, switches, settings: settingsItems.length ? { ...contribution, viewItems: settingsItems } : null };
+}
+
+/** The file's controls, as Header commands beside each other like a project's tools. */
+function FileControls({ name, toggles, switches, settings }: FileHeaderControls & { name: string | null }) {
   const { t } = useLocalization();
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const close = useCallback(() => setOpen(false), []);
-  const switches = useMemo(() => (contribution?.viewItems ?? []).filter(
-    (item): item is EditorPaneMenuSegmentedControl => item.kind === "segmented",
-  ), [contribution]);
-  const settings = useMemo(() => contribution && {
-    ...contribution,
-    viewItems: contribution.viewItems.filter((item) => item.kind !== "segmented"),
-  }, [contribution]);
-  if (!switches.length && !settings?.viewItems.length) return null;
   const label = name ? t("editor.panes.actionsFor", { name }) : t("editor.panes.actions");
   return (
-    <div className="file-mode-window__controls">
+    <>
+      {toggles.map((item) => (
+        <Tooltip key={item.id} content={item.label}><button
+          type="button"
+          className="desktop-titlebar-action file-mode-window__toggle"
+          data-control={item.id}
+          aria-label={item.label}
+          aria-pressed={item.checked}
+          onClick={() => item.setChecked(!item.checked)}
+        >
+          {item.icon}
+        </button></Tooltip>
+      ))}
       {switches.map((item) => (
         <EditorViewModeMenu
           key={item.id}
           item={item}
           boundarySelector=".file-mode-window"
-          className="file-mode-window__action file-mode-window__view-mode"
+          className="desktop-titlebar-action file-mode-window__view-mode"
         />
       ))}
-      {settings?.viewItems.length ? <FileSettingsMenu
+      {settings && (toggles.length > 0 || switches.length > 0) && (
+        <span className="desktop-titlebar-action-divider" aria-hidden="true" />
+      )}
+      {settings && <FileSettingsMenu
         buttonRef={buttonRef}
         label={label}
         name={name}
@@ -145,8 +178,8 @@ function FileControls({ name, contribution }: { name: string | null; contributio
         open={open}
         onToggle={() => setOpen((current) => !current)}
         onClose={close}
-      /> : null}
-    </div>
+      />}
+    </>
   );
 }
 
@@ -164,7 +197,7 @@ function FileSettingsMenu({ buttonRef, label, name, settings, open, onToggle, on
       <Tooltip content={label}><button
         ref={buttonRef}
         type="button"
-        className="file-mode-window__action"
+        className="desktop-titlebar-action file-mode-window__settings"
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -185,132 +218,6 @@ function FileSettingsMenu({ buttonRef, label, name, settings, open, onToggle, on
       />
     </>
   );
-}
-
-/**
- * Marks the document while its text is scrolled up under the title bar, which
- * then fades that text out instead of drawing a divider. Only the scroller that
- * starts right under the bar counts, not a code block or table scrolling inside
- * the page. A page in a frame (HTML) scrolls out of sight, so its viewer
- * reports how far instead. A view switch can replace the scroller without a
- * scroll event.
- */
-function useScrolledUnderTitlebar(documentRef: RefObject<HTMLElement>) {
-  useEffect(() => {
-    const surface = documentRef.current;
-    if (!surface) return undefined;
-    let scroller: Element | null = null;
-    // How far a frame's page is scrolled, as its viewer reported; null for an ordinary scroller.
-    let reportedTop: number | null = null;
-    const update = () => {
-      const top = reportedTop ?? scroller?.scrollTop ?? 0;
-      if (!scroller?.isConnected || top <= 0) delete surface.dataset.scrolled;
-      // A page in a frame has its own background, which a fade into the window's would not match.
-      else surface.dataset.scrolled = reportedTop === null ? "" : "frame";
-    };
-    const startsUnderTitlebar = (target: Element) =>
-      Math.abs(target.getBoundingClientRect().top - surface.getBoundingClientRect().top) <= 1;
-    const onScroll = (event: Event) => {
-      const target = event.target;
-      if (target !== scroller) {
-        if (!(target instanceof Element) || target.scrollHeight <= target.clientHeight) return;
-        if (!startsUnderTitlebar(target)) return;
-        scroller = target;
-        reportedTop = null;
-      }
-      update();
-    };
-    const onEmbeddedScroll = (event: Event) => {
-      const target = event.target;
-      const top = (event as CustomEvent<EmbeddedScrollDetail>).detail?.top;
-      if (!(target instanceof Element) || typeof top !== "number") return;
-      if (target !== scroller && !startsUnderTitlebar(target)) return;
-      scroller = target;
-      reportedTop = top;
-      update();
-    };
-    const replaced = new MutationObserver(() => {
-      if (scroller && !scroller.isConnected) {
-        scroller = null;
-        update();
-      }
-    });
-    surface.addEventListener("scroll", onScroll, { capture: true, passive: true });
-    surface.addEventListener(EMBEDDED_SCROLL_EVENT, onEmbeddedScroll);
-    replaced.observe(surface, { childList: true, subtree: true });
-    return () => {
-      surface.removeEventListener("scroll", onScroll, { capture: true });
-      surface.removeEventListener(EMBEDDED_SCROLL_EVENT, onEmbeddedScroll);
-      replaced.disconnect();
-    };
-  }, [documentRef]);
-}
-
-/** How often to ask where the pointer is while the page cannot see it. */
-const CURSOR_POLL_MS = 150;
-
-/**
- * Whether the pointer is in the window's top third while the page cannot see
- * it. The title bar is a native drag region: moving over it sends the page no
- * pointer events, and moving onto it from the document reads as leaving the
- * window. So while this window is in front and the pointer is not over the
- * document, ask the system where it is. Pointer events over the document take
- * over again as soon as they arrive.
- */
-function usePointerNearTopOutsideDocument(windowRef: RefObject<HTMLElement>): boolean {
-  const [nearTop, setNearTop] = useState(false);
-  useEffect(() => {
-    const root = windowRef.current;
-    if (!root) return undefined;
-    let overDocument = false;
-    let timer: number | null = null;
-    let disposed = false;
-    const stop = () => {
-      if (timer !== null) window.clearTimeout(timer);
-      timer = null;
-    };
-    const poll = async () => {
-      timer = null;
-      if (disposed || overDocument || !document.hasFocus()) {
-        setNearTop(false);
-        return;
-      }
-      const point = await getWindowCursorPoint().catch(() => null);
-      if (disposed || overDocument) return;
-      setNearTop(!!point && point.y < root.getBoundingClientRect().height * PANE_HANDLE_REVEAL_RATIO);
-      timer = window.setTimeout(() => { void poll(); }, CURSOR_POLL_MS);
-    };
-    const watch = () => {
-      if (timer === null && !overDocument) timer = window.setTimeout(() => { void poll(); }, 0);
-    };
-    const onMove = () => {
-      overDocument = true;
-      stop();
-      setNearTop(false);
-    };
-    const onLeave = () => {
-      overDocument = false;
-      watch();
-    };
-    const onBlur = () => {
-      stop();
-      setNearTop(false);
-    };
-    root.addEventListener("pointermove", onMove);
-    root.addEventListener("pointerleave", onLeave);
-    window.addEventListener("focus", watch);
-    window.addEventListener("blur", onBlur);
-    watch();
-    return () => {
-      disposed = true;
-      stop();
-      root.removeEventListener("pointermove", onMove);
-      root.removeEventListener("pointerleave", onLeave);
-      window.removeEventListener("focus", watch);
-      window.removeEventListener("blur", onBlur);
-    };
-  }, [windowRef]);
-  return nearTop;
 }
 
 /** The theme boundary a project window has, so sub-themes reach this window too. */
@@ -414,6 +321,8 @@ function FileModeDocument({ target, dataPort, node }: OpenedFile & { node: Docum
         onRetry={source.retry}
         showHeader={false}
         hideSourceView={!sourceToggle}
+        // The page to read, an Edit switch, and its source in a panel beside it, from the Header.
+        documentControls="edit-and-source-panel"
         // Edits are saved as they are made, as in a project window.
         editorSaveMode="auto"
         htmlTrustMode="safe"

@@ -1,0 +1,26 @@
+[
+  {"name":".github","folder":true,"children":[{"name":"workflows","folder":true}]},
+  {"name":"document","folder":true,"expanded":true,"children":[
+    {"name":"puppyone","folder":true},
+    {"name":"puppyone-desktop","folder":true,"expanded":true,"children":[
+      {"name":"architecture","folder":true,"expanded":true,"children":[
+        {"name":"runtime","folder":true},
+        {"name":"01-current-architecture.md"},
+        {"name":"02-native-shell.md"},
+        {"name":"03-workspace.md"},
+        {"name":"04-migration-plan.md"},
+        {"name":"05-verification.md"},
+        {"name":"README.md"}
+      ]},
+      {"name":"editor","folder":true},
+      {"name":"terminal","folder":true},
+      {"name":"README.md"}
+    ]},
+    {"name":"puppypay","folder":true}
+  ]},
+  {"name":"packages","folder":true},
+  {"name":"src","folder":true},
+  {"name":".gitignore"},
+  {"name":"Cargo.toml"},
+  {"name":"README.md"}
+]

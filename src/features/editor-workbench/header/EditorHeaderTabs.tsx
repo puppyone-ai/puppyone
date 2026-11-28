@@ -6,6 +6,7 @@ import {
   getDocumentIdentityKey,
   getDocumentWorkingCopyStatuses,
   subscribeDocumentWorkingCopyStatuses,
+  useVisibleSaveStatus,
   type DocumentSessionStatus,
   type EditorInput,
 } from "@puppyone/shared-ui";
@@ -161,13 +162,7 @@ export function EditorHeaderTabs({
               <span className="desktop-titlebar-editor-tab-label" dir="auto">{editor.label}</span>
             </button>
             <span className="desktop-titlebar-editor-tab-state" aria-hidden="true">
-              {status === "saving" || closing
-                ? <LoaderCircle className="is-spinning" size={12} />
-                : status === "error"
-                  ? <AlertCircle size={12} />
-                  : status === "dirty"
-                    ? <span className="desktop-titlebar-editor-tab-dirty" />
-                    : null}
+              <EditorTabSaveState status={status} closing={closing} />
             </span>
             <Tooltip content={t("shell.editorTabs.close", { name: editor.label })}><button
               type="button"
@@ -212,4 +207,13 @@ function getEditorStatus(
   } catch {
     return null;
   }
+}
+
+/** Background saves keep the unsaved dot until they land; only a slow save spins. */
+function EditorTabSaveState({ status, closing }: { status: DocumentSessionStatus | null | undefined; closing: boolean }) {
+  const visible = useVisibleSaveStatus(status ?? "clean");
+  if (visible === "saving" || closing) return <LoaderCircle className="is-spinning" size={12} />;
+  if (visible === "error") return <AlertCircle size={12} />;
+  if (visible === "dirty") return <span className="desktop-titlebar-editor-tab-dirty" />;
+  return null;
 }

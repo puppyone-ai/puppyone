@@ -17,6 +17,7 @@ import {
 } from "./desktop/release-identity.mjs";
 
 export const DESKTOP_BUILD_INFO_SCHEMA_VERSION = 1;
+export const DESKTOP_BUILD_RUNTIMES = Object.freeze(["electron", "gpui"]);
 export {
   DESKTOP_BUILD_CHANNELS,
   DESKTOP_BUILD_PRODUCT,
@@ -29,6 +30,7 @@ const LEGACY_MAC_TARGET = createDesktopTarget({ platform: "macos", arch: "arm64"
 const BUILD_INFO_KEYS = Object.freeze([
   "schemaVersion",
   "product",
+  "runtime",
   "channel",
   "baseVersion",
   "version",
@@ -93,6 +95,9 @@ export function inspectDesktopBuildInfo(value) {
   }
   if (value.schemaVersion !== DESKTOP_BUILD_INFO_SCHEMA_VERSION) {
     errors.push(`schemaVersion must be ${DESKTOP_BUILD_INFO_SCHEMA_VERSION}`);
+  }
+  if (value.runtime !== undefined && !DESKTOP_BUILD_RUNTIMES.includes(value.runtime)) {
+    errors.push("runtime must be electron or gpui");
   }
   try {
     const release = assertDesktopReleaseIdentity(toReleaseIdentity(value));

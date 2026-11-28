@@ -15,7 +15,9 @@ jobs:
   build:
     name: Build ad-hoc macOS release once
     runs-on: macos-15
-    timeout-minutes: 60
+    # verify.py runs the whole Rust gate (coverage, clippy, release build,
+    # editor frame budgets) before packaging.
+    timeout-minutes: 240
     permissions:
       actions: read
       attestations: write
@@ -26,6 +28,7 @@ jobs:
       release_name: ${{ steps.release.outputs.release_name }}
       release_tag: ${{ steps.release.outputs.tag }}
     env:
+      CARGO_INCREMENTAL: "0"
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
       PUBLIC_DOWNLOAD_ORIGIN: https://downloads.puppyone.ai
       # Internal builds pair with the Qubits staging Cloud; Stable pairs with production.
@@ -35,38 +38,52 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22
+          # The Node.js whose ICU recorded the Rust Intl oracles (fixtures/ui/number-format-oracle.json).
+          node-version: 22.22.3
           cache: npm
 
-      - name: Verify green main source
+      - name: Verify green source branch
+        id: source_ci
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
-            echo "Internal releases must be built from the main branch." >&2
-            exit 1
-          fi
-          # The server-side status index can lag behind a completed run. Match
-          # exact source, event and terminal success in the returned run records.
-          SUCCESSFUL_CI_RUNS="$(
+          # qubits carries the Rust GPUI app until it replaces main; release/*
+          # branches freeze a candidate for Stable promotion.
+          case "${GITHUB_REF}" in
+            refs/heads/main | refs/heads/qubits | refs/heads/release/*) ;;
+            *)
+              echo "Internal releases must be built from main, qubits or a release/* branch." >&2
+              exit 1
+              ;;
+          esac
+          # Rust desktop acceptance runs verify.py on every push to these
+          # branches. The server-side status index can lag behind a completed
+          # run. Match exact source, event and terminal success in the returned
+          # run records.
+          MATCHING_RUNS="$(
             gh api \
               --method GET \
               -H "Accept: application/vnd.github+json" \
-              "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs" \
-              -f branch=main \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/rust-tests.yml/runs" \
+              -f branch="${GITHUB_REF_NAME}" \
               -f head_sha="${GITHUB_SHA}" \
-              --jq '[.workflow_runs[] | select(.event == "push" and .head_sha == env.GITHUB_SHA and .status == "completed" and .conclusion == "success")] | length'
+              --jq '[.workflow_runs[] | select(.event == "push" and .head_sha == env.GITHUB_SHA and .status == "completed" and .conclusion == "success")] | sort_by(.created_at)'
           )"
+          SUCCESSFUL_CI_RUNS="$(printf '%s' "${MATCHING_RUNS}" | jq 'length')"
           if [ "${SUCCESSFUL_CI_RUNS}" -lt 1 ]; then
-            echo "Internal releases require a successful CI push run for ${GITHUB_SHA} on main." >&2
+            echo "Internal releases require a successful Rust desktop acceptance push run for ${GITHUB_SHA} on ${GITHUB_REF_NAME}." >&2
             exit 1
           fi
+          CI_RUN_ID="$(printf '%s' "${MATCHING_RUNS}" | jq -r 'last | .id')"
+          echo "ci_run_id=${CI_RUN_ID}" >> "${GITHUB_OUTPUT}"
 
       - name: Resolve immutable release identity
         id: release
@@ -97,10 +114,107 @@ jobs:
           npm test --
           tests/integration/terminal/startup/terminalPreviewLauncher.test.mjs
           tests/integration/release/build-identity/desktopReleaseMetadata.test.mjs
+          tests/integration/release/packaging/packagedDesktopBuildVerifier.test.mjs
           tests/architecture/release/build-identity/macosReleasePolicy.test.mjs
 
+      - name: Checkout pinned product baseline worktree
+        id: baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          SIBLINGS="$(dirname "${GITHUB_WORKSPACE}")"
+          BASELINE_COMMIT="$(node -p "JSON.parse(require('fs').readFileSync('puppy-one-rust/product-source.json', 'utf8')).commit")"
+          BASELINE_NAME="$(basename "$(node -p "JSON.parse(require('fs').readFileSync('puppy-one-rust/product-source.json', 'utf8')).checkout")")"
+          BASELINE_DIR="${SIBLINGS}/${BASELINE_NAME}"
+          git worktree add --detach "${BASELINE_DIR}" "${BASELINE_COMMIT}"
+          echo "dir=${BASELINE_DIR}" >> "${GITHUB_OUTPUT}"
+          echo "PUPPYONE_PRODUCT_ROOT=${BASELINE_DIR}" >> "${GITHUB_ENV}"
+
+      - name: Cache Cargo release package build and baseline dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            puppy-one-rust/target/package
+            ${{ steps.baseline.outputs.dir }}/node_modules
+          key: macos-arm64-release-pkg-v1-${{ hashFiles('puppy-one-rust/Cargo.lock', 'puppy-one-rust/product-source.json') }}-${{ github.sha }}
+          restore-keys: |
+            macos-arm64-release-pkg-v1-${{ hashFiles('puppy-one-rust/Cargo.lock', 'puppy-one-rust/product-source.json') }}-
+            macos-arm64-release-pkg-v1-
+
+      - name: Setup Rust toolchain and native dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup default 1.97.1
+          if [ ! -d "${PUPPYONE_PRODUCT_ROOT}/node_modules" ]; then
+            npm --prefix "${PUPPYONE_PRODUCT_ROOT}" ci
+          fi
+          (cd puppy-one-rust && cargo fetch --locked)
+          python3 puppy-one-rust/tools/fetch-pdfium.py
+          python3 puppy-one-rust/tools/release/package-excalidraw-pack.py
+
+      - name: Verify GPUI source and Electron-to-GPUI OTA contract
+        env:
+          CI_RUN_ID: ${{ steps.source_ci.outputs.ci_run_id }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Reuse the cryptographic source-hash verification receipt produced by the
+          # exact-commit Rust desktop acceptance push run instead of re-running verify.py.
+          rm -rf "${RUNNER_TEMP}/rust-acceptance-evidence"
+          gh run download "${CI_RUN_ID}" \
+            -R "${GITHUB_REPOSITORY}" \
+            -n rust-macos-acceptance \
+            -D "${RUNNER_TEMP}/rust-acceptance-evidence"
+          mkdir -p puppy-one-rust/artifacts/gpui-verification
+          cp "${RUNNER_TEMP}/rust-acceptance-evidence/gpui-verification/result.json" \
+            puppy-one-rust/artifacts/gpui-verification/result.json
+          python3 - <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          root = Path('puppy-one-rust').resolve()
+          sys.path.insert(0, str(root / 'tools'))
+          from source_identity import verify_source_receipt
+          receipt = json.loads((root / 'artifacts/gpui-verification/result.json').read_text())
+          if receipt.get('baseCommit') != os.environ['GITHUB_SHA']:
+              raise SystemExit(
+                  f"Verification receipt commit {receipt.get('baseCommit')} != {os.environ['GITHUB_SHA']}"
+              )
+          verify_source_receipt(receipt, root)
+          print(f"Verified Rust desktop acceptance receipt for {os.environ['GITHUB_SHA']} (run {os.environ['CI_RUN_ID']}).")
+          PY
+          python3 puppy-one-rust/tools/release/verify-electron-to-gpui-ota.py
+
+      - name: Retain verification logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: internal-verification-logs
+          path: puppy-one-rust/artifacts/gpui-verification/
+          retention-days: 14
+
       - name: Build ad-hoc macOS package
-        run: npm run dist:mac:prepared
+        env:
+          PUPPYONE_BUILD_TIMESTAMP: ${{ steps.release.outputs.published_at }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 puppy-one-rust/tools/release/package-macos.py \
+            --channel internal \
+            --build-number "${GITHUB_RUN_NUMBER}" \
+            --out release \
+            --flat-out \
+            --build-info-out generated/desktop-build-info.json
+          python3 puppy-one-rust/tools/release/verify-macos-release.py release --channel internal
+          python3 puppy-one-rust/tools/release/package-excalidraw-pack.py --out artifacts/viewer-packs
+          node scripts/publish-viewer-packs-r2.mjs verify-local \
+            --packs-dir artifacts/viewer-packs \
+            --require-non-empty
 
       - name: Verify packaged Internal Build Identity
         run: node scripts/verify-packaged-desktop-build.mjs
@@ -212,12 +326,21 @@ jobs:
             artifacts/desktop-release-bundle/release.json
             artifacts/desktop-release-bundle/build-info.json
             artifacts/desktop-release-bundle/SHA256SUMS
+            artifacts/viewer-packs/*
 
       - name: Upload build-once release bundle
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ steps.release.outputs.artifact_name }}
           path: artifacts/desktop-release-bundle
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload build-once viewer packs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.release.outputs.artifact_name }}-viewer-packs
+          path: artifacts/viewer-packs
           if-no-files-found: error
           retention-days: 30
 

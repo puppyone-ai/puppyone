@@ -42,6 +42,20 @@ describe("provider-neutral ACP client", () => {
     expect(connection.notify.mock.calls.map(([method]) => method)).toEqual(["session/cancel", "cancel"]);
   });
 
+  it("uses an interactive timeout for ACP authenticate", async () => {
+    const connection = new FakeConnection();
+    connection.responses.set("authenticate", {});
+    const client = new AcpClient({ connection });
+
+    await expect(client.authenticate({ methodId: "internal" })).resolves.toEqual({});
+
+    expect(connection.request).toHaveBeenCalledWith(
+      "authenticate",
+      { methodId: "internal" },
+      { timeoutMs: 180_000 },
+    );
+  });
+
   it("uses the standard ACP model-selection method", async () => {
     const connection = new FakeConnection();
     connection.responses.set("session/set_model", {});

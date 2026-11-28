@@ -47,7 +47,7 @@ import { bindMarkdownFormatHotkeys } from "./core/commands/markdownFormatHotkeys
 import { CodeMirrorFindAdapter } from "../find/codeMirrorFindAdapter";
 import { useRegisterEditorFindAdapter } from "../find/editorFind";
 import { useEditorAppearanceRevision } from "../../core/appearance/EditorAppearanceContext";
-import { useDocumentModelOwner } from "../document-session/DocumentModelOwner";
+import { useDocumentModelOwner, type DocumentModelOwner } from "../document-session/DocumentModelOwner";
 import { useEditorTaskOwner } from "../runtime/EditorTaskContext";
 import { markdownTaskOwner } from "./platform/codemirror/markdownTaskOwner";
 import { CodeMirrorDocumentModel, externalDocumentUpdate } from "../document-session/CodeMirrorDocumentModel";
@@ -249,8 +249,7 @@ export function MarkdownCodeMirrorEditor({
     const host = hostRef.current;
     if (!host) return undefined;
     const initialConfig = initialEditorConfigRef.current;
-    const model = modelOwner?.getOrCreate("codemirror-markdown", () => new CodeMirrorDocumentModel(initialConfig.value, getDocRevision))
-      ?? new CodeMirrorDocumentModel(initialConfig.value, getDocRevision);
+    const model = getMarkdownDocumentModel(modelOwner, initialConfig.value);
     modelOwner?.activate(model);
     modelRef.current = model;
 
@@ -655,6 +654,12 @@ export function MarkdownCodeMirrorEditor({
       )}
     </>
   );
+}
+
+/** The Markdown text a document owner keeps for every view of the document; a private one without an owner. */
+export function getMarkdownDocumentModel(owner: DocumentModelOwner | null, value: string): CodeMirrorDocumentModel {
+  return owner?.getOrCreate("codemirror-markdown", () => new CodeMirrorDocumentModel(value, getDocRevision))
+    ?? new CodeMirrorDocumentModel(value, getDocRevision);
 }
 
 function getEditableExtensions(readOnly: boolean): Extension[] {

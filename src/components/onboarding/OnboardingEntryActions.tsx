@@ -1,6 +1,7 @@
 import { Button, FolderIcon } from "@puppyone/shared-ui";
 import { useLocalization } from "@puppyone/localization";
-import { Download, FilePlus2 } from "lucide-react";
+import { Download, FilePlus2, Monitor } from "lucide-react";
+import { useComputerModeEnabled } from "../../features/flags";
 import { InlineLoading } from "../loading";
 import { ImportSourcePreview } from "./ImportSourcePreview";
 import type { ImportSourceBrand } from "./ImportSourceMark";
@@ -51,6 +52,39 @@ export function OnboardingEntryActions({
   );
 }
 
+/**
+ * Every way to start a project by hand, at the head of a page that already has some:
+ * New first, as the one filled key, then opening a folder and importing. They sit in
+ * view rather than behind an arrow, since the Agents beside them are the other way in.
+ */
+export function OnboardingStartActions({
+  canCreateProject,
+  onCreateProject,
+  ...entry
+}: Omit<OnboardingEntryActionsProps, "draggingFolder"> & {
+  canCreateProject: boolean;
+  onCreateProject: () => void;
+}) {
+  const { t } = useLocalization();
+  const computerMode = useComputerModeEnabled();
+  const groupLabel = computerMode
+    ? t("onboarding.computerMode.sectionTitle")
+    : t("onboarding.projects.title");
+  return (
+    <div className="onboarding-start-actions" role="group" aria-label={groupLabel}>
+      <OnboardingCreateProjectAction busy={entry.busy} canCreateProject={canCreateProject} onCreateProject={onCreateProject} />
+      <OpenFolderAction busy={entry.busy} openingFolder={entry.openingFolder} draggingFolder={false} onOpenFolder={entry.onOpenFolder} />
+      <ImportAction
+        busy={entry.busy}
+        canImport={entry.canImport}
+        importPreviewBrands={entry.importPreviewBrands}
+        showPreviewBrands={false}
+        onImport={entry.onImport}
+      />
+    </div>
+  );
+}
+
 export function OnboardingCreateProjectAction({
   busy,
   canCreateProject,
@@ -65,6 +99,13 @@ export function OnboardingCreateProjectAction({
   withIcon?: boolean;
 }) {
   const { t } = useLocalization();
+  const computerMode = useComputerModeEnabled();
+  const label = computerMode
+    ? t("onboarding.computerMode.createAction")
+    : t("onboarding.action.createLocalProject");
+  const icon = computerMode
+    ? <Monitor className="onboarding-entry-create-icon" size={14} strokeWidth={1.85} aria-hidden="true" />
+    : <FilePlus2 className="onboarding-entry-create-icon" size={14} strokeWidth={1.85} aria-hidden="true" />;
 
   return (
     <Button
@@ -72,10 +113,10 @@ export function OnboardingCreateProjectAction({
       data-onboarding-action="create"
       tone={prominent ? "primary" : "neutral"}
       disabled={busy || !canCreateProject}
-      leadingIcon={withIcon ? <FilePlus2 className="onboarding-entry-create-icon" size={14} strokeWidth={1.85} aria-hidden="true" /> : undefined}
+      leadingIcon={withIcon ? icon : undefined}
       onClick={onCreateProject}
     >
-      {t("onboarding.action.createLocalProject")}
+      {label}
     </Button>
   );
 }
@@ -109,8 +150,11 @@ function ImportAction({
   busy,
   canImport,
   importPreviewBrands,
+  showPreviewBrands = true,
   onImport,
-}: Pick<OnboardingEntryActionsProps, "busy" | "canImport" | "importPreviewBrands" | "onImport">) {
+}: Pick<OnboardingEntryActionsProps, "busy" | "canImport" | "importPreviewBrands" | "onImport"> & {
+  showPreviewBrands?: boolean;
+}) {
   const { t } = useLocalization();
 
   return (
@@ -125,7 +169,7 @@ function ImportAction({
         onClick={onImport}
       >
         <span className="onboarding-entry-import-label">{t("onboarding.action.importFromApps")}</span>
-        <ImportSourcePreview brands={importPreviewBrands} />
+        {showPreviewBrands && <ImportSourcePreview brands={importPreviewBrands} />}
       </Button>
     </div>
   );

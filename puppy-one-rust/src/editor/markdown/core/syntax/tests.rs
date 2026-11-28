@@ -1,0 +1,321 @@
+use super::*;
+
+fn parse(text: &str) -> (Buffer, Syntax) {
+    let doc = Buffer::new(text);
+    let syntax = Syntax::parse(&doc);
+    (doc, syntax)
+}
+
+fn kinds(s: &Syntax) -> Vec<(Kind, Span)> {
+    s.elements
+        .iter()
+        .map(|e| (e.kind, e.range.clone()))
+        .collect()
+}
+
+fn classes_at(s: &Syntax, offset: usize) -> Hl {
+    s.highlights
+        .iter()
+        .find(|(r, _)| r.contains(&offset))
+        .map_or(Hl::NONE, |h| h.1)
+}
+
+#[test]
+fn inline_elements_carry_marker_and_content_ranges() {
+    let (_, s) = parse("a **b** *i* `c` [l](u) \\* ~~s~~ <http://x.y>");
+    let strong = s.elements.iter().find(|e| e.kind == Kind::Strong).unwrap();
+    assert_eq!(
+        (strong.markers.clone(), strong.content.clone()),
+        (vec![2..4, 5..7], Some(4..5))
+    );
+    let code = s
+        .elements
+        .iter()
+        .find(|e| e.kind == Kind::InlineCode)
+        .unwrap();
+    assert_eq!(
+        (code.range.clone(), code.content.clone()),
+        (12..15, Some(13..14))
+    );
+    let link = s
+        .elements
+        .iter()
+        .find(|e| e.kind == Kind::Link && e.range.start == 16)
+        .unwrap();
+    assert_eq!(
+        (link.markers.clone(), link.content.clone()),
+        (vec![16..17, 18..19, 19..20, 21..22], Some(17..18))
+    );
+    let escape = s.elements.iter().find(|e| e.kind == Kind::Escape).unwrap();
+    assert_eq!(
+        (escape.range.clone(), escape.markers.clone()),
+        (23..25, vec![23..24])
+    );
+    let strike = s.elements.iter().find(|e| e.kind == Kind::Strike).unwrap();
+    assert_eq!(strike.content, Some(28..29));
+    let auto = s
+        .elements
+        .iter()
+        .find(|e| e.kind == Kind::Link && e.range.start == 32)
+        .unwrap();
+    assert_eq!(
+        (auto.markers.clone(), auto.href.as_deref()),
+        (vec![32..33, 43..44], Some("http://x.y"))
+    );
+}
+
+#[test]
+fn highlight_classes_follow_lezer_style_tags() {
+    let (_, s) = parse("- a **b** `c`\n\n> q\n\n# H\n");
+    // List text inherits `list`; strong adds its class; marks are markup.
+    assert_eq!(classes_at(&s, 2), Hl::LIST);
+    assert_eq!(classes_at(&s, 4), Hl::LIST | Hl::STRONG | Hl::MARKUP);
+    assert_eq!(classes_at(&s, 6), Hl::LIST | Hl::STRONG);
+    assert_eq!(classes_at(&s, 0), Hl::LIST | Hl::MARKUP);
+    // Inline code is not inherited: its marks are markup only.
+    assert_eq!(classes_at(&s, 10), Hl::LIST | Hl::MARKUP);
+    assert_eq!(classes_at(&s, 11), Hl::LIST | Hl::MONOSPACE);
+    assert_eq!(classes_at(&s, 17), Hl::QUOTE);
+    assert_eq!(classes_at(&s, 15), Hl::QUOTE | Hl::MARKUP);
+    assert_eq!(classes_at(&s, 22), Hl::HEADING);
+    assert_eq!(classes_at(&s, 20), Hl::HEADING | Hl::MARKUP);
+}
+
+#[test]
+fn list_items_and_tasks_follow_the_parser_structure() {
+    let text = "- one\n- two\n  - nested\n\n1. a\n10. b\n\n- [ ] t\n- [x] done\n\n> - quoted\n";
+    let (doc, s) = parse(text);
+    assert_eq!(s.lists.len(), 5);
+    let nested = s.items.iter().find(|i| i.marker_from == 14).unwrap();
+    assert_eq!(
+        (
+            nested.parents.clone(),
+            nested.indent_columns,
+            nested.content_column
+        ),
+        (vec![1], 2, 4)
+    );
+    let ordered = &s.lists[2];
+    assert!(ordered.ordered && ordered.columns == 3 && ordered.parent.is_none());
+    let done = s
+        .items
+        .iter()
+        .find(|i| i.task.as_ref().is_some_and(|t| t.checked))
+        .unwrap();
+    let task = done.task.as_ref().unwrap();
+    assert_eq!(&doc.as_str()[task.checkbox.clone()], "[x]");
+    assert_eq!(&doc.as_str()[task.prefix_to..done.range.end], "done");
+    assert_eq!(done.blocks[0].0, BlockKind::Task);
+    let quoted = s.items.last().unwrap();
+    assert!(quoted.quoted);
+    // Elements: quoted items have none; tasks carry two markers.
+    let task_el = s
+        .elements
+        .iter()
+        .find(|e| e.kind == Kind::Task && e.checked)
+        .unwrap();
+    assert_eq!(task_el.markers.len(), 2);
+    assert!(
+        !s.elements
+            .iter()
+            .any(|e| e.kind == Kind::List && e.range.start == quoted.range.start)
+    );
+    // Tight items have one implicit paragraph each.
+    let first = &s.items[0];
+    assert_eq!(first.blocks, vec![(BlockKind::Paragraph, 2..5)]);
+}
+
+#[test]
+fn block_elements_use_the_product_marker_ranges() {
+    let (_, s) = parse("## Title\n\n> > nested\n\n---\n");
+    let h = s.elements.iter().find(|e| e.kind == Kind::Heading).unwrap();
+    assert_eq!(
+        (h.level, h.markers.clone(), h.content.clone()),
+        (2, vec![0..3], Some(3..8))
+    );
+    let quotes: Vec<_> = s
+        .elements
+        .iter()
+        .filter(|e| e.kind == Kind::Blockquote)
+        .collect();
+    assert_eq!(quotes[0].markers, vec![10..12]);
+    let rule = kinds(&s).into_iter().find(|k| k.0 == Kind::Rule).unwrap();
+    assert_eq!(rule.1, 22..25);
+}
+
+#[test]
+fn sample_fixture_parses_every_construct() {
+    let text = include_str!("../../../../../fixtures/editor/sample.md");
+    let (_, s) = parse(text);
+    let count = |k: Kind| s.elements.iter().filter(|e| e.kind == k).count();
+    assert_eq!(count(Kind::Heading), 3);
+    assert_eq!(count(Kind::List), 5);
+    assert_eq!(count(Kind::Task), 2);
+    assert_eq!(count(Kind::Blockquote), 1);
+    assert_eq!(count(Kind::Rule), 1);
+    assert_eq!(count(Kind::Strong), 2);
+    assert_eq!(s.fences.len(), 1);
+    assert!(s.paragraphs.iter().any(|p| p.item.is_none()));
+}
+
+/// `MarkdownFeature::collect_range` produces byte-for-byte identical elements
+/// on incremental re-parse (`Syntax::try_parse_incremental`) vs full parse
+/// (`Syntax::parse_with`) across localized edits in a multi-block document.
+#[test]
+fn collect_range_incremental_matches_full_parse() {
+    use crate::editor::{
+        markdown::core::features::MarkdownFeature,
+        text::{
+            change::ChangeSet,
+            state::{EditorState, Transaction, UserEvent},
+        },
+    };
+
+    struct AtTagFeature;
+    impl MarkdownFeature for AtTagFeature {
+        fn id(&self) -> &'static str {
+            "at-tag"
+        }
+
+        fn collect_range(
+            &self,
+            doc: &Buffer,
+            syntax: &Syntax,
+            window: Range<usize>,
+            out: &mut Vec<Element>,
+        ) {
+            for region in syntax.inline_ranges_in(doc, window) {
+                let text = doc.slice_cow(region.clone());
+                let bytes = text.as_bytes();
+                let mut i = 0;
+                while i < bytes.len() {
+                    if bytes[i] == b'@' {
+                        let len = bytes[i + 1..]
+                            .iter()
+                            .take_while(|b| b.is_ascii_alphanumeric())
+                            .count();
+                        if len > 0 {
+                            let r = region.start + i..region.start + i + 1 + len;
+                            let mut e = Element::new(
+                                Kind::FeatureInline("at-tag"),
+                                r.clone(),
+                                vec![],
+                                None,
+                            );
+                            e.text = Some(text[i + 1..i + 1 + len].to_owned());
+                            out.push(e);
+                            i += 1 + len;
+                            continue;
+                        }
+                    }
+                    i += 1;
+                }
+            }
+        }
+    }
+
+    static FEAT: AtTagFeature = AtTagFeature;
+    static FEAT_LIST: &[&dyn MarkdownFeature] = &[&FEAT];
+    let features: Features = FEAT_LIST;
+
+    let initial = (0..10)
+        .map(|i| format!("Paragraph {i} mentions @user{i} and `code @ignored{i}`."))
+        .collect::<Vec<_>>()
+        .join("\n\n");
+    let mut state = EditorState::new(&initial);
+    let prev = Syntax::parse_with(&state.doc, features);
+    assert_eq!(
+        prev.elements
+            .iter()
+            .filter(|e| e.kind == Kind::FeatureInline("at-tag"))
+            .count(),
+        10,
+        "code-span suppression must still hide @ignored inside inline code"
+    );
+
+    let needle = "@user5";
+    let pos = initial.find(needle).unwrap();
+    let changes = ChangeSet::replace(pos..pos + needle.len(), "@alice and @bob");
+    let applied = state
+        .apply(Transaction::edit(changes, None, UserEvent::Input))
+        .unwrap();
+    let (inc, _splice) = Syntax::try_parse_incremental(
+        &state.doc,
+        &applied.before_doc,
+        &prev,
+        &applied.changes,
+        features,
+    )
+    .expect("mid-document edit must take the incremental window path");
+    let full = Syntax::parse_with(&state.doc, features);
+    assert_eq!(inc.elements, full.elements);
+    assert_eq!(inc, full);
+}
+
+/// `markdownElements.test.ts`: `normalizes heading marker ranges`, `task
+/// marker stages`, `wiki links and standard links` and `escaped characters
+/// and autolinks`; `reveals inline elements only when the caret is strictly
+/// inside`; `keeps images atomic rather than inline-revealed`; `can query
+/// elements for the current line without scanning unrelated lines`.
+#[test]
+fn elements_follow_the_product_element_model() {
+    let find = |s: &Syntax, kind: Kind| s.elements.iter().find(|e| e.kind == kind).cloned();
+    let (_, s) = parse("# Heading");
+    let h = find(&s, Kind::Heading).unwrap();
+    assert_eq!(
+        (h.range, h.markers, h.content, h.level),
+        (0..9, vec![0..2], Some(2..9), 1)
+    );
+
+    let (_, s) = parse("- [x] Done");
+    let task = find(&s, Kind::Task).unwrap();
+    assert_eq!(
+        (task.markers, task.content),
+        (vec![0..2, 2..6], Some(6..10))
+    );
+
+    let (_, s) = parse("[label](note.md) and [[Target|Alias]]");
+    let links: Vec<_> = s
+        .elements
+        .iter()
+        .filter(|e| matches!(e.kind, Kind::Link | Kind::WikiLink))
+        .map(|e| (e.kind, e.range.clone(), e.content.clone()))
+        .collect();
+    assert_eq!(
+        links,
+        [
+            (Kind::Link, 0..16, Some(1..6)),
+            (Kind::WikiLink, 21..37, Some(30..35))
+        ]
+    );
+
+    let (_, s) = parse("A **bold** word");
+    let revealed = |caret| s.reveal_element(caret).map(|e| e.kind);
+    assert_eq!(
+        [revealed(2), revealed(3), revealed(8), revealed(10)],
+        [None, Some(Kind::Strong), Some(Kind::Strong), None]
+    );
+
+    let (_, s) = parse("![alt](image.png)");
+    assert_eq!(find(&s, Kind::Image).unwrap().range, 0..17);
+    assert!(s.reveal_element(4).is_none());
+
+    let (doc, s) = parse("# Heading\nA **bold** word\n[[Target]]");
+    let kinds: Vec<_> = s.elements_in(doc.line_range(1)).map(|e| e.kind).collect();
+    assert!(kinds.contains(&Kind::Strong));
+    assert!(!kinds.contains(&Kind::Heading) && !kinds.contains(&Kind::WikiLink));
+
+    let (_, s) = parse("\\*escaped\\* <https://example.com>");
+    let escapes: Vec<_> = s
+        .elements
+        .iter()
+        .filter(|e| e.kind == Kind::Escape)
+        .map(|e| e.markers.clone())
+        .collect();
+    assert_eq!(escapes, [vec![0..1], vec![9..10]]);
+    let auto = find(&s, Kind::Link).unwrap();
+    assert_eq!(
+        (auto.range, auto.markers, auto.content),
+        (12..33, vec![12..13, 32..33], Some(13..32))
+    );
+}

@@ -1,0 +1,139 @@
+name: Rust desktop acceptance
+
+# Every pull request and every push to a release branch runs tools/verify.py,
+# the same checks the release workflows run, except the release build and the
+# editor frame budgets (Rust editor gates measure those when the editor
+# changes). `full` adds them back: a release rehearsal before dispatching a
+# release. Desktop Internal Release requires a successful push run of this
+# workflow for the exact commit it builds, so pushes are never cancelled.
+on:
+  pull_request:
+  push:
+    branches: [qubits, main, 'release/**']
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Run every check, including the release build and editor frame budgets
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-tests-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  macos:
+    name: Rust desktop acceptance (macOS)
+    runs-on: macos-15
+    timeout-minutes: ${{ inputs.full && 240 || 150 }}
+    env:
+      CARGO_INCREMENTAL: "0"
+    defaults:
+      run:
+        working-directory: rust/puppy-one-rust
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          path: rust
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: dc8468ccca89a3f75a0ebadbbe0de5688e4dc2e2
+          path: puppyone-qubits
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 5e87974efcfae0c9a83801ccc9add2f2deceb395
+          path: puppyone-baseline-5e87974ef
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          # The Node.js whose ICU recorded the Rust Intl oracles (fixtures/ui/number-format-oracle.json).
+          node-version: 22.22.3
+          cache: npm
+          cache-dependency-path: rust/package-lock.json
+      - name: Cache Cargo registry, tools, and workspace target
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            ~/.cargo/bin/cargo-llvm-cov
+            rust/puppy-one-rust/target
+            rust/puppy-one-rust/tools/source-index/target
+          key: macos-arm64-rust-acceptance-v1-${{ hashFiles('rust/puppy-one-rust/Cargo.lock', 'rust/puppy-one-rust/tools/source-index/Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            macos-arm64-rust-acceptance-v1-${{ hashFiles('rust/puppy-one-rust/Cargo.lock', 'rust/puppy-one-rust/tools/source-index/Cargo.lock') }}-
+            macos-arm64-rust-acceptance-v1-
+      - name: Cache pinned TS reference dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            puppyone-qubits/node_modules
+            puppyone-baseline-5e87974ef/node_modules
+          key: macos-arm64-ts-ref-npm-v1-${{ hashFiles('puppyone-qubits/package-lock.json', 'puppyone-baseline-5e87974ef/package-lock.json') }}
+      - name: Cache collected TS reference test cases
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: rust/puppy-one-rust/artifacts/test-parity/typescript-cases.json
+          key: macos-arm64-ts-parity-cases-v1-${{ hashFiles('rust/puppy-one-rust/fixtures/test-parity-reference.json', 'rust/puppy-one-rust/tools/collect-test-cases.mjs') }}
+      - name: Install reviewed toolchain and TS reference dependencies
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy --component llvm-tools-preview
+          rustup override set 1.97.1
+          # The repository's own TS sources feed the HTML editor bundle and the release tooling.
+          npm ci --prefix ..
+          if [ ! -d ../../puppyone-qubits/node_modules ]; then
+            npm ci --prefix ../../puppyone-qubits
+          fi
+          if [ ! -d ../../puppyone-baseline-5e87974ef/node_modules ]; then
+            npm ci --prefix ../../puppyone-baseline-5e87974ef
+          fi
+          cargo fetch --locked
+          cargo fetch --locked --manifest-path tools/source-index/Cargo.toml
+          if ! cargo llvm-cov --version 2>/dev/null | grep -q '0.9.1'; then
+            cargo install cargo-llvm-cov --version 0.9.1 --locked
+          fi
+          python3 -m venv "$RUNNER_TEMP/rust-verification-python"
+          "$RUNNER_TEMP/rust-verification-python/bin/python" -m pip install -r tools/requirements-verification.txt
+          echo "$RUNNER_TEMP/rust-verification-python/bin" >> "$GITHUB_PATH"
+      - name: Install the pinned native engines
+        run: |
+          python3 tools/fetch-pdfium.py
+          python3 tools/release/package-excalidraw-pack.py
+      - name: Run every verification check
+        env:
+          # The Cloud backend repository is not available to this runner.
+          PUPPYONE_VERIFY_SKIP: ${{ inputs.full && 'cloud-reference' || 'cloud-reference,release,editor-frames' }}
+        run: python3 tools/verify.py
+      - name: Check the release workflows' own tooling
+        if: ${{ !cancelled() }}
+        working-directory: rust
+        run: |
+          node scripts/check-macos-release-config.mjs
+          npm run test:updater-p0
+          npm test -- \
+            tests/integration/terminal/startup/terminalPreviewLauncher.test.mjs \
+            tests/integration/release/build-identity/desktopReleaseMetadata.test.mjs \
+            tests/integration/release/packaging/packagedDesktopBuildVerifier.test.mjs \
+            tests/architecture/release/build-identity/macosReleasePolicy.test.mjs
+      - name: Retain native verification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: rust-macos-acceptance
+          path: rust/puppy-one-rust/artifacts/
+          retention-days: 14
+
+  # The required status check on main.
+  build:
+    name: Build
+    needs: [macos]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require Rust desktop acceptance
+        env:
+          ACCEPTANCE_RESULT: ${{ needs.macos.result }}
+        run: test "$ACCEPTANCE_RESULT" = success

@@ -26,6 +26,7 @@ export function buildHtmlEditingProjection(index: HtmlSourceIndex, fileUrl: stri
       const svg = node.namespaceURI === "http://www.w3.org/2000/svg" && SVG_TAGS.has(node.tagName);
       if (!svg && (!isHtmlElement(node) || REMOVED.has(node.tagName))) return false;
       if (node.tagName === "link" && (attribute(node, "rel")?.toLowerCase() !== "stylesheet")) return false;
+      const hadHref = node.tagName === "a" && node.attrs.some((entry) => entry.name === "href");
       node.attrs = node.attrs.filter((entry) => {
         if (entry.name.startsWith("on") || entry.name.startsWith("data-puppyone-") || REMOVED_ATTRIBUTES.has(entry.name)) return false;
         if (svg && entry.name === "href") return /^#[a-zA-Z_][\w:.-]*$/.test(entry.value);
@@ -40,11 +41,17 @@ export function buildHtmlEditingProjection(index: HtmlSourceIndex, fileUrl: stri
         }
         return true;
       });
+      if (hadHref) node.attrs.push({ name: "data-puppyone-html-link", value: "" });
       if (["input", "textarea", "select", "button"].includes(node.tagName)) node.attrs.push({ name: "tabindex", value: "-1" });
       const targetId = index.nodes.get(node);
       if (targetId) {
+        const target = index.targets.get(targetId);
         node.attrs.push({ name: HTML_TARGET_ATTRIBUTE, value: targetId });
         node.attrs.push({ name: "tabindex", value: "0" });
+        if (target?.textEditable) {
+          node.attrs.push({ name: "data-puppyone-html-editable", value: target.inlineChildren ? "inline" : "plain" });
+          node.attrs.push({ name: "spellcheck", value: "false" });
+        }
       }
       clean(node);
       return true;

@@ -37,10 +37,11 @@ jobs:
     name: Build signed and notarized macOS release once
     needs: resolve
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 240
     environment:
       name: desktop-signing
     permissions:
+      actions: read
       attestations: write
       contents: read
       id-token: write
@@ -49,6 +50,7 @@ jobs:
       release_name: ${{ steps.release.outputs.release_name }}
       release_tag: ${{ steps.release.outputs.tag }}
     env:
+      CARGO_INCREMENTAL: "0"
       PUBLIC_DOWNLOAD_ORIGIN: https://downloads.puppyone.ai
       VITE_DESKTOP_CLOUD_API_URL: https://api.puppyone.ai/api/v1
       VITE_DESKTOP_CLOUD_WEB_URL: https://try.puppyone.ai
@@ -62,7 +64,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22
+          # The Node.js whose ICU recorded the Rust Intl oracles (fixtures/ui/number-format-oracle.json).
+          node-version: 22.22.3
           cache: npm
 
       - name: Validate stable tag and package version
@@ -107,6 +110,7 @@ jobs:
           npm test --
           tests/integration/terminal/startup/terminalPreviewLauncher.test.mjs
           tests/integration/release/build-identity/desktopReleaseMetadata.test.mjs
+          tests/integration/release/packaging/packagedDesktopBuildVerifier.test.mjs
           tests/architecture/release/build-identity/macosReleasePolicy.test.mjs
 
       - name: Verify exact Internal promotion source
@@ -123,8 +127,96 @@ jobs:
             --source-tag "${{ inputs.promotion_source_tag }}" \
             --github-output "${GITHUB_OUTPUT}"
 
+      - name: Checkout pinned product baseline worktree
+        id: baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          SIBLINGS="$(dirname "${GITHUB_WORKSPACE}")"
+          BASELINE_COMMIT="$(node -p "JSON.parse(require('fs').readFileSync('puppy-one-rust/product-source.json', 'utf8')).commit")"
+          BASELINE_NAME="$(basename "$(node -p "JSON.parse(require('fs').readFileSync('puppy-one-rust/product-source.json', 'utf8')).checkout")")"
+          BASELINE_DIR="${SIBLINGS}/${BASELINE_NAME}"
+          git worktree add --detach "${BASELINE_DIR}" "${BASELINE_COMMIT}"
+          echo "dir=${BASELINE_DIR}" >> "${GITHUB_OUTPUT}"
+          echo "PUPPYONE_PRODUCT_ROOT=${BASELINE_DIR}" >> "${GITHUB_ENV}"
+
+      - name: Cache Cargo release package build and baseline dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            puppy-one-rust/target/package
+            ${{ steps.baseline.outputs.dir }}/node_modules
+          key: macos-arm64-release-pkg-v1-${{ hashFiles('puppy-one-rust/Cargo.lock', 'puppy-one-rust/product-source.json') }}-${{ github.sha }}
+          restore-keys: |
+            macos-arm64-release-pkg-v1-${{ hashFiles('puppy-one-rust/Cargo.lock', 'puppy-one-rust/product-source.json') }}-
+            macos-arm64-release-pkg-v1-
+
       - name: Prepare release application without deployment secrets
-        run: npm run prepare:mac:release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup default 1.97.1
+          if [ ! -d "${PUPPYONE_PRODUCT_ROOT}/node_modules" ]; then
+            npm --prefix "${PUPPYONE_PRODUCT_ROOT}" ci
+          fi
+          (cd puppy-one-rust && cargo fetch --locked)
+          python3 puppy-one-rust/tools/fetch-pdfium.py
+          python3 puppy-one-rust/tools/release/package-excalidraw-pack.py
+          # Verify and consume the exact-commit cryptographic verification receipt from
+          # Rust desktop acceptance instead of re-running verify.py a third time.
+          CI_RUN_ID="$(
+            gh api \
+              --method GET \
+              -H "Accept: application/vnd.github+json" \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/rust-tests.yml/runs" \
+              -f head_sha="${GITHUB_SHA}" \
+              --jq '[.workflow_runs[] | select(.event == "push" and .head_sha == env.GITHUB_SHA and .status == "completed" and .conclusion == "success")] | sort_by(.created_at) | last | .id // empty'
+          )"
+          if [ -z "${CI_RUN_ID}" ]; then
+            echo "Stable macOS release requires a completed successful Rust desktop acceptance push run for ${GITHUB_SHA}." >&2
+            exit 1
+          fi
+          rm -rf "${RUNNER_TEMP}/rust-acceptance-evidence"
+          gh run download "${CI_RUN_ID}" \
+            -R "${GITHUB_REPOSITORY}" \
+            -n rust-macos-acceptance \
+            -D "${RUNNER_TEMP}/rust-acceptance-evidence"
+          mkdir -p puppy-one-rust/artifacts/gpui-verification
+          cp "${RUNNER_TEMP}/rust-acceptance-evidence/gpui-verification/result.json" \
+            puppy-one-rust/artifacts/gpui-verification/result.json
+          CI_RUN_ID="${CI_RUN_ID}" python3 - <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          root = Path('puppy-one-rust').resolve()
+          sys.path.insert(0, str(root / 'tools'))
+          from source_identity import verify_source_receipt
+          receipt = json.loads((root / 'artifacts/gpui-verification/result.json').read_text())
+          if receipt.get('baseCommit') != os.environ['GITHUB_SHA']:
+              raise SystemExit(
+                  f"Verification receipt commit {receipt.get('baseCommit')} != {os.environ['GITHUB_SHA']}"
+              )
+          verify_source_receipt(receipt, root)
+          print(f"Verified Rust desktop acceptance receipt for {os.environ['GITHUB_SHA']} (run {os.environ['CI_RUN_ID']}).")
+          PY
+          python3 puppy-one-rust/tools/release/verify-electron-to-gpui-ota.py
+          python3 puppy-one-rust/tools/release/package-excalidraw-pack.py --out artifacts/viewer-packs
+          node scripts/publish-viewer-packs-r2.mjs verify-local \
+            --packs-dir artifacts/viewer-packs \
+            --require-non-empty
+
+      - name: Retain verification logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: stable-verification-logs
+          path: puppy-one-rust/artifacts/gpui-verification/
+          retention-days: 14
 
       - name: Sign, notarize, and verify release package
         env:
@@ -138,6 +230,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: "true"
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           CSC_LINK: ${{ secrets.CSC_LINK }}
+          PUPPYONE_BUILD_TIMESTAMP: ${{ steps.release.outputs.published_at }}
           PUPPYONE_RELEASE_TAG: ${{ steps.release.outputs.tag }}
         shell: bash
         run: |
@@ -149,7 +242,17 @@ jobs:
             export APPLE_API_KEY="${api_key_path}"
             trap 'rm -f "${api_key_path}"' EXIT
           fi
-          npm run package:mac:release
+          python3 puppy-one-rust/tools/release/package-macos.py \
+            --channel stable \
+            --build-number "${GITHUB_RUN_NUMBER}" \
+            --out release \
+            --flat-out \
+            --build-info-out generated/desktop-build-info.json \
+            --expected-tag "${GITHUB_REF_NAME}" \
+            --release
+          python3 puppy-one-rust/tools/release/verify-macos-release.py release --channel stable \
+            --release-tag "${GITHUB_REF_NAME}"
+          node scripts/verify-packaged-desktop-build.mjs
 
       - name: Write stable release preface
         env:
@@ -224,12 +327,21 @@ jobs:
             artifacts/desktop-release-bundle/release.json
             artifacts/desktop-release-bundle/build-info.json
             artifacts/desktop-release-bundle/SHA256SUMS
+            artifacts/viewer-packs/*
 
       - name: Upload build-once stable release bundle
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ steps.release.outputs.artifact_name }}
           path: artifacts/desktop-release-bundle
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload build-once stable viewer packs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ steps.release.outputs.artifact_name }}-viewer-packs
+          path: artifacts/viewer-packs
           if-no-files-found: error
           retention-days: 90
 

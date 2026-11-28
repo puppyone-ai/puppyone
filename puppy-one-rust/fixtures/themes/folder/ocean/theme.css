@@ -1,0 +1,54 @@
+/* A complete coordinated theme. */
+@puppyone-theme {
+  id: local.user.ocean;
+  name: Ocean;
+  version: 1.2.0;
+  author: Test Author;
+  compatible-root-themes: default;
+  modes: light dark;
+}
+
+@puppyone application {
+  :root {
+    --po-surface-chrome: #e4eef5;
+    --po-canvas: #f7fbfd;
+    --po-accent: #0a7bc2;
+    --po-text: rgb(20 40 60);
+    --po-selected: color-mix(in srgb, var(--po-accent) 18%, transparent);
+    --po-text-selection-bg: color-mix(in srgb, var(--po-accent) 24%, transparent);
+    --po-success: light-dark(#127a3c, #6fd08f);
+  }
+
+  .dark .theme-root {
+    --po-surface-chrome: #0d1b24;
+    --po-canvas: #0a141b;
+    --po-accent: #4fb3f0;
+    --po-text: #e6f2fa;
+  }
+}
+
+@puppyone typography {
+  :root {
+    --po-text-size-content: 17px;
+    --po-code-font-size: 12px;
+  }
+}
+
+@puppyone markdown {
+  :root {
+    --po-md-content-color: var(--po-text);
+    --po-md-h1-size: 30px;
+  }
+  .dark .theme-root {
+    --po-md-content-color: #dce9f2;
+  }
+}
+
+@puppyone csv {
+  :root {
+    --po-editable-table-radius: 6px;
+  }
+  .dark .theme-root {
+    --po-editable-table-border: #23313b;
+  }
+}

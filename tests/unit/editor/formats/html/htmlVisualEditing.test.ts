@@ -152,6 +152,61 @@ describe("HTML source-based visual editing", () => {
   });
 });
 
+describe("HTML block structure and link editing", () => {
+  const LIST = "<main>\n  <p>One</p>\n  <p>Two</p>\n  <p>Three</p>\n</main>";
+  const paragraph = (session: HtmlVisualSession, text: string) => [...session.index.targets.values()]
+    .find((target) => target.tag === "p" && session.read(target.id).text === text)!.id;
+
+  it("moves a block past its sibling, keeps the whitespace between them and selects the moved block", () => {
+    const { model, session } = setup(LIST);
+    const [down] = session.apply(paragraph(session, "One"), model.revision, { kind: "structure", action: "move-down" }, "m");
+    expect(model.readSnapshot().content).toBe("<main>\n  <p>Two</p>\n  <p>One</p>\n  <p>Three</p>\n</main>");
+    expect(down).toMatchObject({ kind: "structure", action: "move-down", selectId: paragraph(session, "One") });
+    const [up] = session.apply(paragraph(session, "Three"), model.revision, { kind: "structure", action: "move-up" }, "m");
+    expect(model.readSnapshot().content).toBe("<main>\n  <p>Two</p>\n  <p>Three</p>\n  <p>One</p>\n</main>");
+    expect(up).toMatchObject({ kind: "structure", selectId: paragraph(session, "Three") });
+  });
+  it("duplicates a block on its own indented line and selects the copy", () => {
+    const { model, session } = setup(LIST);
+    const original = session.index.targets.get(paragraph(session, "Two"))!;
+    const [patch] = session.apply(original.id, model.revision, { kind: "structure", action: "duplicate" }, "d");
+    expect(model.readSnapshot().content).toBe("<main>\n  <p>One</p>\n  <p>Two</p>\n  <p>Two</p>\n  <p>Three</p>\n</main>");
+    const copy = session.index.targets.get(patch!.kind === "structure" ? patch!.selectId! : "")!;
+    expect(copy.start).toBeGreaterThan(original.start);
+    expect(session.read(copy.id).text).toBe("Two");
+  });
+  it("deletes a block together with the indentation of its line", () => {
+    const { model, session } = setup(LIST);
+    session.apply(paragraph(session, "Two"), model.revision, { kind: "structure", action: "delete" }, "x");
+    expect(model.readSnapshot().content).toBe("<main>\n  <p>One</p>\n  <p>Three</p>\n</main>");
+  });
+  it("offers moves only between movable siblings and refuses the rest without touching the source", () => {
+    const { model, session, id } = setup("<main><p>One</p><p>Two <span>x</span></p></main>");
+    const first = session.index.targets.get(paragraph(session, "One"))!;
+    expect(first.blockMovable).toBe(true);
+    expect(first.prevSiblingId).toBeNull();
+    expect(first.nextSiblingId).toBe(id("p", 1));
+    expect(session.index.targets.get(id("main"))!.blockMovable).toBe(false);
+    expect(() => session.apply(first.id, model.revision, { kind: "structure", action: "move-up" }, "m")).toThrow("unsupported");
+    expect(() => session.apply(id("span"), model.revision, { kind: "structure", action: "duplicate" }, "m")).toThrow("unsupported");
+    expect(model.readSnapshot().content).toBe("<main><p>One</p><p>Two <span>x</span></p></main>");
+  });
+  it("edits a link's address in place", () => {
+    const { model, session, id } = setup('<p>See <a href="https://old.example">docs</a></p>');
+    expect(session.index.targets.get(id("a"))!.link).toBe(true);
+    const [patch] = session.apply(id("a"), model.revision, { kind: "attribute", name: "href", value: "https://new.example/?a=1&b=2" }, "h");
+    expect(model.readSnapshot().content).toBe('<p>See <a href="https://new.example/?a=1&amp;b=2">docs</a></p>');
+    expect(patch).toEqual({ id: id("a"), kind: "attribute", name: "href", value: "https://new.example/?a=1&b=2" });
+  });
+  it("accepts only bounded in-page typing and composition messages", () => {
+    expect(decodeHtmlBridgeMessage({ type: "input", id: "t0", value: "Hello" })).toEqual({ type: "input", id: "t0", value: "Hello" });
+    expect(decodeHtmlBridgeMessage({ type: "input", id: "../secret", value: "x" })).toBeNull();
+    expect(decodeHtmlBridgeMessage({ type: "input", id: "t0", value: "x".repeat(65537) })).toBeNull();
+    expect(decodeHtmlBridgeMessage({ type: "composition", value: true })).toEqual({ type: "composition", value: true });
+    expect(decodeHtmlBridgeMessage({ type: "composition", value: "yes" })).toBeNull();
+  });
+});
+
 describe("HTML projection and resource boundaries", () => {
   it("allows original page scripts only in interaction mode while retaining sandbox boundaries", () => {
     const source = '<button onclick="this.textContent=\'Clicked\'">Click</button><script>window.pageReady=true</script>';

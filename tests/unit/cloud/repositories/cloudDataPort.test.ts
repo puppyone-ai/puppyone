@@ -100,11 +100,15 @@ describe('live Cloud files', () => {
     await cloud.dataPort.deleteNode!('config.cfg'); expect(files.has('config.cfg')).toBe(false);
     expect(JSON.parse(request.mock.calls.find(([input]) => input.method === 'PUT')![0].body).expected_revision).toBeNull();
   });
-  it('does not clobber a file created after directory listing', async () => {
+  it('does not clobber a file another writer creates just before ours, and never lists to check', async () => {
     const cloud = service(), original = request.getMockImplementation()!;
-    request.mockImplementation(async input => { const result = await original(input); if (input.path.includes('/files?')) files.set('new.md', 'other writer'); return result; });
-    await expect(cloud.dataPort.createFile!('new.md', 'mine')).rejects.toMatchObject({ status: 409 });
+    request.mockImplementation(async input => {
+      if (input.method === 'PUT' && JSON.parse(input.body).path === 'new.md') files.set('new.md', 'other writer');
+      return original(input);
+    });
+    await expect(cloud.dataPort.createFile!('new.md', 'mine')).rejects.toMatchObject({ status: 409, message: expect.stringMatching(/already exists/) });
     expect(files.get('new.md')).toBe('other writer');
+    expect(request.mock.calls.some(([input]) => input.path.includes('/files?'))).toBe(false);
   });
   it('rejects path escapes, scope roots and read-only writes', async () => {
     const cloud = service();

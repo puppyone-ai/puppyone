@@ -22,6 +22,13 @@ export type ProjectOpenFailure = Readonly<{
   diagnostic?: string | null;
 }>;
 
+/** A project just created for one of the person's Agents, waiting to hand over its first prompt. */
+export type PendingAgentProjectStart = Readonly<{
+  rootPath: string;
+  runtimeId: string;
+  prompt: string;
+}>;
+
 /**
  * What this window is doing with projects. Each renderer is one window, so
  * there is one of these. Everything a surface shows about opening a project is
@@ -45,11 +52,32 @@ export type WindowProject = Readonly<{
   opening: ProjectTarget | null;
   /** Why the last open did not arrive, until the user dismisses it. */
   failure: ProjectOpenFailure | null;
+  /** One-shot Agent conversation to start once the created project's workbench mounts. */
+  pendingAgentStart: PendingAgentProjectStart | null;
 }>;
 
-export const INITIAL_WINDOW_PROJECT: WindowProject = { folders: null, shown: "local", host: null, entry: null, opening: null, failure: null };
+export const INITIAL_WINDOW_PROJECT: WindowProject = {
+  folders: null,
+  shown: "local",
+  host: null,
+  entry: null,
+  opening: null,
+  failure: null,
+  pendingAgentStart: null,
+};
 
 export const windowProjectStore = createStore<WindowProject>(() => INITIAL_WINDOW_PROJECT);
+
+export function setPendingAgentStart(pendingAgentStart: PendingAgentProjectStart | null) {
+  windowProjectStore.setState({ pendingAgentStart });
+}
+
+export function consumePendingAgentStart(rootPath: string): PendingAgentProjectStart | null {
+  const current = windowProjectStore.getState().pendingAgentStart;
+  if (!current || current.rootPath !== rootPath) return null;
+  windowProjectStore.setState({ pendingAgentStart: null });
+  return current;
+}
 
 export function showWindowProject(shown: Exclude<WindowProject["shown"], "host">) {
   windowProjectStore.setState({ shown, host: null });

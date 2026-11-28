@@ -435,11 +435,38 @@ export class AcpRuntimeAdapter {
       const completion = !active.interrupted
         ? safelyInspectCompletion(active.completionInspector, { response }, this.logger)
         : null;
-      this.onEvent(event(active.interrupted ? "turn.interrupted" : "turn.completed", this.sessionId, active.turnId, null, {
-        status: active.interrupted ? "interrupted" : "completed",
-        stopReason: text(response?.stopReason, 160) || null,
-        ...(completion ?? {}),
-      }));
+      const stopReason = text(response?.stopReason, 160);
+      if (!active.interrupted && stopReason === "refusal") {
+        const message = redactSecretText(
+          refusalErrorMessage(completion, response, this.runtimeDescriptor.displayName),
+        );
+        const code = typeof completion?.failureCode === "string" && completion.failureCode.length > 0
+          ? completion.failureCode
+          : "ACP_PROMPT_REFUSED";
+        const diagnostic = typeof completion?.diagnostic === "string"
+          ? redactSecretText(completion.diagnostic)
+          : "";
+        this.onEvent(event("provider.error", this.sessionId, active.turnId, null, {
+          code,
+          message,
+          recoverable: true,
+          ...(diagnostic && diagnostic !== message ? { diagnostic } : {}),
+        }));
+        this.onEvent(event("turn.failed", this.sessionId, active.turnId, null, {
+          status: "failed",
+          message,
+        }));
+      } else if (!active.interrupted && stopReason === "cancelled") {
+        this.onEvent(event("turn.interrupted", this.sessionId, active.turnId, null, {
+          status: "interrupted",
+        }));
+      } else {
+        this.onEvent(event(active.interrupted ? "turn.interrupted" : "turn.completed", this.sessionId, active.turnId, null, {
+          status: active.interrupted ? "interrupted" : "completed",
+          stopReason: stopReason || null,
+          ...(completion ?? {}),
+        }));
+      }
     } catch (error) {
       if (this.activeTurn !== active || this.disposed) return;
       if (error?.deliveryOutcome === "unknown") {
@@ -615,7 +642,11 @@ export class AcpRuntimeAdapter {
 
   #inspection() {
     const models = publicModels(this.sessionConfig, this.runtimeDescriptor.id);
-    const accountReady = models.length > 0 || Boolean(this.authenticatedMethodId);
+    const selectedAuthMethod = this.client
+      ? text(this.authenticationMethodSelector?.(this.client.authMethods), 160) || null
+      : null;
+    const requiresAuth = Boolean(this.authenticationMethodId || selectedAuthMethod);
+    const accountReady = requiresAuth ? Boolean(this.authenticatedMethodId) : models.length > 0;
     return {
       account: {
         account: accountReady ? {
@@ -837,4 +868,18 @@ function safelyInspectCompletion(inspector, context, logger) {
     logger?.warn?.("ACP completion inspection could not classify the completed turn.");
     return null;
   }
+}
+
+function refusalErrorMessage(completion, response, displayName) {
+  for (const candidate of [
+    completion?.errorMessage,
+    completion?.message,
+    completion?.diagnostic,
+    typeof response?.error === "string" ? response.error : null,
+    response?.error?.message,
+  ]) {
+    const message = text(candidate, 1_000);
+    if (message) return message;
+  }
+  return `${displayName} refused the request.`;
 }

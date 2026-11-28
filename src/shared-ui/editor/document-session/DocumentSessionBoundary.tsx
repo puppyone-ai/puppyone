@@ -17,6 +17,7 @@ import {
   useDismissibleNotice,
 } from "../../primitives/FloatingNotice";
 import { EditorSaveButton } from "../EditorSaveButton";
+import { useVisibleSaveStatus } from "./useVisibleSaveStatus";
 import type { EditorSaveMode } from "../registry/viewerTypes";
 import { getOrCreateDocumentWorkingCopy } from "./documentWorkingCopies";
 import { EditableDocumentSourceProvider } from "./EditableDocumentSourceContext";
@@ -98,6 +99,8 @@ export function DocumentSessionBoundary({
   }, [saveMode, session]);
 
   const showSaveChrome = showSaveStatus || sessionState.status === "error";
+  // Automatic saves stay in the background unless they are slow.
+  const visibleStatus = useVisibleSaveStatus(sessionState.status, saveMode === "auto");
   const save = useCallback(() => {
     observeSessionOperation(session.requestSave(), "manual save");
   }, [session]);
@@ -122,7 +125,7 @@ export function DocumentSessionBoundary({
         {showSaveChrome && (
           <div className="editor-save-overlay">
             <EditorSaveButton
-              status={sessionState.status}
+              status={visibleStatus}
               manual={saveMode === "manual"}
               retryable={sessionState.error?.code !== "external-conflict"}
               onSave={save}

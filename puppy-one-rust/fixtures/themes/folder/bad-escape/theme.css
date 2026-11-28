@@ -1,0 +1,2 @@
+@puppyone-theme { id: local.user.bad-escape; name: Bad Escape; version: 1.0.0; modes: light; }
+@puppyone application { @import "../notes.css"; }

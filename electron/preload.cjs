@@ -21,7 +21,6 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
     return () => ipcRenderer.removeListener("session:failure", listener);
   },
   getWindowChromeState: () => ipcRenderer.invoke("window-layout:get-chrome-state"),
-  getWindowCursorPoint: () => ipcRenderer.invoke("window-layout:get-cursor-point"),
   setWindowChromeProfile: (request) => (
     ipcRenderer.invoke("window-layout:set-chrome-profile", {
       titlebar: request?.titlebar,
@@ -310,6 +309,38 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
       return () => ipcRenderer.removeListener("project-appearance:changed", listener);
     },
   },
+  localComputers: {
+    getSnapshot: () => ipcRenderer.invoke("local-computers:snapshot"),
+    setExperimentalOptIn: (request) => ipcRenderer.invoke("local-computers:set-experimental-opt-in", {
+      enabled: request?.enabled === true,
+    }),
+    register: (request) => ipcRenderer.invoke("local-computers:register", {
+      workspacePath: request?.workspacePath,
+      name: request?.name,
+      startNow: request?.startNow,
+    }),
+    wake: (request) => ipcRenderer.invoke("local-computers:wake", {
+      id: request?.id,
+    }),
+    sleep: (request) => ipcRenderer.invoke("local-computers:sleep", {
+      id: request?.id,
+    }),
+    provisionDesktop: (request) => ipcRenderer.invoke("local-computers:provision-desktop", {
+      id: request?.id,
+    }),
+    remove: (request) => ipcRenderer.invoke("local-computers:remove", {
+      id: request?.id,
+    }),
+    connectScreen: (request) => ipcRenderer.invoke("local-computers:connect-screen", {
+      id: request?.id,
+    }),
+    onChanged: (callback) => {
+      if (typeof callback !== "function") return () => {};
+      const listener = (_event, snapshot) => callback(snapshot);
+      ipcRenderer.on("local-computers:changed", listener);
+      return () => ipcRenderer.removeListener("local-computers:changed", listener);
+    },
+  },
   removeRecentWorkspace: (folderPath) => ipcRenderer.invoke("workspace:remove-recent", folderPath),
   renameRecentWorkspace: (request) => ipcRenderer.invoke("workspace:rename-recent", request),
   forgetLastWorkspace: () => ipcRenderer.invoke("workspace:forget-last"),
@@ -340,6 +371,7 @@ contextBridge.exposeInMainWorld("puppyoneDesktop", {
   attachFolder: (folderPath) => ipcRenderer.invoke("workspace:attach-current", folderPath),
   detachFolder: (folderPath) => ipcRenderer.invoke("workspace:detach-current", folderPath),
   getFolderStatus: (paths) => ipcRenderer.invoke("workspace:folder-status", { paths }),
+  getProjectPreviews: (paths) => ipcRenderer.invoke("workspace:project-previews", { paths }),
   locateFolder: (folderPath) => ipcRenderer.invoke("workspace:locate-folder", { path: folderPath }),
   relocateFolder: (token) => ipcRenderer.invoke("workspace:relocate-folder", { token }),
   selectFolderInNewWindow: () => ipcRenderer.invoke("workspace:select-folder-new-window"),

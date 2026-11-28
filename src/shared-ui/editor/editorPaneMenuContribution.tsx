@@ -23,6 +23,8 @@ export type EditorPaneMenuToggle = Readonly<{
   label: string;
   checked: boolean;
   setChecked: (checked: boolean) => void;
+  /** A toggle with an icon is one of the document's own switches, which a host may show as a pressed command. */
+  icon?: ReactNode;
 }>;
 
 export type EditorPaneMenuSegmentedOption = Readonly<{

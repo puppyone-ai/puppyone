@@ -1,7 +1,7 @@
 import {
   assertValidDataResourceReference, createWorkspaceResourceUri, getWorkspaceResourcePath,
   getFileSemanticKind, getEditorSourceRequirement, resolveFileFormat,
-  isDataResourceUri, type DataNode, type DataPort, type DocumentPersistenceResult, type FileContent,
+  isDataResourceUri, ResourceOperationQueue, type DataNode, type DataPort, type DocumentPersistenceResult, type FileContent,
   type ResourceUri, type Workspace, type WorkspaceFolder,
 } from "@puppyone/shared-ui";
 import type { DesktopCloudSession } from "../../../lib/cloudApi";
@@ -37,8 +37,8 @@ export type DeviceDataService = Readonly<{
   getPathForCopy: (resource: string) => string;
   /** Coalesced changes made on the other computer; `status` reports reachability. */
   watchFolder: (changed: (paths: string[] | null) => void, status: (availability: DeviceFolderAvailability) => void) => () => void;
-  /** The shared remote workbench's shape: a change rescans; losing the computer is a failure it can retry. */
-  watch: (changed: () => void, failed: (error: Error) => void) => () => void;
+  /** The shared remote workbench's shape: changes name their paths; losing the computer is a failure it can retry. */
+  watch: (changed: (paths: readonly string[] | null) => void, failed: (error: Error) => void) => () => void;
   resume: () => void;
   resolveResource: (resource: string | null) => { folder: WorkspaceFolder; providerPath: string | null; resourceUri: ResourceUri } | null;
 }>;
@@ -111,21 +111,21 @@ export function createDeviceDataService({ ref, name, writable, session, apiBase,
     listing.set(relative, nodes);
     return nodes;
   };
-  let mutations = Promise.resolve();
-  const serialize = <T>(operation: () => Promise<T>): Promise<T> => {
-    const next = mutations.catch(() => {}).then(operation);
-    mutations = next.then(() => {}, () => {});
-    return next;
-  };
+  // Changes to overlapping paths keep their order; unrelated paths do not wait.
+  const mutations = new ResourceOperationQueue();
   const mutationError = (error: unknown) => {
     if (error instanceof DeviceFolderError && error.outcomeUnknown) {
       return new Error("The other computer did not confirm this change. Check the folder before trying again.");
     }
     return error;
   };
-  const mutate = (operation: HostFileOperation) => serialize(async () => {
-    try { await call(operation); } catch (error) { throw mutationError(error); }
-  });
+  const mutate = (operation: HostFileOperation) => mutations.run(
+    [operation.path, "destination" in operation ? operation.destination : undefined]
+      .filter((path): path is string => typeof path === "string")
+      .map((path) => ({ storageIdentity, resource: path || null })),
+    async () => {
+      try { await call(operation); } catch (error) { throw mutationError(error); }
+    });
   const urls = new Set<string>();
   const persist = async (input: Parameters<NonNullable<DataPort["documentPersistence"]>["persist"]>[0]): Promise<DocumentPersistenceResult> => {
     try {
@@ -231,7 +231,14 @@ export function createDeviceDataService({ ref, name, writable, session, apiBase,
     const unsubscribe = bridge.onHostFolderEvent((event: HostFolderEvent) => {
       if (closed || event.id !== id || !isCurrent()) return;
       if (event.type === "change") {
-        listing.clear();
+        if (event.reset) listing.clear();
+        else {
+          // A change names entries; only their own and their parents' listings go stale.
+          const parents = new Set(event.paths.map((path) => path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : ""));
+          for (const key of [...listing.keys()]) {
+            if (parents.has(key) || event.paths.some((path) => key === path || key.startsWith(`${path}/`))) listing.delete(key);
+          }
+        }
         status("online");
         changed(event.reset ? null : event.paths);
       } else if (event.type === "offline") {
@@ -249,7 +256,7 @@ export function createDeviceDataService({ ref, name, writable, session, apiBase,
       void bridge.stopHostFolderWatch?.({ id }).catch(() => {});
     };
   };
-  const watch: DeviceDataService["watch"] = (changed, failed) => watchFolder(() => changed(), (availability) => {
+  const watch: DeviceDataService["watch"] = (changed, failed) => watchFolder(changed, (availability) => {
     if (availability !== "online") failed(new Error(describeAvailability(availability)));
   });
   return { workspace, folder, dataPort, watch, watchFolder, writable,

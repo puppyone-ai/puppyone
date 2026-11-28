@@ -1,0 +1,1023 @@
+//! The first publication as the Header switch shows it
+//! (`CloudProjectActivationFrame`, `CloudProjectActivation`,
+//! `CloudGitPrerequisite`, `CloudPublishRunning`, `CloudPublishResume`,
+//! `CloudPublishProgressIndicator`, `CloudPublishHeaderStatus`).
+//!
+//! Two pictures: before it starts, the activation page with what Cloud gives
+//! the project and **Upload to Cloud**; once started, the same page with its
+//! progress — running (only **Continue in background**), or standing still
+//! where it stopped (**Retry**, and **Discard** with an inline confirmation
+//! whose focus starts on Cancel).
+use super::window_cloud::WindowCloud;
+use super::*;
+use crate::cloud::publication::Action;
+use crate::cloud::publication::Code;
+use crate::cloud::publication::Stage;
+use crate::features::cloud::{HeaderStatus, Organizations};
+use crate::localization::t as tr;
+use crate::localization::tf;
+use crate::ui::components::Button;
+use crate::ui::components::ButtonVariant;
+use crate::ui::components::Dialog;
+use crate::ui::components::Icon;
+use crate::ui::components::ProductIcon;
+use gpui_kit::{
+    base::{Disableable as _, h_flex, v_flex},
+    component::Sizable as _,
+};
+
+/// `CLOUD_PUBLISH_PROGRESS_STEPS`.
+const STEPS: [&str; 5] = ["project", "access", "remote", "upload", "finish"];
+
+/// `resolveCloudPublishProgressActiveIndex`.
+pub(super) fn step_of(stage: Stage) -> usize {
+    match stage {
+        Stage::EnablingVersionControl
+        | Stage::CreatingSnapshot
+        | Stage::CreatingBranch
+        | Stage::Validating
+        | Stage::CreatingProject => 0,
+        Stage::SecuringCredential => 1,
+        Stage::ConfiguringRemote => 2,
+        Stage::CheckingRemote | Stage::Uploading | Stage::Confirming => 3,
+        Stage::Finalizing | Stage::Completed => 4,
+    }
+}
+fn stage_key(stage: Stage) -> &'static str {
+    match stage {
+        Stage::EnablingVersionControl => "cloud.initialize.progress.enabling-version-control",
+        Stage::CreatingSnapshot => "cloud.initialize.progress.creating-snapshot",
+        Stage::CreatingBranch => "cloud.initialize.progress.creating-branch",
+        Stage::Validating => "cloud.initialize.progress.validating",
+        Stage::CreatingProject => "cloud.initialize.progress.creating-project",
+        Stage::SecuringCredential => "cloud.initialize.progress.securing-credential",
+        Stage::ConfiguringRemote => "cloud.initialize.progress.configuring-remote",
+        Stage::CheckingRemote => "cloud.initialize.progress.checking-remote",
+        Stage::Uploading => "cloud.initialize.progress.uploading",
+        Stage::Confirming => "cloud.initialize.progress.confirming",
+        Stage::Finalizing => "cloud.initialize.progress.finalizing",
+        Stage::Completed => "cloud.initialize.progress.completed",
+    }
+}
+/// `formatCloudPublishFailure`.
+pub(super) fn failure_copy(code: Code) -> &'static str {
+    match code {
+        Code::SessionRequired => "cloud.initialize.signInNote",
+        Code::OrganizationRequired => "cloud.initialize.organizationRequired",
+        Code::RepositoryRequired | Code::CommitRequired => {
+            "cloud.message.project-publish-commit-required"
+        }
+        Code::BranchRequired => "cloud.message.project-publish-branch-required",
+        Code::SourceMissing => "cloud.initialize.sourceMissing",
+        Code::IdentityMismatch => "cloud.initialize.repositoryIdentityMismatch",
+        Code::RemoteConflict => "cloud.initialize.remoteConflict",
+        Code::RemoteRefConflict => "cloud.initialize.pushConflictDescription",
+        Code::PushUncertain => "cloud.initialize.pushUncertainDescription",
+        Code::CleanupFailed => "cloud.initialize.cleanupFailed",
+        Code::CleanupNotAllowed => "cloud.initialize.cleanupNotAllowed",
+        Code::ProjectUnavailable => "cloud.initialize.projectUnavailable",
+        Code::PermissionDenied => "cloud.initialize.permissionDenied",
+        Code::ServiceUpgradeRequired => "cloud.message.project-publish-service-upgrade",
+        Code::ProjectCreateFailed => "cloud.message.project-publish-create-failed",
+        Code::CredentialFailed => "cloud.message.project-publish-credential-failed",
+        Code::RemoteConfigFailed => "cloud.message.project-publish-remote-failed",
+        Code::PushFailed => "cloud.message.project-publish-push-failed",
+        Code::PushLimitExceeded => "cloud.message.project-publish-size-limit",
+        Code::LfsUnsupported => "cloud.message.project-publish-lfs-unsupported",
+        // No longer produced: Cloud accepts merge commits. A journal that
+        // recorded it before then is retried like any send that did not finish.
+        Code::MergeTipUnsupported => "cloud.message.project-publish-push-failed",
+        Code::LocalFinalizeFailed => "cloud.message.project-publish-finalize-failed",
+        Code::CompensationFailed => "cloud.message.project-publish-compensation-failed",
+        Code::JournalCorrupt | Code::JournalIoFailed => "cloud.initialize.localRecoveryFailed",
+        // Only a failure nobody could classify reads as the general message.
+        Code::Unknown => "cloud.message.project-publish-failed",
+    }
+}
+
+impl WindowCloud {
+    pub(super) fn sync_cloud_publish(&mut self, cx: &mut Context<Self>) {
+        let enabled = crate::features::flags::cloud_enabled(&self.preferences, cx);
+        let root = self.root();
+        // The activation page asks for the owning organization only while it
+        // shows for a folder without a Cloud project.
+        let activating = self.dialog_open(DialogKey::CloudPublish, cx)
+            && matches!(
+                self.repository.read(cx).context,
+                crate::workspace::cloud::repository::Context::LocalOnly
+            )
+            && crate::features::cloud::account::has_account(cx);
+        self.publish.update(cx, |p, cx| {
+            p.sync(root.as_deref(), enabled, cx);
+            if activating {
+                p.load_organizations(cx);
+            }
+        });
+        self.sync_backup_card(cx);
+    }
+    /// The Changes backup card follows Cloud and a running publication.
+    pub(super) fn sync_backup_card(&mut self, cx: &mut Context<Self>) {
+        let enabled = crate::features::flags::cloud_enabled(&self.preferences, cx);
+        let publishing = self.publish.read(cx).running.is_some();
+        self.source_control
+            .update(cx, |s, cx| s.set_cloud_backup(enabled, publishing, cx));
+    }
+    pub(super) fn project_display_name(&self, cx: &App) -> String {
+        self.root()
+            .and_then(|root| {
+                self.preferences
+                    .read(cx)
+                    .state
+                    .recent_projects
+                    .iter()
+                    .find(|p| p.path == root)
+                    .map(|p| p.name.clone())
+            })
+            .unwrap_or_else(|| self.session().name.clone())
+    }
+    /// The Cloud switch dialog for a checkout with no Cloud Project yet.
+    pub(super) fn publish_dialog(&self, dialog: Dialog, cx: &mut Context<Self>) -> Dialog {
+        let publish = self.publish.read(cx);
+        let name = self.project_display_name(cx);
+        let pending = publish
+            .outcome
+            .as_ref()
+            .filter(|o| o.record.is_some())
+            .cloned();
+        if let Some(stage) = publish.running {
+            return self.running_view(dialog, &name, stage, cx);
+        }
+        if let Some(outcome) = pending {
+            return self.resume_view(dialog, &name, &outcome, cx);
+        }
+        self.activation_view(dialog, &name, cx)
+    }
+    /// `CloudProjectJourney` + eyebrow, title and lead.
+    fn activation_frame(
+        &self,
+        name: &str,
+        title: String,
+        lead: String,
+        cx: &mut Context<Self>,
+    ) -> Div {
+        let t = cx.palette();
+        let m = theme::ty();
+        let card = || {
+            div()
+                .flex()
+                .items_center()
+                .gap(px(8.))
+                .px(px(10.))
+                .py(px(8.))
+                .rounded(px(8.))
+                .border_1()
+                .border_color(t.border)
+                .bg(t.panel_raised)
+        };
+        let wire = |active: bool| {
+            div()
+                .flex_1()
+                .h(px(1.))
+                .min_w(px(18.))
+                .bg(if active { t.brand_blue } else { t.border })
+        };
+        let banner = h_flex()
+            .w_full()
+            .items_center()
+            .gap(px(6.))
+            .p(px(16.))
+            .rounded(px(10.))
+            .bg(theme::alpha(t.inset, 0.6))
+            .child(
+                card()
+                    .flex_shrink_0()
+                    .child(Icon::product(ProductIcon::Folder).small().stroke(1.6))
+                    .child(
+                        v_flex()
+                            .child(
+                                div()
+                                    .text_size(px(m.ui.meta))
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .text_color(t.text)
+                                    .max_w(px(120.))
+                                    .truncate()
+                                    .child(if name.trim().is_empty() {
+                                        tr("cloud.activation.project.folderFallback").to_owned()
+                                    } else {
+                                        name.to_owned()
+                                    }),
+                            )
+                            .child(
+                                div()
+                                    .text_size(px(m.ui.caption))
+                                    .text_color(t.subtle)
+                                    .child(tr("cloud.share.location.thisDevice")),
+                            ),
+                    ),
+            )
+            .child(wire(true))
+            .child(
+                card().flex_shrink_0().child(
+                    Icon::product(ProductIcon::Cloud)
+                        .with_size(px(28.))
+                        .color(t.brand_blue),
+                ),
+            )
+            .child(wire(false))
+            .child(
+                v_flex()
+                    .flex_shrink_0()
+                    .gap(px(6.))
+                    .child(
+                        card().child(
+                            div()
+                                .text_size(px(m.ui.caption))
+                                .text_color(t.muted)
+                                .child(tr("cloud.activation.project.agentsLabel")),
+                        ),
+                    )
+                    .child(
+                        card().child(
+                            div()
+                                .text_size(px(m.ui.caption))
+                                .text_color(t.muted)
+                                .child(tr("cloud.activation.project.teammatesLabel")),
+                        ),
+                    ),
+            );
+        v_flex()
+            .w_full()
+            .gap(px(10.))
+            .child(banner)
+            .child(
+                h_flex()
+                    .gap(px(6.))
+                    .pt(px(8.))
+                    .text_size(px(m.ui.meta))
+                    .text_color(t.accent_text)
+                    .child(Icon::product(ProductIcon::Cloud).small())
+                    .child(tr("cloud.productName")),
+            )
+            .child(
+                div()
+                    .text_size(px(m.ui.heading))
+                    .font_weight(FontWeight(650.))
+                    .text_color(t.text)
+                    .child(title),
+            )
+            .child(
+                div()
+                    .text_size(px(m.ui.body))
+                    .line_height(relative(1.45))
+                    .text_color(t.muted)
+                    .child(lead),
+            )
+    }
+    /// The footer note (`localNote`).
+    fn local_note(&self, cx: &App) -> Div {
+        let t = cx.palette();
+        h_flex()
+            .gap(px(6.))
+            .pt(px(6.))
+            .text_size(px(theme::ty().ui.caption))
+            .text_color(t.subtle)
+            .child(
+                Icon::product(ProductIcon::Local)
+                    .with_size(px(13.))
+                    .stroke(1.6),
+            )
+            .child(tr("cloud.activation.project.localNote"))
+    }
+    fn activation_view(&self, dialog: Dialog, name: &str, cx: &mut Context<Self>) -> Dialog {
+        let t = cx.palette();
+        let m = theme::ty();
+        let publish = self.publish.read(cx);
+        let title = if name.trim().is_empty() {
+            tr("cloud.activation.project.headlineFallback").to_owned()
+        } else {
+            tf(
+                "cloud.activation.project.headline",
+                &[("project", name.to_owned().into())],
+            )
+        };
+        let value = |icon: &'static str, title: &str, detail: &str| {
+            h_flex()
+                .items_start()
+                .gap(px(10.))
+                .child(
+                    div().flex_shrink_0().pt(px(1.)).child(
+                        Icon::new(icon)
+                            .with_size(px(15.))
+                            .stroke(1.6)
+                            .color(t.muted),
+                    ),
+                )
+                .child(
+                    v_flex()
+                        .gap(px(1.))
+                        .child(
+                            div()
+                                .text_size(px(13.))
+                                .font_weight(FontWeight(550.))
+                                .line_height(relative(1.4))
+                                .text_color(t.text)
+                                .child(title.to_owned()),
+                        )
+                        .child(
+                            div()
+                                .text_size(px(12.))
+                                .line_height(relative(1.45))
+                                .text_color(t.muted)
+                                .child(detail.to_owned()),
+                        ),
+                )
+        };
+        let organizations = publish.organizations.clone();
+        let selected = publish.selected.clone();
+        let error = publish.outcome.as_ref().and_then(|o| o.error.clone());
+        let destination = publish.destination();
+        let targeted = publish.target.is_some();
+        let ready = selected.is_some();
+        let mut body = self
+            .activation_frame(
+                name,
+                title,
+                tr("cloud.activation.project.lead").to_owned(),
+                cx,
+            )
+            .child(
+                v_flex()
+                    .gap(px(10.))
+                    .pt(px(6.))
+                    .child(value(
+                        "bot",
+                        tr("cloud.activation.project.agents"),
+                        tr("cloud.activation.project.agentsDetail"),
+                    ))
+                    .child(value(
+                        "users",
+                        tr("cloud.activation.project.teammates"),
+                        tr("cloud.activation.project.teammatesDetail"),
+                    ))
+                    .child(value(
+                        "history",
+                        tr("cloud.activation.project.history"),
+                        tr("cloud.activation.project.historyDetail"),
+                    )),
+            );
+        // `CloudGitPrerequisite`: the organization that will own the Project;
+        // a space chosen before the page opened is stated, never chosen again.
+        match &destination {
+            Some(Some(org)) => {
+                body = body.child(
+                    div()
+                        .pt(px(8.))
+                        .text_size(px(m.ui.meta))
+                        .text_color(t.muted)
+                        .child(tf(
+                            "cloud.initialize.destinationNote",
+                            &[("name", crate::localization::bidi_isolate(&org.name).into())],
+                        )),
+                );
+            }
+            Some(None) => {
+                body = body.child(self.publish_alert(tr("onboarding.spaces.unavailable"), cx));
+            }
+            None => {}
+        }
+        match &organizations {
+            _ if targeted => {}
+            Organizations::Ready(list) if list.len() > 1 => {
+                body = body.child(
+                    v_flex()
+                        .gap(px(6.))
+                        .pt(px(8.))
+                        .child(
+                            div()
+                                .text_size(px(m.ui.meta))
+                                .text_color(t.subtle)
+                                .child(tr("cloud.initialize.organizationRequired")),
+                        )
+                        .child(h_flex().flex_wrap().gap(px(6.)).children(
+                            list.iter().enumerate().map(|(index, org)| {
+                                let id = org.id.clone();
+                                Button::new(("publish-org", index))
+                                    .variant(if selected.as_deref() == Some(org.id.as_str()) {
+                                        ButtonVariant::OutlinePrimary
+                                    } else {
+                                        ButtonVariant::Outline
+                                    })
+                                    .label(org.name.clone())
+                                    .on_click(cx.listener(move |s, _, _, cx| {
+                                        let id = id.clone();
+                                        s.publish.update(cx, |p, cx| p.select(id, cx));
+                                    }))
+                            }),
+                        )),
+                );
+            }
+            Organizations::Ready(list) if list.is_empty() => {
+                body = body.child(self.publish_alert(tr("cloud.initialize.noOrganization"), cx));
+            }
+            Organizations::Failed => {
+                body =
+                    body.child(self.publish_alert(tr("cloud.initialize.organizationRequired"), cx));
+            }
+            _ => {}
+        }
+        if let Some(error) = error {
+            body = body.child(self.publish_alert(tr(failure_copy(error.code)), cx));
+        }
+        dialog
+            .child(body.child(self.local_note(cx)))
+            .footer(
+                Button::new("publish-not-now")
+                    .debug_selector(|| "publish-not-now".into())
+                    .variant(ButtonVariant::Secondary)
+                    .label(tr("cloud.activation.project.notNow"))
+                    .on_click(cx.listener(|s, _, _, cx| {
+                        s.close_dialog(DialogKey::CloudPublish, cx);
+                        cx.notify();
+                    })),
+            )
+            .footer(
+                Button::new("publish-upload")
+                    .debug_selector(|| "publish-upload".into())
+                    .variant(ButtonVariant::Solid)
+                    .label(tr("cloud.activation.project.publish"))
+                    .disabled(!ready)
+                    // `CloudGitPrerequisite`: the confirmation comes first.
+                    .on_click(cx.listener(|s, _, w, cx| {
+                        s.open_dialog(DialogKey::ConfirmPublish, cx);
+                        s.dialog_focus.focus(w, cx);
+                        cx.notify();
+                    })),
+            )
+    }
+    fn publish_alert(&self, text: &str, cx: &App) -> Div {
+        let t = cx.palette();
+        div()
+            .mt(px(6.))
+            .px(px(10.))
+            .py(px(8.))
+            .rounded(px(6.))
+            .bg(theme::mix(t.danger, t.panel, 0.10))
+            .text_size(px(theme::ty().ui.meta))
+            .text_color(t.danger)
+            .child(text.to_owned())
+    }
+    /// `CloudPublishProgressIndicator`: the bar and the five steps; the
+    /// current one names what it does, or "Stopped here". While files move,
+    /// the Upload row carries the transfer's reading and its own meter.
+    fn progress(&self, stage: Stage, paused: bool, cx: &App) -> Div {
+        let t = cx.palette();
+        let m = theme::ty();
+        let active = step_of(stage);
+        let sending = self
+            .publish
+            .read(cx)
+            .transfer
+            .filter(|_| stage == Stage::Uploading && !paused);
+        let completed = stage == Stage::Completed;
+        let fraction = if completed {
+            1.
+        } else {
+            ((active as f32 + 0.5) / STEPS.len() as f32).min(1.)
+        };
+        let bar = div()
+            .debug_selector(|| "publish-progress".into())
+            .w_full()
+            .h(px(4.))
+            .rounded_full()
+            .bg(t.border)
+            .child(
+                div()
+                    .h_full()
+                    .w(relative(fraction))
+                    .rounded_full()
+                    .bg(if paused { t.warning } else { t.brand_blue }),
+            );
+        let rows = STEPS.iter().enumerate().map(|(index, step)| {
+            let done = completed || index < active;
+            let current = !completed && index == active;
+            let mark = if done {
+                Icon::new("check")
+                    .with_size(px(14.))
+                    .stroke(2.)
+                    .color(t.success)
+                    .into_any_element()
+            } else if current && paused {
+                Icon::new("triangle-alert")
+                    .with_size(px(14.))
+                    .color(t.warning)
+                    .into_any_element()
+            } else if current {
+                Icon::new("loader-circle")
+                    .with_size(px(14.))
+                    .spinning(("publish-step", index))
+                    .into_any_element()
+            } else {
+                div()
+                    .size(px(12.))
+                    .rounded_full()
+                    .border_1()
+                    .border_color(t.border_strong)
+                    .into_any_element()
+            };
+            h_flex()
+                .items_start()
+                .gap(px(10.))
+                .child(
+                    div()
+                        .size(px(16.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .child(mark),
+                )
+                .child(
+                    v_flex()
+                        .child(
+                            div()
+                                .text_size(px(m.ui.meta))
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(if done || current { t.text } else { t.muted })
+                                .child(
+                                    tr(&format!("cloud.initialize.progress.step.{step}"))
+                                        .to_owned(),
+                                ),
+                        )
+                        .when(current && sending.is_none(), |d| {
+                            d.child(
+                                div()
+                                    .text_size(px(m.ui.caption))
+                                    .text_color(t.subtle)
+                                    .child(tr(if paused {
+                                        "cloud.initialize.progress.paused"
+                                    } else {
+                                        stage_key(stage)
+                                    })),
+                            )
+                        })
+                        .children(
+                            sending
+                                .filter(|_| current)
+                                .map(|transfer| transfer_reading(&transfer, stage, cx)),
+                        ),
+                )
+        });
+        v_flex()
+            .w_full()
+            .gap(px(10.))
+            .pt(px(8.))
+            .child(bar)
+            .children(rows)
+    }
+    fn running_view(
+        &self,
+        dialog: Dialog,
+        name: &str,
+        stage: Stage,
+        cx: &mut Context<Self>,
+    ) -> Dialog {
+        let title = if name.trim().is_empty() {
+            tr("cloud.initialize.progress.titleFallback").to_owned()
+        } else {
+            tf(
+                "cloud.initialize.progress.title",
+                &[("project", name.to_owned().into())],
+            )
+        };
+        let body = self
+            .activation_frame(
+                name,
+                title,
+                tr("cloud.initialize.progress.lead").to_owned(),
+                cx,
+            )
+            .child(self.progress(stage, false, cx));
+        dialog.child(body).footer(
+            Button::new("publish-hide")
+                .debug_selector(|| "publish-hide".into())
+                .variant(ButtonVariant::Secondary)
+                .label(tr("cloud.initialize.progress.hide"))
+                .on_click(cx.listener(|s, _, _, cx| s.publish_in_background(cx))),
+        )
+    }
+    fn resume_view(
+        &self,
+        dialog: Dialog,
+        name: &str,
+        outcome: &crate::cloud::publication::Outcome,
+        cx: &mut Context<Self>,
+    ) -> Dialog {
+        use crate::workspace::cloud::publish::{Action as A, Cleanup, Project, Push};
+        let t = cx.palette();
+        let publish = self.publish.read(cx);
+        let busy = publish.reading;
+        let confirming = publish.confirming_discard;
+        let state = outcome.state.clone();
+        let cleaning = state.as_ref().is_some_and(|s| {
+            matches!(
+                s.cleanup,
+                Cleanup::Requested | Cleanup::Deleting | Cleanup::Failed
+            )
+        });
+        let can_push = state.as_ref().is_none_or(|s| {
+            s.actions.iter().any(|a| {
+                matches!(
+                    a,
+                    A::RetryPush | A::PushLatest | A::Reconcile | A::ChooseSource
+                )
+            })
+        }) && !cleaning;
+        let can_discard = state
+            .as_ref()
+            .is_some_and(|s| s.actions.contains(&A::DeleteEmptyProject));
+        let finish_cleanup = state
+            .as_ref()
+            .is_some_and(|s| s.actions.contains(&A::FinishCleanup));
+        let title = if cleaning {
+            tr("cloud.initialize.resume.cleanupTitle").to_owned()
+        } else if name.trim().is_empty() {
+            tr("cloud.initialize.resume.titleFallback").to_owned()
+        } else {
+            tf(
+                "cloud.initialize.resume.title",
+                &[("project", name.to_owned().into())],
+            )
+        };
+        let paused_stage = match state.as_ref() {
+            Some(s) if matches!(s.project, Project::Absent | Project::Creating) => {
+                Stage::CreatingProject
+            }
+            Some(s) if matches!(s.push, Push::Uncertain | Push::Confirming) => Stage::Confirming,
+            _ => Stage::Uploading,
+        };
+        let project_name = outcome
+            .record
+            .as_ref()
+            .map(|r| r.project_name.clone())
+            .unwrap_or_else(|| name.to_owned());
+        let mut body = self.activation_frame(
+            name,
+            title,
+            tr("cloud.initialize.resume.lead").to_owned(),
+            cx,
+        );
+        if !cleaning {
+            body = body.child(self.progress(paused_stage, true, cx));
+        }
+        if let Some(error) = &outcome.error {
+            body = body.child(self.publish_alert(tr(failure_copy(error.code)), cx));
+        }
+        if confirming {
+            // The inline confirmation; Cancel is the safe default.
+            body = body.child(
+                v_flex()
+                    .mt(px(8.))
+                    .p(px(12.))
+                    .gap(px(6.))
+                    .rounded(px(8.))
+                    .border_1()
+                    .border_color(theme::mix(t.danger, t.border, 0.36))
+                    .child(
+                        div()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(t.text)
+                            .child(tr("cloud.initialize.resume.abandonTitle")),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(theme::ty().ui.meta))
+                            .text_color(t.muted)
+                            .child(tf(
+                                "cloud.initialize.resume.abandonDescription",
+                                &[("project", project_name.into())],
+                            )),
+                    )
+                    .child(
+                        h_flex()
+                            .justify_end()
+                            .gap(px(8.))
+                            .child(
+                                Button::new("publish-discard-cancel")
+                                    .debug_selector(|| "publish-discard-cancel".into())
+                                    .variant(ButtonVariant::Secondary)
+                                    .label(tr("cloud.common.cancel"))
+                                    .track_focus(&self.dialog_focus.clone())
+                                    .on_click(cx.listener(|s, _, _, cx| {
+                                        s.publish.update(cx, |p, cx| {
+                                            p.confirming_discard = false;
+                                            cx.notify();
+                                        })
+                                    })),
+                            )
+                            .child(
+                                Button::new("publish-discard-confirm")
+                                    .debug_selector(|| "publish-discard-confirm".into())
+                                    .variant(ButtonVariant::SolidDanger)
+                                    .label(tr("cloud.initialize.resume.abandonConfirm"))
+                                    .disabled(busy)
+                                    .on_click(cx.listener(|s, _, _, cx| {
+                                        s.publish.update(cx, |p, cx| p.discard(cx))
+                                    })),
+                            ),
+                    ),
+            );
+        }
+        let mut dialog = dialog.child(body.child(self.local_note(cx)));
+        if can_discard && !confirming {
+            dialog = dialog.footer(
+                Button::new("publish-discard")
+                    .debug_selector(|| "publish-discard".into())
+                    .variant(ButtonVariant::Secondary)
+                    .label(tr(if busy {
+                        "cloud.initialize.resume.discarding"
+                    } else {
+                        "cloud.initialize.resume.abandon"
+                    }))
+                    .disabled(busy)
+                    .on_click(cx.listener(|s, _, _, cx| {
+                        s.publish.update(cx, |p, cx| {
+                            p.confirming_discard = true;
+                            cx.notify();
+                        })
+                    })),
+            );
+        }
+        if finish_cleanup {
+            dialog = dialog.footer(
+                Button::new("publish-finish-cleanup")
+                    .debug_selector(|| "publish-finish-cleanup".into())
+                    .variant(ButtonVariant::Solid)
+                    .label(tr(if busy {
+                        "cloud.initialize.resume.discarding"
+                    } else {
+                        "cloud.initialize.resume.abandon"
+                    }))
+                    .disabled(busy)
+                    .on_click(
+                        cx.listener(|s, _, _, cx| s.publish.update(cx, |p, cx| p.discard(cx))),
+                    ),
+            );
+        } else if can_push {
+            let action = self.publish.read(cx).push_action();
+            dialog = dialog.footer(
+                Button::new("publish-retry")
+                    .debug_selector(|| "publish-retry".into())
+                    .variant(ButtonVariant::Solid)
+                    .label(tr(if action == Action::PushLatest {
+                        "cloud.initialize.pushLatestCommit"
+                    } else {
+                        "cloud.initialize.resume.continue"
+                    }))
+                    .disabled(busy || confirming)
+                    .on_click(cx.listener(move |s, _, _, cx| {
+                        s.publish.update(cx, |p, cx| p.start(action, cx))
+                    })),
+            );
+        }
+        dialog
+    }
+    /// "Continue in background": the dialog goes; the run stays, and the
+    /// Header states it.
+    fn publish_in_background(&mut self, cx: &mut Context<Self>) {
+        self.close_dialog(DialogKey::CloudPublish, cx);
+        cx.notify();
+    }
+    /// `CloudPublishHeaderStatus`: beside the location, while a publication
+    /// runs, after it finished, or when it stopped; it reopens the same view.
+    pub(super) fn publish_header_mark(&self, cx: &App) -> Option<AnyElement> {
+        let status = self.publish.read(cx).header_mark()?;
+        let t = cx.palette();
+        let (icon, label) = match status {
+            HeaderStatus::Running => (
+                Icon::new("loader-circle")
+                    .with_size(px(14.))
+                    .spinning("publish-header"),
+                "cloud.initialize.header.running",
+            ),
+            HeaderStatus::Completed => (
+                Icon::new("circle-check")
+                    .with_size(px(14.))
+                    .color(t.success),
+                "cloud.initialize.header.completed",
+            ),
+            HeaderStatus::Paused => (
+                Icon::new("circle-pause")
+                    .with_size(px(14.))
+                    .color(t.warning),
+                "cloud.initialize.header.paused",
+            ),
+            HeaderStatus::DiscardPaused => (
+                Icon::new("circle-pause")
+                    .with_size(px(14.))
+                    .color(t.warning),
+                "cloud.initialize.header.discardPaused",
+            ),
+            HeaderStatus::Attention => (
+                Icon::new("triangle-alert")
+                    .with_size(px(14.))
+                    .color(t.warning),
+                "cloud.initialize.header.attention",
+            ),
+        };
+        // The state's words are its name: what it is, then where it stands.
+        let publish = self.publish.read(cx);
+        let detail = match (status, publish.running, publish.transfer) {
+            (HeaderStatus::Running, Some(Stage::Uploading), Some(transfer)) => {
+                crate::features::cloud::format_transfer(&transfer)
+            }
+            (HeaderStatus::Running, stage, _) => {
+                tr(stage_key(stage.unwrap_or(Stage::Validating))).to_owned()
+            }
+            _ => tr(&format!("{label}Detail")).to_owned(),
+        };
+        let description = format!("{}. {detail}", tr(label));
+        Some(
+            crate::ui::components::IconButton::new("publish-header-status", icon)
+                .label(description)
+                .on_click(self.listener(move |s, _, w, cx| {
+                    s.publish.update(cx, |p, cx| {
+                        p.acknowledge();
+                        cx.notify();
+                    });
+                    // The same publication, shown again.
+                    s.put_in_cloud(w, cx);
+                }))
+                .into_any_element(),
+        )
+    }
+
+    /// `CloudDialog` at "initialize": the folder's first publication, after
+    /// sign-in. Sign-in keeps the same intent for this folder.
+    pub(super) fn cloud_publish_dialog(&self, cx: &mut Context<Self>) -> Dialog {
+        let t = cx.palette();
+        let m = theme::ty();
+        let host = cx.weak_entity();
+        let dialog = Dialog::new("cloud-publish")
+            .width(600.)
+            .title(tr("cloud.activation.project.title"))
+            .focus_handle(self.dialog_focus.clone())
+            .on_close(move |_, cx| {
+                let _ = host.update(cx, |s, cx| {
+                    s.close_dialog(DialogKey::CloudPublish, cx);
+                    cx.notify();
+                });
+            });
+        let session = crate::workspace::cloud::publish::Session::of(
+            crate::features::cloud::account::status(cx),
+            crate::features::cloud::account::has_account(cx),
+        );
+        if session != crate::workspace::cloud::publish::Session::SignedIn {
+            let waiting = session == crate::workspace::cloud::publish::Session::SigningIn;
+            return dialog
+                .child(
+                    v_flex()
+                        .gap(px(8.))
+                        .child(
+                            div()
+                                .text_size(px(m.ui.heading))
+                                .font_weight(FontWeight(650.))
+                                .text_color(t.text)
+                                .child(tr("cloud.auth.signInToCloud")),
+                        )
+                        .child(
+                            div()
+                                .text_size(px(m.ui.body))
+                                .line_height(relative(1.5))
+                                .text_color(t.muted)
+                                .child(tr("cloud.message.remote-sign-in")),
+                        ),
+                )
+                .footer(
+                    Button::new("cloud-publish-sign-in")
+                        .variant(ButtonVariant::Solid)
+                        .disabled(waiting)
+                        .label(tr(if waiting {
+                            "cloud.auth.desktopWaiting"
+                        } else {
+                            "cloud.auth.signIn"
+                        }))
+                        .on_click(
+                            cx.listener(|_, _, _, cx| crate::features::cloud::account::sign_in(cx)),
+                        ),
+                );
+        }
+        self.publish_dialog(dialog, cx)
+    }
+}
+
+/// The Upload row's reading and meter (`CloudPublishTransferReading`,
+/// `CloudPublishTransferMeter`): share, bytes and rate, never a total or a
+/// time left. Not a live region: the numbers change several times a second,
+/// and the meter carries the same reading on request.
+fn transfer_reading(
+    transfer: &crate::cloud::publication::transfer::Transfer,
+    stage: Stage,
+    cx: &App,
+) -> Div {
+    let t = cx.palette();
+    let reading = crate::features::cloud::format_transfer(transfer);
+    let selector = format!("publish-transfer-reading:{reading}");
+    let fraction = f32::from(transfer.percent) / 100.;
+    v_flex()
+        .gap(px(4.))
+        .child(
+            div()
+                .debug_selector(move || selector)
+                .text_size(px(theme::ty().ui.caption))
+                .text_color(t.subtle)
+                .child(reading.clone()),
+        )
+        .child(
+            div()
+                .id("publish-transfer")
+                .debug_selector(|| "publish-transfer".into())
+                .role(Role::ProgressIndicator)
+                .aria_label(tr(stage_key(stage)))
+                .aria_value(reading)
+                .aria_numeric_value(f64::from(transfer.percent))
+                .aria_min_numeric_value(0.)
+                .aria_max_numeric_value(100.)
+                .test_support()
+                .w(px(160.))
+                .h(px(4.))
+                .rounded_full()
+                .bg(t.border)
+                .child(
+                    div()
+                        .h_full()
+                        .w(relative(fraction))
+                        .rounded_full()
+                        .bg(t.brand_blue),
+                ),
+        )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+
+    /// `cloudPublishFailureCopy`: a refusal the user cannot read is one
+    /// they cannot act on. Every named code has its own words, only UNKNOWN
+    /// reads as the general message, and each exists in every locale.
+    #[test]
+    fn every_first_push_failure_has_its_own_message_in_every_locale() {
+        const GENERAL: &str = "cloud.message.project-publish-failed";
+        // The window names exactly the failures publication can return
+        // (`CLOUD_PUBLISH_ERROR_CODES`, in order).
+        let wire: Vec<&str> = Code::all().map(Code::as_str).collect();
+        assert_eq!(
+            wire,
+            [
+                "SESSION_REQUIRED",
+                "IDENTITY_MISMATCH",
+                "ORGANIZATION_REQUIRED",
+                "REPOSITORY_REQUIRED",
+                "COMMIT_REQUIRED",
+                "BRANCH_REQUIRED",
+                "SOURCE_MISSING",
+                "MERGE_TIP_UNSUPPORTED",
+                "LFS_UNSUPPORTED",
+                "REMOTE_CONFLICT",
+                "REMOTE_REF_CONFLICT",
+                "PROJECT_CREATE_FAILED",
+                "PROJECT_UNAVAILABLE",
+                "CREDENTIAL_FAILED",
+                "SERVICE_UPGRADE_REQUIRED",
+                "REMOTE_CONFIG_FAILED",
+                "PUSH_FAILED",
+                "PUSH_LIMIT_EXCEEDED",
+                "PUSH_UNCERTAIN",
+                "LOCAL_FINALIZE_FAILED",
+                "CLEANUP_FAILED",
+                "CLEANUP_NOT_ALLOWED",
+                "COMPENSATION_FAILED",
+                "JOURNAL_CORRUPT",
+                "JOURNAL_IO_FAILED",
+                "PERMISSION_DENIED",
+                "UNKNOWN",
+            ]
+        );
+        for code in Code::all() {
+            let message = failure_copy(code);
+            assert_eq!(message == GENERAL, code == Code::Unknown, "{code:?}");
+        }
+        let locales: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/assets/locales.json"
+        )))
+        .unwrap();
+        let catalogs = locales["catalogs"].as_object().unwrap();
+        assert!(catalogs.len() >= 8);
+        for (locale, catalog) in catalogs {
+            for code in Code::all() {
+                let key = failure_copy(code);
+                assert!(catalog[key].is_string(), "{locale}: {key}");
+            }
+        }
+    }
+}

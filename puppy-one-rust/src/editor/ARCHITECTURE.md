@@ -1,0 +1,319 @@
+# Native editor architecture
+
+The native editors mirror the product's `src/shared-ui/editor` and
+`src/features/editor-workbench`. Text is laid out and painted by GPUI Kit's
+`editor_host` (never modified); everything around the text — documents,
+decorations, boxes, selection, caret, IME, pointer, widgets — is ours.
+
+## Layers (dependencies point downwards only)
+
+```text
+host/            DocumentEditor: the shell's native provider (document protocol),
+                 pane chrome and find routing for the open viewer
+registry/        which viewer opens a document: the preset viewer manifest,
+                 contributions validated against it, the surface contract
+viewers/         the surfaces built-in contributions open (text, csv, image,
+                 placeholder)
+workbench/       open-document catalog, recursive pane layout, retained local
+                 workspace/copy runtime, metadata restoration, chrome and find
+markdown/ csv/   document formats
+table/           the editable-table primitive shared by CSV and Markdown tables
+navigation.rs    document references (links in values)
+view/            the editor view (CodeMirror view counterpart) on Kit editor_host
+text/            the text kernel: buffer, changes, selection, transactions, history
+tokens.rs        product theme tokens (assets/editor/*-theme.json)
+```
+
+## Retained workbench (partial migration)
+
+`workbench/catalog.rs` owns ordered open references/MRU; `layout.rs` owns
+placement, not documents. `runtime.rs` retains one `Documents` coordinator and
+one native host per admitted resource, and independent local workspace states.
+The Shell routes every snapshot/reply by its owning slot. Focus and moving a
+pane never read or drain a document. Closing a pane drops placement only;
+closing a reference drains that copy before retiring its host. Window close
+drains all retained copies; failed close thaws pending and completed barriers.
+Beyond the live-slot cap (`WB-01`) a clean hidden copy hibernates: its
+`Documents` and host go, its path, view state and document models stay.
+
+Undo history belongs to the open document, not to its view
+(`document_session/models.rs`, the product's `DocumentModelOwner`): the
+working copy owns it, the document's own view leaves its history (or CSV
+table model) behind when destroyed, and the next view of the same text
+continues it. Followers never attach; another document, closing, an unseen
+storage update and an open composition never inherit it.
+
+Metadata restoration is separate from document durability: an independent native
+profile namespace, 200ms coalescing, asynchronous atomic writes, Provider file
+admission before restored references become visible, interaction-over-hydration
+fencing. Ratios during a resize gesture are not durable until commit; cancel is
+bound to the originating workspace, not a reused split ID. Stored input is
+bounded to 128 documents/12 tree levels; non-UTF8 paths are currently omitted.
+Only metadata, never draft content, commands, credentials or authority, is stored.
+
+This is **not full TS parity**. Cloud navigation/admission/source permissions,
+viewer budgets and existing TS Cloud draft behavior are not wired to this host.
+Explorer tree retention/root observation, Explorer edge drops, complete pane-view
+lifetime, multi-root composition and history-preserving rename/move are pending.
+Current file operations drain/close all affected copies, then reopen moved paths.
+Do not mistake that safety barrier for a no-loss model/history rebase.
+
+## Viewers (`registry/`, `viewers/`)
+
+The product's editor extensibility (`src/shared-ui/editor/registry`)
+with the same layers and names:
+
+1. **Formats** (`crate::formats`): which format a file is — the product's
+   `fileFormats.json` (extensions, MIME types, category, `defaultViewer`,
+   `editable`) with `resolveFileFormat`'s rules.
+2. **Manifest** (`registry/manifest.rs`): what each preset viewer may do —
+   capability (`edit` / `preview` / `placeholder`), its input (`source`),
+   isolation and budgets — from the product's `presetViewerManifest.json`.
+3. **Contributions** (`registry/builtin.rs`, the only list, in match order):
+   each adds `matches`, the `editable` veto, its pane policy and how it is
+   presented. `PresetViewer::define` refuses a contribution that breaks its
+   manifest entry; `ViewerRegistry::new` refuses duplicates, a wrong
+   fallback, or a declared viewer without a contribution.
+4. **Surfaces** (`registry/surface.rs`, `viewers/`): `ViewerSurface` is
+   everything the host drives — the element, text and composition for
+   editors, undo, read-only and appearance, commands, focus, pane menu
+   entries and the find adapter. Read-only previews implement `element`.
+
+The document session (`documents.rs`) asks the registry what to read: text
+for `content` viewers (autosaved), nothing for `resource` / `none` viewers,
+which receive the file's checked path (`Workspace::resource`). The host
+(`host/`) opens the resolved contribution's surface and never names a
+concrete viewer. Viewers whose product surface is a web application (Office,
+PuppyFlow, Context Map, App Preview, HTML Edit) run the product's own bundled
+code in a WebView over native file, runtime and pane bridges.
+
+Local text and Markdown source admission is capped at 16 MiB (`MAX_TEXT_BYTES`,
+`contracts::Limits::MAX_TEXT_BYTES`), matching the Markdown content viewer's
+`maxSourceBytes` ceiling; Markdown workspace media and image assets are bounded
+at 32 MiB (`MAX_WORKSPACE_ASSET_BYTES`) and inline `data:image/*` payloads at
+2 MiB (`MAX_DATA_BYTES`). The dormant live Cloud adapter has an
+8 MiB transport/storage bound; that is **not** a blanket increase to viewer
+budgets or a large-document rendering qualification. Before Cloud navigation
+is enabled, admission must honor the selected viewer's smaller budget too.
+Resource viewers consume lease-checked local paths or immutable bytes; a Cloud
+preview never manufactures a local path.
+
+### External Viewer Packs (`registry/packs/`)
+
+Users bring their own formats as Viewer Packs (the product's
+`viewer-packs/<id>/manifest.json`, API v1). The native layer has the
+product's rules:
+
+- `packs::manifest::validate` — the strict `manifest-schema.mjs` checks
+  (ids, canonical versions, npm host ranges, local-only sources, no network
+  or related files, activation by extension only, no core viewer ids);
+  `compatible` checks the host version.
+- `packs::route` — only placeholder-grade documents (no preset viewer
+  renders them) and only local files route to packs; the longest matching
+  extension wins, MIME types count below extensions, equal candidates open
+  the chooser (`viewers/external.rs`), a remembered choice wins.
+- `packs::ExtensionHost` — the one port into the document host: a snapshot
+  of enabled packs and the surface renderer for an activated pack. Without a
+  renderer every document stays on its preset viewer.
+
+The pack runtime (the isolated surface that runs pack code, the range-read
+resource broker, the signed package store) is not native yet; like the
+product's default package (`externalViewerPacks: false`), packs are off:
+no host is installed, and the layer is exercised by its tests only.
+
+### Adding a viewer
+
+1. If the product added it, re-import the tables
+   (`python3 tools/import-formats.py`); the registry then refuses to start
+   until it has a contribution.
+2. Write its surface in `viewers/<name>.rs` (implement `ViewerSurface`;
+   `open(&SurfaceRequest, …)` receives the text or the file path its
+   manifest `source` asks for).
+3. Add its `ViewerImplementation` to `registry/builtin.rs` at the product's
+   position, with the product's `matches`.
+
+## The view (`view/`)
+
+- `editor.rs` — `EditorView`: state, history, the format extension, view state.
+  Every mutation goes through `dispatch(Transaction)`.
+- `extension.rs` — `EditorExtension`: what a format provides (decorations,
+  command interception, selection normalisation, widget `command`s).
+- `decoration.rs` — what a format asks the view to render: line blocks, block
+  widgets, Kit marks, hidden and atomic source, the surface.
+- `widget.rs` — the block widget contract: `BlockWidget::render(&mut WidgetCx)`.
+  `WidgetCx` gives the block's geometry, its `WidgetState` (block-selected,
+  caret inside, editor focused, read-only) and handlers back into the editor
+  (`on_command`, `sender`, `on_select`, `focuser`). Widgets keep interaction
+  state across frames in keyed element state (`window.use_keyed_state`).
+- `command.rs` — `Command`: a feature id plus a typed payload; widgets and
+  hotspots send them, the format turns them into transactions.
+- `render/` — `RenderCx`: Kit text and code leaves, labels, paints, hotspots,
+  line boxes; Chromium-exact baseline placement (`baseline.rs`); paragraph and
+  measurement caches (`cache.rs`).
+- `element.rs`, `layout.rs`, `commands.rs`, `input.rs`, `pointer.rs`,
+  `find.rs` — layout, geometry, keymap, platform text input, pointer, find
+  marks.
+- `heights.rs` — the viewport (CodeMirror's viewport and HeightMap): a frame
+  builds only the blocks from a viewport above to a viewport below the
+  visible one; every other block is height, measured when it was last laid
+  out or estimated. A frame costs what is on screen, whatever the document
+  length. Rules the rest of the view relies on:
+  - `DocLayout` holds the laid-out blocks only; `covers(offset)` says
+    whether an offset's geometry is exact, `starts_document` /
+    `ends_document` whether the layout reaches the document's ends;
+  - a block above the viewport's top block that measures differently from
+    its estimate moves the scroll by the difference (scroll anchoring), so
+    what is shown does not jump;
+  - revealing a caret outside the layout scrolls to its planned block, then
+    reveals it exactly on the next pass; vertical motion from or to outside
+    the layout moves by source lines;
+  - leaf keys follow the source, so scrolling reuses Kit's shaped
+    paragraphs;
+  - geometry dumps (`PUPPYONE_EDITOR_GEOMETRY`) lay the whole document out.
+- `composition.rs` — IME composition (marked text) for every editor built on
+  the view (Markdown, CSV cells, CSV source, plain text). `input.rs` only
+  translates `NSTextInputClient` (UTF-16) into it. The rules formats and
+  hosts can rely on:
+  - the whole marked text is the composition; the platform's selected range
+    is the caret or the clause being converted inside it;
+  - provisional text is `UserEvent::Compose`: history folds a composition
+    into one sealed step when it ends (none when cancelled), and
+    `EditorEvent::Changed` is emitted once then — `CompositionEnded` when it
+    was cancelled, so deferred host work (snapshots) can resume;
+  - no selection normalisation or format commands while it is open;
+  - anything but the input method (dispatch of any other transaction, a
+    click, a key handed back, focus loss, read-only) commits the marked text
+    and asks the input method to discard its composition
+    (`ui/ime.rs`); replacing the document abandons it;
+  - an owner that drops an editor mid-composition commits it first and reads
+    the result directly (CSV `flush_cell`): events are delivered after the
+    current update.
+  Scenarios per language and interruption: `view/ime_tests.rs`.
+
+## Markdown (`markdown/`)
+
+```text
+markdown/
+  mod.rs           MarkdownExtension (the EditorExtension) — the composition root
+  composition.rs   the built-in features per dialect (FEATURES, MDX_FEATURES)
+  core/
+    feature.rs     the feature contract (MarkdownFeature)
+    syntax/        Markdown source → semantic elements (pure, no gpui)
+    plans.rs       elements → presentation plans (features compile their own)
+    decorations/   plans → line boxes, widgets, marks (builder, lines, inline, marks)
+    presentation.rs, state.rs, classes.rs, content_language.rs, localization.rs,
+    links.rs, commands/
+  style/           one typed style per element type + the line cascade + marks
+    surface.rs body.rs heading.rs inline.rs blockquote.rs list.rs block.rs
+    cascade.rs     the product's line CSS in cascade order
+    marks.rs       inline classes → Kit marks
+  platform/        external side-effect brokers & security policy (no features/composition)
+    assets.rs      AssetBroker: async cancellable bounded LRU (64 MiB / 256 bitmaps),
+                   content-stamp invalidation, symlink containment, retryable errors
+    render.rs      RenderBroker: KaTeX/Mermaid deduplication, slot cancellation,
+                   retryable Unavailable, bounded LRU last-good diagram cache
+    embed/         EmbedBroker: per-window LRU WebHost pools for workspace video/audio
+                   and DNS-pinned click-to-load https: <iframe> embeds
+    policy.rs      centralized HTML tag/depth caps (MAX_HTML_DEPTH = 64), TeX depth cap
+                   (MAX_TEX_DEPTH = 64), O(1) data: URL precheck, public IP & symlink guards
+    link.rs        LinkBroker: safe href normalization & navigation handoff
+  shared/          pure/UI leaf helpers shared across features (no core/features/platform/addons)
+    dom.rs         sanitized authored-nesting HTML DOM parser & Markdown-to-HTML bridge
+    html_surface/  reusable sanitized HTML block/inline/media surface over HtmlMediaPort
+    media_source.rs workspace, https:, and data:image/* media reference parser & size helpers
+    fence.rs       document scale profiles, rich/deferred fence budgets, delimiter ranges
+    fallback.rs    shared Retry / Source code action pills and FallbackSummary
+    ring.rs        hover/focus/selected block rings
+    source_toggle.rs clamped top-right "show source" toolbar button
+  addons/          optional workflow add-ons installed only by markdown/mod.rs
+                   (e.g. ai_review/, block_drag/), isolated to explicit core ports
+  features/        12 independent vertical slices (zero cross-feature imports)
+    front_matter/  YAML front matter property table + source reveal while focused
+    math/          inline $…$ (Unicode TeX stand-in, MAX_TEX_DEPTH) + display $$ / ```math
+                   blocks via RenderBroker with visible fallback & Retry / Source
+    mermaid/       ```mermaid / ```mmd diagrams via RenderBroker, zoom/fit controls,
+                   live inline source editor, deferred large diagrams, error strip
+    code_block/    fenced code widget, syntax highlighting, atomic fence delimiters
+    mdx/           Open Knowledge .mdx <Tabs>/<Tab> component blocks over html_surface
+    html/          sanitized HTML blocks & Markdown-crossing flows + lone https: <iframe>
+                   embeds via EmbedBroker
+    table/         GFM pipe table model, capacity-checked structural rewrites
+                   (ROW_LIMIT=2000, COLUMN_LIMIT=64, CELL_LIMIT=20_000, ROW_BYTE_LIMIT=64 KiB),
+                   shared editable-table grips/rails/menu, bounded column width state
+    rule/          thematic break block widget and style
+    task/          [ ] / [x] inline checkbox atom, hotspot toggle, completed_decoration
+                   strikethrough overlay
+    callout/       Obsidian [!type] blockquote headers, icons, and pane-local folding
+    image/         inline & block ![alt|size](src) and ![[embed]] images via AssetBroker
+                   with visible fallback cards/chips + Retry / Source
+    video/         standalone ![[clip.mp4|size]] players via EmbedBroker with 32 MiB
+                   budget & missing-file fallback cards + Retry / Source
+```
+
+Rules (enforced by `tools/check-editor-architecture.py` `R1`–`R10` and `tools/check-ui-boundaries.py`):
+
+- **Layering (`R4`–`R8`)**:
+  - `core/` never imports `features` or `composition` (`R4`), and outside `core/decorations/` never references `gpui` (`R10`).
+  - `features/<a>/` never imports another `features/<b>` (`b != a`) or `composition` (`R5`); cross-slice capabilities live in `shared/` (pure/UI primitives) or `platform/` (side-effect brokers).
+  - `shared/` never imports `core`, `features`, `composition`, `platform`, or `addons` (`R6`); broker capabilities enter `shared/` via traits (`HtmlMediaPort`).
+  - `platform/` never imports `features` or `composition` (`R7`).
+  - `addons/<name>/` never imports `features`, `composition`, `platform`, `shared`, or sibling add-ons, and only `markdown/mod.rs` installs add-ons (`R8`).
+- **Editing & Rendering Invariants**:
+  - Every committed edit is one editor transaction (undo is one step); `Render::render` never mutates state.
+  - Widgets consume compiled plans; they never reparse their outer syntax.
+  - External/async capabilities (`AssetBroker`, `RenderBroker`, `EmbedBroker`) bound memory with LRU budgets and degrade visibly along `Rendered -> Text/Card Fallback -> Source` with localized failure reasons plus `Retry` / `Source code` actions.
+  - Every visual value is a product token (or a cited CSS constant); raw color literals stay in `theme.rs` / `tokens.rs`.
+
+### Adding a Markdown feature
+
+1. Create `features/<name>/` with `mod.rs` implementing `MarkdownFeature`
+   (`id`, and whichever of `semantic_kinds`, `compile_element`,
+   `compile_blocks`, `block_widget`, `decorate_block`, `decorate_line`,
+   `command` for document transactions, and `view_command` for pane-local
+   `PreviewState` updates such as `ShowSource` or zoom it needs), its `style.rs`,
+   and modularized widget submodules (< 500 non-test lines per file).
+2. Route any async asset reads, web embeds, or external rendering through
+   `markdown/platform/` brokers with bounded LRU caches and a visible
+   `Rendered -> Fallback -> Source` chain; place any reusable pure/UI helpers
+   in `markdown/shared/` rather than importing sibling features (`R5`).
+3. Add its typed style to `MarkdownTheme` (`style/mod.rs`) if it introduces
+   product CSS tokens.
+4. Register `&<name>::FEATURE` in `composition.rs` (`FEATURES` and/or
+   `MDX_FEATURES` in precedence order) and verify `python3 tools/check-ui-boundaries.py`.
+
+### Restyling one element type
+
+Each element type has one style struct (`style/<element>.rs` for core text
+elements, `features/<name>/style.rs` for block features) resolved from tokens
+in one place, and the rules that read it are in `style/cascade.rs` (line
+boxes), `style/marks.rs` (inline) or the feature's widget. Change the style
+struct and those rules; nothing else reads them.
+
+## Tables (`table/`)
+
+The editable-table primitive (product `editor/table`, editable-table.css):
+
+- `layout` column widths · `operation` the structural operation vocabulary ·
+  `style` the `--po-editable-table-*` contract · `paint` canvas layers ·
+  `interaction` gestures over a format's `Tracks` (hover, grip drag and drop,
+  structural selection, column resize; `Gestures` holds them) · `controls`
+  rails, grips, resize rail · `menu` the action menu and its sections.
+- CSV (`csv/view/*`) and Markdown tables (`markdown/features/table`) supply
+  their model, geometry (`Tracks`) and operation handling; they never
+  re-implement the primitive. CSV applies operations to its row model;
+  Markdown rewrites the table source in one transaction.
+
+## CSV (`csv/`)
+
+`document` (parse / serialise), `operations` (apply), `model` (rows, history),
+`layout` (columns), `theme`, `preferences`, `cell` (the active cell's editor
+extension), and `view/` — `CsvEditor` composed of its parts: `handles`
+(grips on the shared primitive, sticky docking), `controls` (rails, expansion
+corner), `resize`, `menu`, `expand`, `references`, `find`, `settings`.
+
+## Verification
+
+- `cargo test` — unit and GPUI tests per module.
+- Pixel regression: capture the fixture set (dark / light, CSV, Markdown,
+  scrolled, active cell) before and after a change and require identical
+  pixels; compare against the product references in `artifacts/`.

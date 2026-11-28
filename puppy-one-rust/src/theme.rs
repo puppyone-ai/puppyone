@@ -1,0 +1,1296 @@
+//! The single native source of product colour, geometry and type.
+//!
+//! Values are traced to the Web product, never chosen locally:
+//! - colour primitives: `src/features/themes/builtin/default-neutral/theme.css` (light `:root`, `.dark .theme-root`);
+//! - semantic tier (sidebar text, shell/sidebar dividers, tree guide, menu…): `src/styles/tokens.css`;
+//! - control geometry: `src/shared-ui/styles/control-geometry.css` and `tokens.css`;
+//! - type roles per text-size preset: `src/features/typography/fontCatalog.ts`.
+//!
+//! Units are logical pixels. Feature code composes `Theme` fields and the
+//! `metric`/`ty` helpers; it must not introduce literal colours.
+use crate::typography::{Metrics, Scale};
+use gpui::{Rgba, rgb, rgba};
+
+thread_local! {static SCALE: std::cell::Cell<Scale> = const {std::cell::Cell::new(Scale::Medium)};}
+pub fn set_scale(scale: Scale) {
+    SCALE.with(|s| s.set(scale));
+}
+pub fn scale() -> Scale {
+    SCALE.with(|s| s.get())
+}
+/// Active type/geometry table for the user's text-size preset.
+pub fn ty() -> &'static Metrics {
+    scale().metrics()
+}
+/// Re-scale a size authored against the Medium preset (see `Scale::scale_medium`).
+pub fn font_size(medium: f32) -> f32 {
+    scale().scale_medium(medium)
+}
+
+thread_local! {static POINTER_CURSORS: std::cell::Cell<bool> = const {std::cell::Cell::new(false)};}
+/// Appearance → Pointer cursors (`data-pointer-cursors`).
+pub fn set_pointer_cursors(enabled: bool) {
+    POINTER_CURSORS.with(|p| p.set(enabled));
+}
+/// Cursor for actions (buttons, rows, switches, menu items): always the
+/// arrow (`--po-action-cursor: default`). The hand is reserved for
+/// destinations, [`navigation_cursor`].
+pub fn clickable_cursor() -> gpui::CursorStyle {
+    gpui::CursorStyle::Arrow
+}
+/// Cursor for links and navigation destinations (`a[href]`, tabs,
+/// `data-po-interaction="navigation"`): the hand only while the person
+/// opted into pointer cursors ("Show a hand cursor only over links and
+/// navigation destinations").
+pub fn navigation_cursor() -> gpui::CursorStyle {
+    if POINTER_CURSORS.with(|p| p.get()) {
+        gpui::CursorStyle::PointingHand
+    } else {
+        gpui::CursorStyle::Arrow
+    }
+}
+
+/// `--po-control-size` and its derived variants.
+pub fn control() -> f32 {
+    ty().control_size
+}
+/// `.desktop-terminal-launcher-icon.is-opencode` backing behind the OpenCode mark.
+pub fn opencode_mark_surface() -> Rgba {
+    rgb(0x111418)
+}
+/// `AgentCreature`'s bodies: clear, mid-light colours that stay apart from
+/// each other and readable on light and dark Headers.
+pub fn agent_creature(index: usize) -> Rgba {
+    const COLORS: [u32; 8] = [
+        0x4DB6A4, 0xE5484D, 0x3D7FF5, 0x57B96A, 0xE8489A, 0x8A5CF6, 0xF2994A, 0xD9B23A,
+    ];
+    rgb(COLORS[index % COLORS.len()])
+}
+/// `.po-space-mark[data-tone]`: six quiet tones, never the accent blue, so
+/// a Space never reads as a selection or a link; the light theme lifts each
+/// one a little.
+pub fn space_mark(tone: usize, dark: bool) -> Rgba {
+    const LIGHT: [u32; 6] = [0x5d7d9c, 0x8c71a8, 0x618f78, 0x9c7c57, 0x9c616e, 0x6e7682];
+    const DARK: [u32; 6] = [0x4b6b8a, 0x7a5f96, 0x4f7d66, 0x8a6a45, 0x8a4f5c, 0x5c6470];
+    rgb(if dark { DARK } else { LIGHT }[tone % LIGHT.len()])
+}
+/// `.po-space-mark`'s letter.
+pub fn space_mark_letter() -> Rgba {
+    rgb(0xffffff)
+}
+/// White disc behind brand marks drawn for a light ground.
+pub fn brand_disc_surface() -> Rgba {
+    rgb(0xffffff)
+}
+/// Monochrome brand mark ink on [`brand_disc_surface`].
+pub fn brand_disc_ink() -> Rgba {
+    rgb(0x0d0d0d)
+}
+/// CSS `oklch(l c h / a)` converted to sRGB (clamped to the gamut).
+pub fn oklch(l: f32, c: f32, h: f32, a: f32) -> Rgba {
+    let hr = h.to_radians();
+    let (ca, cb) = (c * hr.cos(), c * hr.sin());
+    let l_ = l + 0.396_337_78 * ca + 0.215_803_76 * cb;
+    let m_ = l - 0.105_561_346 * ca - 0.063_854_17 * cb;
+    let s_ = l - 0.089_484_18 * ca - 1.291_485_5 * cb;
+    let (l3, m3, s3) = (l_ * l_ * l_, m_ * m_ * m_, s_ * s_ * s_);
+    let r = 4.076_741_7 * l3 - 3.307_711_6 * m3 + 0.230_969_94 * s3;
+    let g = -1.268_438 * l3 + 2.609_757_4 * m3 - 0.341_319_38 * s3;
+    let b = -0.004_196_086_3 * l3 - 0.703_418_6 * m3 + 1.707_614_7 * s3;
+    let encode = |x: f32| {
+        let x = x.clamp(0., 1.);
+        if x <= 0.003_130_8 {
+            12.92 * x
+        } else {
+            1.055 * x.powf(1. / 2.4) - 0.055
+        }
+    };
+    Rgba {
+        r: encode(r),
+        g: encode(g),
+        b: encode(b),
+        a,
+    }
+}
+/// The clean hue (degrees) and chroma scale behind each `.po-space-mark`
+/// tone: blue, violet, green, amber, rose, and a quiet slate.
+fn space_hue(tone: usize) -> (f32, f32) {
+    const HUES: [(f32, f32); 6] = [
+        (250., 1.),
+        (305., 1.),
+        (160., 1.),
+        (70., 1.),
+        (15., 1.),
+        (240., 0.45),
+    ];
+    HUES[tone % HUES.len()]
+}
+/// A Space's own dot: its hue, vivid enough to name it at 6px without shouting.
+pub fn space_dot(tone: usize, dark: bool) -> Rgba {
+    let (h, k) = space_hue(tone);
+    if dark {
+        oklch(0.70, 0.095 * k, h, 1.)
+    } else {
+        oklch(0.64, 0.105 * k, h, 1.)
+    }
+}
+/// Home's restrained unified Space tone: one quiet OKLCH hue for the whole
+/// surface — canvas, text, folders (derived from text and canvas), hover,
+/// dividers, menus and the selected pill — clean, airy and calm without
+/// overpowering the content.
+pub fn space_tint(base: Theme, tone: usize) -> Theme {
+    let (h, k) = space_hue(tone);
+    let ok = |l: f32, c: f32, a: f32| oklch(l, c * k, h, a);
+    let mut t = base;
+    if base.dark {
+        t.canvas = ok(0.212, 0.013, 1.);
+        t.panel = ok(0.236, 0.013, 1.);
+        t.panel_raised = ok(0.262, 0.013, 1.);
+        t.menu_bg = ok(0.258, 0.013, 1.);
+        t.text = ok(0.955, 0.004, 1.);
+        t.muted = ok(0.74, 0.010, 1.);
+        t.subtle = ok(0.58, 0.011, 1.);
+        t.hover = ok(0.92, 0.015, 0.055);
+        t.active = ok(0.92, 0.015, 0.085);
+        t.selected = ok(0.315, 0.024, 1.);
+        t.divider = ok(0.95, 0.010, 0.075);
+        t.border = ok(0.95, 0.010, 0.095);
+        t.border_subtle = ok(0.95, 0.010, 0.055);
+    } else {
+        t.canvas = ok(0.972, 0.015, 1.);
+        t.panel = ok(0.982, 0.011, 1.);
+        t.panel_raised = ok(0.994, 0.004, 1.);
+        t.menu_bg = ok(0.992, 0.006, 1.);
+        t.text = ok(0.24, 0.010, 1.);
+        t.muted = ok(0.47, 0.012, 1.);
+        t.subtle = ok(0.60, 0.012, 1.);
+        t.hover = ok(0.35, 0.020, 0.055);
+        t.active = ok(0.35, 0.020, 0.085);
+        t.selected = ok(0.925, 0.024, 1.);
+        t.divider = ok(0.32, 0.015, 0.08);
+        t.border = ok(0.32, 0.015, 0.10);
+        t.border_subtle = ok(0.32, 0.015, 0.06);
+    }
+    t
+}
+/// `color-mix(in srgb, c p%, transparent)`.
+pub fn fade(color: Rgba, weight: f32) -> Rgba {
+    mix(color, rgba(0x00000000), weight)
+}
+/// `.desktop-plan-settings { --desktop-plan-accent }`: Plan's own orange,
+/// on its primary card actions and its usage rail.
+pub fn plan_accent() -> Rgba {
+    rgb(0xfa7a22)
+}
+/// `.desktop-plan-card-action .desktop-settings-action.primary`'s ink.
+pub fn plan_accent_ink() -> Rgba {
+    rgb(0x1b1007)
+}
+/// `color-mix(in srgb, c p%, white)`.
+pub fn lift(color: Rgba, weight: f32) -> Rgba {
+    mix(color, rgb(0xffffff), weight)
+}
+/// `.desktop-agent-creature-eyes`.
+pub fn agent_creature_eyes() -> Rgba {
+    rgb(0x18181b)
+}
+/// `.desktop-cloud-history-ref-badge.tag`: the graph's tag yellow.
+pub fn history_tag() -> Rgba {
+    rgb(0xffd21f)
+}
+/// `CLOUD_GRAPH_COLORS`: the Cloud History lanes, by index.
+pub fn cloud_graph(index: usize) -> Rgba {
+    const COLORS: [u32; 8] = [
+        0x4d9fff, 0xff7a1a, 0xb45cff, 0xff4fa3, 0xffd21f, 0x4fd6c2, 0x6bd46b, 0xff5c5c,
+    ];
+    rgb(COLORS[index % COLORS.len()])
+}
+/// `.cloud-screen-sidebar-thumb.is-live` (`src/styles/cloud-computer-screen.css`):
+/// warm twilight desktop gradient inside the miniature sidebar screen preview.
+pub fn screen_thumb_wallpaper() -> (Rgba, Rgba) {
+    (rgb(0x47528c), rgb(0xac715c))
+}
+/// `.cloud-screen-sidebar-thumb-window` (`src/styles/cloud-computer-screen.css`).
+pub fn screen_thumb_window(live: bool) -> Rgba {
+    if live {
+        rgba(0xffffffeb)
+    } else {
+        rgba(0xffffff2e)
+    }
+}
+/// `.project-computer-led` (`computer-mode.css`): a miniature computer's chin
+/// light while it runs (`#22c55e`) or starts its desktop (`#f59e0b`).
+pub fn computer_led(starting: bool) -> Rgba {
+    if starting {
+        rgb(0xf59e0b)
+    } else {
+        rgb(0x22c55e)
+    }
+}
+/// `.project-computer-svg`'s `drop-shadow(0 3px 8px #000 8%)`.
+pub fn computer_shadow() -> Rgba {
+    rgba(0x00000014)
+}
+/// `.pill` (`workbench-redesign-v4.html`): dark translucent glass controls
+/// over the live desktop picture regardless of shell theme.
+pub fn screen_overlay_surface() -> Rgba {
+    rgba(0x161618de)
+}
+pub fn screen_overlay_hover() -> Rgba {
+    rgba(0x222226f5)
+}
+pub fn screen_overlay_ink() -> Rgba {
+    rgba(0xfffffffa)
+}
+pub fn screen_overlay_muted() -> Rgba {
+    rgba(0xffffff99)
+}
+pub fn screen_overlay_border() -> Rgba {
+    rgba(0xffffff24)
+}
+/// The Cloud Computer's screen itself, behind a picture of another shape.
+pub fn screen_surface() -> Rgba {
+    rgb(0x0c0c0c)
+}
+/// The open screen's shadow on the main area.
+pub fn screen_stage_shadow(dark: bool) -> Rgba {
+    if dark {
+        rgba(0x00000073)
+    } else {
+        rgba(0x0000002e)
+    }
+}
+/// `.pill`'s `0 10px 30px rgba(0, 0, 0, .35)`.
+pub fn screen_pill_shadow() -> Rgba {
+    rgba(0x00000059)
+}
+/// `.veil` on hover: the open screen dims under `Take control`.
+pub fn screen_veil() -> Rgba {
+    rgba(0x00000024)
+}
+/// `--po-control-size-large`.
+pub fn control_large() -> f32 {
+    control() + 2.
+}
+/// `--po-control-size-mini`.
+pub fn control_mini() -> f32 {
+    control() - 10.
+}
+/// `--po-control-size-micro`.
+pub fn control_micro() -> f32 {
+    control() - 12.
+}
+/// `--po-control-size-roomy`.
+pub fn control_roomy() -> f32 {
+    control() + 4.
+}
+pub fn control_compact() -> f32 {
+    control() - 4.
+}
+pub fn control_small() -> f32 {
+    control() - 6.
+}
+pub fn control_tight() -> f32 {
+    control() - 8.
+}
+/// `--desktop-sidebar-virtual-row-size`: row height plus its 1px block margins.
+pub fn sidebar_stride() -> f32 {
+    control() + 2.
+}
+/// App.tsx's `sidebarFooterVisible`: macOS uses the application menu and
+/// reserves no footer space. Elsewhere `--desktop-sidebar-navigation-height`
+/// follows the text-size preset (control + outer and inner padding).
+pub fn footer() -> f32 {
+    if !crate::platform::conventions::Conventions::current().sidebar_footer_visible {
+        0.
+    } else {
+        control()
+            + metric::SIDEBAR_NAVIGATION_PADDING_OUTER
+            + metric::SIDEBAR_NAVIGATION_PADDING_INNER
+    }
+}
+
+/// Fixed geometry from `tokens.css`; these do not follow the text-size preset.
+pub mod metric {
+    pub const CONTROL_RADIUS: f32 = 6.;
+    pub const TOOLBAR_ACTION_RADIUS: f32 = 5.;
+    pub const CHROME_HEIGHT: f32 = 40.;
+    /// `--po-card-radius`.
+    pub const CARD_RADIUS: f32 = 8.;
+    pub const TITLEBAR_TOOL_ACTION_WIDTH: f32 = 34.;
+    /// `--desktop-titlebar-native-controls-inset`: room for the macOS
+    /// traffic lights before the Header's first entry.
+    pub const TITLEBAR_NATIVE_CONTROLS_INSET: f32 = 80.;
+    /// `--desktop-titlebar-content-start` and the layout's end padding.
+    pub const TITLEBAR_CONTENT_START: f32 = 6.;
+    pub const TITLEBAR_CONTENT_END: f32 = 6.;
+    /// Leading start inset on Windows/Linux (aligned with `--desktop-sidebar-row-left-gap`).
+    pub const TITLEBAR_TRAILING_CONTROLS_LEADING_START: f32 = 12.;
+    /// Standard Windows 11 / WinUI 3 caption button width (`46 × 40`, total `138px` for 3 buttons).
+    pub const TITLEBAR_CAPTION_BUTTON_WIDTH: f32 = 46.;
+    /// Caption glyph box size (`15px` renders GPUI Kit's 24×24 glyph at exact 10×10px / 1px stroke).
+    pub const TITLEBAR_CAPTION_ICON_SIZE: f32 = 15.;
+    /// Gap between app titlebar actions and trailing window caption controls.
+    pub const TITLEBAR_CAPTION_ACTIONS_GAP: f32 = 8.;
+    /// `--desktop-titlebar-drag-min-width`: the empty space that moves the
+    /// window never closes up.
+    pub const TITLEBAR_DRAG_MIN_WIDTH: f32 = 32.;
+    /// `PROJECT_SWITCHER_RAIL_COLLAPSED_WIDTH`: the compact project rail.
+    pub const PROJECT_RAIL_WIDTH: f32 = 56.;
+    pub const SIDEBAR_ROW_RADIUS: f32 = 6.;
+    pub const SIDEBAR_ROW_LEFT_GAP: f32 = 12.;
+    pub const SIDEBAR_ROW_RIGHT_GAP: f32 = 12.;
+    pub const SIDEBAR_ROW_CONTENT_LEFT: f32 = 6.;
+    pub const SIDEBAR_ROW_CONTENT_RIGHT: f32 = 6.;
+    pub const SIDEBAR_LIST_PADDING_BLOCK: f32 = 8.;
+    pub const SIDEBAR_ICON_SLOT: f32 = 18.;
+    /// `--desktop-sidebar-icon-label-gap`.
+    pub const SIDEBAR_ICON_LABEL_GAP: f32 = 4.;
+    /// `.po-desktop-sidebar-group + .po-desktop-sidebar-group` rhythm.
+    pub const SIDEBAR_GROUP_GAP: f32 = 12.;
+    pub const SIDEBAR_GROUP_DIVIDER_TOP: f32 = 5.;
+    /// `--desktop-sidebar-navigation-padding-{outer,inner,balanced,inline}`.
+    pub const SIDEBAR_NAVIGATION_PADDING_OUTER: f32 = 12.;
+    pub const SIDEBAR_NAVIGATION_PADDING_INNER: f32 = 4.;
+    pub const SIDEBAR_NAVIGATION_PADDING_BALANCED: f32 = 8.;
+    pub const SIDEBAR_NAVIGATION_PADDING_INLINE: f32 = 12.;
+    /// `--desktop-sidebar-nav-gap`.
+    pub const SIDEBAR_NAV_GAP: f32 = 4.;
+    /// `--desktop-sidebar-navigation-fade-size`: the tree's edge fade above the footer.
+    pub const SIDEBAR_NAVIGATION_FADE_SIZE: f32 = 18.;
+    /// `--desktop-sidebar-utility-icon-size` (Settings / Help in the footer).
+    pub const SIDEBAR_UTILITY_ICON: f32 = 14.;
+    pub const TREE_INDENT: f32 = 24.;
+    /// The desktop Explorer maps `--po-tree-row-content-left` and
+    /// `--po-tree-row-icon-label-gap` to the sidebar row tokens
+    /// (`data-workspace/browser.css`), not the shared-ui 8/6 defaults.
+    pub const TREE_ROW_CONTENT_LEFT: f32 = SIDEBAR_ROW_CONTENT_LEFT;
+    pub const TREE_ROW_ACTION_SIZE: f32 = 24.;
+    /// `.tree-row-actions { right: 4px; gap: 2px }`.
+    pub const TREE_ROW_ACTION_INSET: f32 = 4.;
+    pub const TREE_ROW_ACTION_GAP: f32 = 2.;
+    pub const MENU_RADIUS: f32 = 8.;
+    pub const MENU_PADDING: f32 = 4.;
+    pub const MENU_ITEM_PADDING_INLINE: f32 = 8.;
+    pub const MENU_ITEM_GAP: f32 = 8.;
+    pub const MENU_ICON_SLOT: f32 = 18.;
+    /// `--desktop-project-menu-spacing` (`.desktop-project-menu` padding).
+    pub const PROJECT_MENU_SPACING: f32 = 3.;
+    pub const READING_CONTENT_WIDTH: f32 = 724.;
+    pub const UTILITY_PADDING_INLINE: f32 = 28.;
+    pub const UTILITY_PADDING_BOTTOM: f32 = 40.;
+    pub const TASK_DIALOG_INSET: f32 = 32.;
+    pub const TASK_DIALOG_RADIUS: f32 = 14.;
+    pub const DIALOG_RADIUS: f32 = 12.;
+    /// `--po-pane-resizer-hit-size`: the hit lane of a pane edge or split.
+    pub const PANE_SASH: f32 = 8.;
+    /// The window skeleton's lines (the Header's bottom, the pane edges, the
+    /// project rail's edge): one device pixel on a 2× display.
+    pub const SHELL_DIVIDER_WIDTH: f32 = 0.5;
+    /// Without the Header: how far the document scrolled up under the tools
+    /// fades into the window's top.
+    pub const DOCUMENT_TOP_FADE: f32 = 24.;
+    pub const SWITCH_WIDTH: f32 = 34.;
+    pub const SWITCH_HEIGHT: f32 = 20.;
+    pub const SWITCH_THUMB: f32 = 14.;
+}
+
+/// The product's CSS `line-height: normal` (1.3 em), which every interface
+/// layout is measured with; GPUI's own default is 1.618.
+pub const NORMAL_LINE_HEIGHT: f32 = 1.3;
+/// The interface and body face: `sans` of `assets/typography/fonts.json`
+/// (the platform's own: SF Pro on macOS, Segoe UI on Windows).
+pub fn sans() -> &'static str {
+    crate::platform::fonts::faces().sans.family
+}
+/// The face of machine output and code: `mono` of `fonts.json` (SF Mono on
+/// macOS, Consolas on Windows).
+pub fn mono() -> &'static str {
+    crate::platform::fonts::faces().mono.family
+}
+/// The face of serif reading themes: `serif` of `fonts.json` (New York on
+/// macOS, Georgia on Windows).
+pub fn serif() -> &'static str {
+    crate::platform::fonts::faces().serif.family
+}
+/// Register the font files `assets/typography/fonts.json` bundles (none
+/// while every face is the platform's own), before any text is laid out.
+pub fn register_fonts(cx: &gpui::App) {
+    let files: Vec<_> = crate::platform::fonts::faces()
+        .files()
+        .map(|file| {
+            std::borrow::Cow::Borrowed(crate::assets::embedded(file).unwrap_or_else(|| {
+                panic!("{file} is not embedded: run python3 tools/generate-assets-rs.py")
+            }))
+        })
+        .collect();
+    if !files.is_empty() {
+        cx.text_system()
+            .add_fonts(files)
+            .expect("load the fonts fonts.json bundles");
+    }
+}
+pub const HEADER: f32 = 40.0;
+pub const FONT: f32 = 14.0;
+
+/// Project the product palette into Kit's styled controls and Base primitives.
+/// Update only when appearance changes, so an idle window stays idle.
+pub fn sync_kit(dark: bool, window: Option<&mut gpui::Window>, cx: &mut gpui::App) {
+    use gpui_kit::component::{Theme as KitTheme, ThemeMode};
+    let mode = if dark {
+        ThemeMode::Dark
+    } else {
+        ThemeMode::Light
+    };
+    if cx.try_global::<KitTheme>().is_none() {
+        return;
+    }
+    let palette = Theme::new(dark);
+    if KitTheme::global(cx).mode != mode {
+        KitTheme::change(mode, window, cx);
+    }
+    if KitTheme::global(cx).background != palette.canvas.into()
+        || KitTheme::global(cx).mono_font_family.as_ref() != mono()
+        || KitTheme::global(cx).popover != palette.menu_bg.into()
+        || KitTheme::global(cx).font_size != gpui::px(font_size(FONT))
+    {
+        KitTheme::update(cx, |theme| {
+            theme.font_family = sans().into();
+            theme.mono_font_family = mono().into();
+            theme.font_size = gpui::px(font_size(FONT));
+            theme.background = palette.canvas.into();
+            theme.foreground = palette.text.into();
+            theme.muted_foreground = palette.muted.into();
+            theme.muted = palette.control.into();
+            theme.border = palette.border.into();
+            theme.input = palette.divider.into();
+            theme.caret = palette.focus.into();
+            theme.ring = palette.focus_ring.into();
+            theme.selection = palette.selection.into();
+            theme.popover = palette.menu_bg.into();
+            theme.popover_foreground = palette.text.into();
+            theme.accent = palette.hover.into();
+            theme.accent_foreground = palette.text.into();
+            theme.sidebar = palette.sidebar.into();
+            theme.sidebar_foreground = palette.sidebar_text.into();
+            theme.primary = palette.accent.into();
+            theme.primary_foreground = palette.text_inverse.into();
+            theme.danger = palette.danger.into();
+            theme.success = palette.success.into();
+            theme.warning = palette.warning.into();
+            theme.switch = palette.control_hover.into();
+            theme.scrollbar_thumb = palette.scrollbar_thumb.into();
+            theme.scrollbar_thumb_hover = palette.scrollbar_thumb_hover.into();
+            theme.list_hover = palette.hover.into();
+            theme.list_active = palette.selected.into();
+        });
+    }
+    // Kit rebuilds the Base theme on every update; the product scrollbar is
+    // written after it.
+    let scrollbar = product_scrollbar(&palette);
+    gpui_kit::base::Theme::global_mut(cx).scrollbar = scrollbar;
+}
+
+/// `styles/scrollbars.css` in the default interface with `ScrollbarActivity`:
+/// a 12px lane whose thumb is transparent at rest and shows 8px wide, 2px from
+/// the edge, as a pill while its owner is hovered or for 900 ms after it
+/// scrolls; over the thumb it takes the hover colour. Width and colour ease
+/// over 0.16s.
+pub fn product_scrollbar(palette: &Theme) -> gpui_kit::base::ScrollbarTheme {
+    use gpui_kit::base::{ScrollbarMode, ScrollbarMotion, ScrollbarStyles, ScrollbarTheme};
+    use std::time::Duration;
+    let ease = Duration::from_millis(160);
+    let (thumb, hover) = (palette.scrollbar_thumb, palette.scrollbar_thumb_hover);
+    let geometry = |s: gpui_kit::base::ScrollbarThumbStyle| {
+        s.width(gpui::px(8.))
+            .inset(gpui::px(2.))
+            .radius(gpui::px(999.))
+            // Blink's custom scrollbar thumb is never shorter than the lane.
+            .min_length(gpui::px(12.))
+    };
+    ScrollbarTheme::new()
+        .with_mode(ScrollbarMode::Hover)
+        .with_motion(
+            ScrollbarMotion::default()
+                .with_idle(Duration::from_millis(900))
+                .with_enter(ease)
+                .with_exit(ease)
+                .with_expand(ease),
+        )
+        .with_styles(
+            ScrollbarStyles::default()
+                .track(|s| s.width(gpui::px(12.)).bg(gpui::transparent_black()))
+                .track_hover(|s| s.bg(gpui::transparent_black()))
+                .track_active(|s| {
+                    s.bg(gpui::transparent_black())
+                        .border_color(gpui::transparent_black())
+                })
+                .thumb(|s| geometry(s).bg(thumb))
+                .thumb_hover(|s| geometry(s).bg(hover))
+                .thumb_active(|s| geometry(s).bg(hover)),
+        )
+}
+
+/// CSS `color-mix(in srgb, a p%, b)` with premultiplied alpha.
+pub fn mix(a: Rgba, b: Rgba, a_weight: f32) -> Rgba {
+    let (wa, wb) = (a_weight.clamp(0., 1.), 1. - a_weight.clamp(0., 1.));
+    let alpha = a.a * wa + b.a * wb;
+    if alpha <= f32::EPSILON {
+        return Rgba {
+            r: 0.,
+            g: 0.,
+            b: 0.,
+            a: 0.,
+        };
+    }
+    let channel = |x: f32, y: f32| (x * a.a * wa + y * b.a * wb) / alpha;
+    Rgba {
+        r: channel(a.r, b.r),
+        g: channel(a.g, b.g),
+        b: channel(a.b, b.b),
+        a: alpha,
+    }
+}
+/// CSS `color-mix(in srgb, c p%, white)` used by Header status glyphs.
+pub fn tint(c: Rgba, weight: f32) -> Rgba {
+    mix(c, rgb(0xffffff), weight)
+}
+/// CSS `color-mix(in srgb, c p%, black)` (pressed/hovered solid fills).
+pub fn shade(c: Rgba, weight: f32) -> Rgba {
+    mix(c, rgb(0x000000), weight)
+}
+/// `.cm-md-video-player { background: #000 }`.
+pub fn video_black() -> Rgba {
+    rgb(0x000000)
+}
+/// Windows 11 / Electron `titlebar.css` trailing caption hover fill (`8%` of foreground ink).
+pub fn window_control_hover(ink: Rgba) -> Rgba {
+    fade(ink, 0.08)
+}
+/// Windows 11 / Electron `titlebar.css` trailing caption pressed fill (`13%` of foreground ink).
+pub fn window_control_active(ink: Rgba) -> Rgba {
+    fade(ink, 0.13)
+}
+/// Windows 11 WinUI 3 close caption button hover background (`#C42B1C`).
+pub fn window_control_close_hover() -> Rgba {
+    rgb(0xc42b1c)
+}
+/// Windows 11 WinUI 3 close caption button pressed background (`#B22A1B`).
+pub fn window_control_close_active() -> Rgba {
+    rgb(0xb22a1b)
+}
+/// White glyph ink over the Windows 11 red close button.
+pub fn window_control_close_fg() -> Rgba {
+    rgb(0xffffff)
+}
+/// Muted caption glyph ink while the host window is inactive (unfocused).
+pub fn window_control_inactive_fg(ink: Rgba) -> Rgba {
+    fade(ink, 0.45)
+}
+/// `#fff` text on a solid status fill (`.desktop-settings-save-action`).
+pub fn on_solid() -> Rgba {
+    rgb(0xffffff)
+}
+/// `--po-success-contrast`: text on a success fill. Only the fallback layer
+/// and Neutral define it, so every Default theme uses Neutral's values.
+pub fn success_contrast(dark: bool) -> Rgba {
+    if dark { rgb(0x0a0a0a) } else { rgb(0xfffefa) }
+}
+/// `.onboarding-empty-state-reveal`: the Homepage intro's curtain, black on
+/// the light page and white on the dark one.
+pub fn intro_curtain(dark: bool) -> Rgba {
+    if dark { rgb(0xffffff) } else { rgb(0x000000) }
+}
+/// `CLOUD_GRAPH_COLORS`: the History graph's lanes, the same in both modes.
+pub fn history_graph_color(index: usize) -> Rgba {
+    const COLORS: [u32; 8] = [
+        0x4d9fff, 0xff7a1a, 0xb45cff, 0xff4fa3, 0xffd21f, 0x4fd6c2, 0x6bd46b, 0xff5c5c,
+    ];
+    rgb(COLORS[index % COLORS.len()])
+}
+/// `--agent-presence-accent` (`agent-file-presence.css`): the reading tint,
+/// or the writing one (`[data-kind="writing"]`).
+pub fn presence_accent(accent: Rgba, writing: bool) -> Rgba {
+    if writing {
+        mix(rgb(0xdb8b31), accent, 0.78)
+    } else {
+        mix(accent, rgb(0x7da8ff), 0.72)
+    }
+}
+/// `--po-elevation-low`: `0 2px 4px -2px`, the shadow at 32% (28% dark).
+pub fn elevation_low(t: &Theme) -> gpui::BoxShadow {
+    gpui::BoxShadow {
+        inset: false,
+        color: alpha(t.shadow, if t.dark { 0.28 } else { 0.32 }).into(),
+        offset: gpui::point(gpui::px(0.), gpui::px(2.)),
+        blur_radius: gpui::px(4.),
+        spread_radius: gpui::px(-2.),
+    }
+}
+/// Floating launcher popover shadow for dark and light themes.
+pub fn popover_elevation(dark: bool) -> Vec<gpui::BoxShadow> {
+    vec![gpui::BoxShadow {
+        color: alpha(rgb(0x000000), if dark { 0.65 } else { 0.22 }).into(),
+        offset: gpui::point(gpui::px(0.), gpui::px(14.)),
+        blur_radius: gpui::px(32.),
+        spread_radius: gpui::px(-10.),
+        inset: false,
+    }]
+}
+/// Chromium's checked native checkbox: (fill, check). The fill is the
+/// element's `accent-color`, else Chromium's default blue for the scheme;
+/// the check is the scheme's dark grey or white.
+pub fn native_checkbox_checked(dark: bool, accent: Option<Rgba>) -> (Rgba, Rgba) {
+    let fill = accent.unwrap_or(if dark { rgb(0x99c8ff) } else { rgb(0x0075ff) });
+    (fill, if dark { rgb(0x3b3b3b) } else { rgb(0xffffff) })
+}
+/// Chromium's unchecked native checkbox: (fill, border) in the colour scheme.
+pub fn native_checkbox(dark: bool) -> (Rgba, Rgba) {
+    if dark {
+        (rgb(0x3b3b3b), rgb(0x858585))
+    } else {
+        (rgb(0xffffff), rgb(0x767676))
+    }
+}
+/// Chromium's `resize: vertical` textarea grip: the diagonal shadow and, in
+/// dark schemes, the embossing highlight drawn beside it.
+pub fn native_resize_grip(dark: bool) -> (Rgba, Option<Rgba>) {
+    if dark {
+        (rgb(0x0e0e0e), Some(rgb(0xaaaaaa)))
+    } else {
+        (rgb(0x666666), None)
+    }
+}
+/// A QR code's modules and quiet ground (`.onboarding-scene-qr`: `#111` on
+/// `#fff`), the same in every theme, as a code must read.
+pub fn qr_ink() -> (Rgba, Rgba) {
+    (rgb(0x111111), rgb(0xffffff))
+}
+/// CSS `color-mix(in srgb, c p%, transparent)`.
+pub fn alpha(c: Rgba, weight: f32) -> Rgba {
+    Rgba {
+        a: c.a * weight,
+        ..c
+    }
+}
+fn ink(r: u8, g: u8, b: u8, a: f32) -> Rgba {
+    Rgba {
+        r: r as f32 / 255.,
+        g: g as f32 / 255.,
+        b: b as f32 / 255.,
+        a,
+    }
+}
+
+/// File-kind accents (`--po-file-accent-*`).
+// The palette is imported whole from `tokens.css`; tokens without a native
+// consumer yet stay so a new surface never invents its own colour.
+#[derive(Clone, Copy)]
+pub struct FileAccents {
+    pub default: Rgba,
+    pub markdown: Rgba,
+    pub json: Rgba,
+    pub html: Rgba,
+    pub pdf: Rgba,
+    pub image: Rgba,
+    pub audio: Rgba,
+    pub video: Rgba,
+    pub code: Rgba,
+    pub word: Rgba,
+    pub sheet: Rgba,
+    pub presentation: Rgba,
+}
+
+// Complete semantic token table (see `FileAccents`).
+#[derive(Clone, Copy)]
+pub struct Theme {
+    pub dark: bool,
+    // Surfaces.
+    pub header: Rgba,
+    pub sidebar: Rgba,
+    /// Editor/content material (`--po-canvas`).
+    pub canvas: Rgba,
+    pub panel: Rgba,
+    pub panel_raised: Rgba,
+    pub overlay: Rgba,
+    pub inset: Rgba,
+    pub menu_bg: Rgba,
+    /// Text inputs and composer field material.
+    pub input: Rgba,
+    // Text.
+    pub text: Rgba,
+    pub muted: Rgba,
+    pub subtle: Rgba,
+    pub text_disabled: Rgba,
+    pub text_inverse: Rgba,
+    /// `--desktop-sidebar-text-color`, shared by left navigation and the Agent rail.
+    pub sidebar_text: Rgba,
+    /// Header utility icon colour.
+    pub utility: Rgba,
+    /// `--desktop-sidebar-utility-icon-color`: Settings / Help in the sidebar footer.
+    pub sidebar_utility: Rgba,
+    // Lines.
+    pub border: Rgba,
+    pub border_subtle: Rgba,
+    pub border_strong: Rgba,
+    /// Component separators (`--po-divider`).
+    pub divider: Rgba,
+    /// Application skeleton lines (`--po-shell-divider`).
+    pub shell_divider: Rgba,
+    /// `--po-skeleton-base`, shared by loading placeholder materials.
+    pub skeleton: Rgba,
+    pub sidebar_divider: Rgba,
+    pub guide: Rgba,
+    // Interaction.
+    pub hover: Rgba,
+    pub active: Rgba,
+    pub selected: Rgba,
+    pub control: Rgba,
+    pub control_hover: Rgba,
+    pub focus: Rgba,
+    pub focus_ring: Rgba,
+    pub selection: Rgba,
+    /// `--po-pane-resizer-hover-color`: a pane edge or split under the pointer.
+    pub pane_resizer_hover: Rgba,
+    /// `--po-pane-resizer-active-color` and `--po-pane-resizer-active-ring`:
+    /// the stroke and its 1px ring while it is dragged.
+    pub pane_resizer_active: Rgba,
+    pub pane_resizer_ring: Rgba,
+    /// `--desktop-titlebar-update-accent`: the titlebar's update action.
+    pub update_accent: Rgba,
+    // Status.
+    pub accent: Rgba,
+    pub accent_text: Rgba,
+    pub success: Rgba,
+    pub warning: Rgba,
+    pub danger: Rgba,
+    pub info: Rgba,
+    pub purple: Rgba,
+    pub notification: Rgba,
+    pub brand_blue: Rgba,
+    // Elevation.
+    pub shadow: Rgba,
+    pub backdrop: Rgba,
+    pub scrollbar_thumb: Rgba,
+    pub scrollbar_thumb_hover: Rgba,
+    // Content.
+    pub file: FileAccents,
+    pub file_icon_body: Rgba,
+    /// `--po-terminal-bg` (= `--po-surface-terminal` = `--po-surface-editor`).
+    pub terminal_bg: Rgba,
+    pub terminal_fg: Rgba,
+    pub terminal_cursor: Rgba,
+    /// `--po-terminal-selection`, else the text selection: a selection in
+    /// the focused terminal of the focused window.
+    pub terminal_selection: Rgba,
+    /// `--po-terminal-selection-inactive`, else
+    /// `--po-text-selection-inactive-bg` (the text selection at 55%): any
+    /// other terminal's selection, and every one while the window is blurred.
+    pub terminal_selection_inactive: Rgba,
+    pub ansi: [Rgba; 16],
+}
+
+/// Built-in Default-interface Sub Themes (`assets/themes.json`, generated by
+/// `tools/import-themes.mjs`).
+#[derive(serde::Deserialize)]
+struct PackSource {
+    id: String,
+    name: String,
+    light: std::collections::HashMap<String, String>,
+    dark: std::collections::HashMap<String, String>,
+}
+struct Pack {
+    id: String,
+    name: String,
+    light: Theme,
+    dark: Theme,
+    tokens: [Vec<(String, String)>; 2],
+}
+impl Pack {
+    fn new(
+        id: String,
+        name: String,
+        light: &std::collections::HashMap<String, String>,
+        dark: &std::collections::HashMap<String, String>,
+    ) -> Self {
+        let sorted = |tokens: &std::collections::HashMap<String, String>| {
+            let mut out: Vec<_> = tokens.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+            out.sort();
+            out
+        };
+        Self {
+            light: Theme::from_tokens(light, false),
+            dark: Theme::from_tokens(dark, true),
+            tokens: [sorted(light), sorted(dark)],
+            id,
+            name,
+        }
+    }
+}
+fn packs() -> &'static [std::sync::Arc<Pack>] {
+    static PACKS: std::sync::OnceLock<Vec<std::sync::Arc<Pack>>> = std::sync::OnceLock::new();
+    PACKS.get_or_init(|| {
+        #[derive(serde::Deserialize)]
+        struct File {
+            packs: Vec<PackSource>,
+        }
+        let file: File =
+            serde_json::from_str(include_str!("../assets/themes.json")).expect("generated themes");
+        file.packs
+            .into_iter()
+            .map(|p| std::sync::Arc::new(Pack::new(p.id, p.name, &p.light, &p.dark)))
+            .collect()
+    })
+}
+
+/// An installed Sub Theme's palette (`platform::themes::palette::project`
+/// per supported mode); a mode it lacks keeps the Neutral palette.
+pub struct InstalledPack {
+    pub id: String,
+    pub name: String,
+    pub light: Option<std::collections::HashMap<String, String>>,
+    pub dark: Option<std::collections::HashMap<String, String>>,
+}
+thread_local! {
+    static INSTALLED: std::cell::RefCell<Vec<std::sync::Arc<Pack>>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+    static PACK: std::cell::RefCell<Option<std::sync::Arc<Pack>>> =
+        const { std::cell::RefCell::new(None) };
+}
+/// Replace the installed Sub Themes (the Themes Folder catalog). The
+/// active pack is re-read by the next [`set_pack`].
+pub fn set_installed(installed: Vec<InstalledPack>) {
+    let neutral = &packs()[0];
+    let packs = installed
+        .into_iter()
+        .map(|p| {
+            let light = p
+                .light
+                .unwrap_or_else(|| neutral.tokens[0].iter().cloned().collect());
+            let dark = p
+                .dark
+                .unwrap_or_else(|| neutral.tokens[1].iter().cloned().collect());
+            std::sync::Arc::new(Pack::new(p.id, p.name, &light, &dark))
+        })
+        .collect();
+    INSTALLED.with(|i| *i.borrow_mut() = packs);
+}
+fn find(id: &str) -> Option<std::sync::Arc<Pack>> {
+    packs()
+        .iter()
+        .find(|p| p.id == id)
+        .cloned()
+        .or_else(|| INSTALLED.with(|i| i.borrow().iter().find(|p| p.id == id).cloned()))
+}
+fn active() -> std::sync::Arc<Pack> {
+    PACK.with(|p| p.borrow().clone())
+        .unwrap_or_else(|| packs()[0].clone())
+}
+/// Select the active Sub Theme; unknown ids fall back to `default.neutral`.
+pub fn set_pack(id: &str) {
+    let pack = find(id).unwrap_or_else(|| packs()[0].clone());
+    PACK.with(|p| *p.borrow_mut() = Some(pack));
+}
+/// The active Sub Theme's id.
+pub fn pack_id() -> String {
+    active().id.clone()
+}
+/// The built-in Sub Theme used until preferences load (`default.neutral`).
+pub const DEFAULT_PACK: &str = "default.neutral";
+/// Built-in `(id, name)` in built-in order.
+pub fn pack_choices() -> impl Iterator<Item = (&'static str, &'static str)> {
+    packs().iter().map(|p| (p.id.as_str(), p.name.as_str()))
+}
+/// The active Sub Theme's compiled tokens (`--po-<name>` values), for web
+/// content that draws product components with the app's palette.
+pub fn pack_tokens(dark: bool) -> Vec<(String, String)> {
+    active().tokens[usize::from(dark)].clone()
+}
+/// Palette of a specific pack (built-in or installed), for previews.
+pub fn pack_theme(id: &str, dark: bool) -> Theme {
+    let pack = find(id).unwrap_or_else(|| packs()[0].clone());
+    if dark { pack.dark } else { pack.light }
+}
+
+fn parse_color(value: &str) -> Rgba {
+    let value = value.trim();
+    if let Some(hex) = value.strip_prefix('#')
+        && let Ok(v) = u32::from_str_radix(hex, 16)
+    {
+        return rgb(v);
+    }
+    if let Some(body) = value
+        .strip_prefix("rgba(")
+        .or_else(|| value.strip_prefix("rgb("))
+    {
+        let parts: Vec<f32> = body
+            .trim_end_matches(')')
+            .split(',')
+            .filter_map(|p| p.trim().parse().ok())
+            .collect();
+        if parts.len() >= 3 {
+            return ink(
+                parts[0] as u8,
+                parts[1] as u8,
+                parts[2] as u8,
+                parts.get(3).copied().unwrap_or(1.),
+            );
+        }
+    }
+    rgba(0x00000000)
+}
+
+impl Theme {
+    /// Compiled icon bindings name semantic tokens, never a theme id or RGB.
+    pub fn file_ink(&self, token: &str, foreground: Rgba) -> Rgba {
+        match token {
+            "currentColor" => foreground,
+            "accent" => self.accent,
+            "file-icon-body" => self.file_icon_body,
+            "file-accent-default" => self.file.default,
+            "file-accent-markdown" => self.file.markdown,
+            "file-accent-json" => self.file.json,
+            "file-accent-html" => self.file.html,
+            "file-accent-pdf" => self.file.pdf,
+            "file-accent-image" => self.file.image,
+            "file-accent-audio" => self.file.audio,
+            "file-accent-video" => self.file.video,
+            "file-accent-code" => self.file.code,
+            "file-accent-word" => self.file.word,
+            "file-accent-sheet" => self.file.sheet,
+            "file-accent-presentation" => self.file.presentation,
+            _ => panic!("Unmapped file-icon semantic ink {token}"),
+        }
+    }
+    pub fn new(dark: bool) -> Self {
+        let pack = active();
+        if dark { pack.dark } else { pack.light }
+    }
+    fn from_tokens(tokens: &std::collections::HashMap<String, String>, dark: bool) -> Self {
+        let c = |name: &str| parse_color(tokens.get(name).map(String::as_str).unwrap_or("#000000"));
+        let given = |name: &str| tokens.get(name).map(|value| parse_color(value));
+        let selection = c("text-selection-bg");
+        let text = c("text");
+        let muted = c("text-muted");
+        let subtle = c("text-subtle");
+        let sidebar = c("sidebar");
+        let header = c("header");
+        let scrollbar = c("scrollbar-thumb");
+        let scrollbar_hover = c("scrollbar-thumb-hover");
+        let divider = c("divider");
+        // --po-pane-resizer-blue: light-dark(#3b82f6, #60a5fa)
+        let resizer = if dark { rgb(0x60a5fa) } else { rgb(0x3b82f6) };
+        let ansi_names = [
+            "black", "red", "green", "yellow", "blue", "magenta", "cyan", "white",
+        ];
+        let mut ansi = [rgba(0x00000000); 16];
+        for (i, name) in ansi_names.iter().enumerate() {
+            ansi[i] = c(&format!("terminal-{name}"));
+            ansi[i + 8] = c(&format!("terminal-bright-{name}"));
+        }
+        Self {
+            dark,
+            header,
+            sidebar,
+            canvas: c("canvas"),
+            panel: c("surface-panel"),
+            panel_raised: c("surface-panel-raised"),
+            overlay: c("surface-overlay"),
+            inset: c("surface-inset"),
+            // --po-surface-menu: var(--po-header)
+            menu_bg: header,
+            // --po-input falls back to the raised panel.
+            input: c("surface-panel-raised"),
+            text,
+            muted,
+            subtle,
+            text_disabled: c("text-disabled"),
+            text_inverse: c("text-inverse"),
+            // --desktop-sidebar-text-color
+            sidebar_text: mix(muted, text, 0.84),
+            // --desktop-titlebar-text-muted
+            utility: muted,
+            // color-mix(in srgb, var(--po-text-muted) 80%, var(--po-sidebar))
+            sidebar_utility: mix(muted, sidebar, 0.8),
+            border: c("border"),
+            border_subtle: c("border-subtle"),
+            border_strong: c("border-strong"),
+            divider,
+            shell_divider: alpha(text, 0.10),
+            skeleton: c("skeleton-base"),
+            sidebar_divider: alpha(text, 0.075),
+            guide: c("tree-guide"),
+            hover: c("hover"),
+            active: c("active"),
+            selected: c("selected"),
+            control: c("control"),
+            control_hover: c("control-hover"),
+            focus: resizer,
+            update_accent: if dark { rgb(0x60a5fa) } else { rgb(0x2563eb) },
+            focus_ring: c("focus-ring"),
+            selection,
+            // color-mix(in srgb, var(--po-pane-resizer-blue) 55%, var(--po-divider))
+            pane_resizer_hover: mix(resizer, divider, 0.55),
+            pane_resizer_active: resizer,
+            // color-mix(in srgb, var(--po-pane-resizer-blue) 24%, transparent)
+            pane_resizer_ring: alpha(resizer, 0.24),
+            accent: c("accent"),
+            accent_text: c("accent-text"),
+            success: c("success"),
+            warning: c("warning"),
+            danger: c("danger"),
+            info: c("info"),
+            purple: c("purple"),
+            notification: c("notification"),
+            // --po-brand-blue
+            brand_blue: rgb(0x4599df),
+            shadow: c("shadow"),
+            backdrop: c("backdrop"),
+            scrollbar_thumb: alpha(scrollbar, 0.76),
+            scrollbar_thumb_hover: alpha(scrollbar_hover, 0.88),
+            file: FileAccents {
+                default: c("file-accent-default"),
+                markdown: c("file-accent-markdown"),
+                json: c("file-accent-json"),
+                html: c("file-accent-html"),
+                pdf: c("file-accent-pdf"),
+                image: c("file-accent-image"),
+                audio: c("file-accent-audio"),
+                video: c("file-accent-video"),
+                code: c("file-accent-code"),
+                word: c("file-accent-word"),
+                sheet: c("file-accent-sheet"),
+                presentation: c("file-accent-presentation"),
+            },
+            file_icon_body: c("file-icon-body"),
+            // Terminals live only in the right sidebar, where layout.css sets
+            // --po-surface-terminal (and so --po-terminal-bg) to the auxiliary surface.
+            terminal_bg: c("sidebar"),
+            // --po-terminal-fg
+            terminal_fg: mix(text, muted, 0.70),
+            terminal_cursor: c("terminal-cursor"),
+            terminal_selection: given("terminal-selection").unwrap_or(selection),
+            terminal_selection_inactive: given("terminal-selection-inactive")
+                .or_else(|| given("text-selection-inactive-bg"))
+                .unwrap_or(Rgba {
+                    a: selection.a * 0.55,
+                    ..selection
+                }),
+            ansi,
+        }
+    }
+    /// xterm colour model (`terminalAppearance.ts` + xterm defaults): indices
+    /// 0–15 are the pack's `--po-terminal-*` colours, 16–231 the 6×6×6 cube and
+    /// 232–255 the grey ramp.
+    pub fn ansi_index(&self, index: u8) -> Rgba {
+        let i = index as u32;
+        if i < 16 {
+            self.ansi[i as usize]
+        } else if i >= 232 {
+            let c = 8 + (i - 232) * 10;
+            rgb(c << 16 | c << 8 | c)
+        } else {
+            let n = i - 16;
+            let c = |x| if x == 0 { 0 } else { 55 + x * 40 };
+            rgb(c(n / 36) << 16 | c(n / 6 % 6) << 8 | c(n % 6))
+        }
+    }
+    /// Direct 24-bit colour requested by the program (SGR 38/48;2).
+    pub fn true_color(r: u8, g: u8, b: u8) -> Rgba {
+        rgb((r as u32) << 16 | (g as u32) << 8 | b as u32)
+    }
+    /// Agent conversation surface. Chat lives only in the right sidebar, where
+    /// `.desktop-right-sidebar` sets `--po-surface-agent: var(--po-surface-auxiliary)`.
+    pub fn agent(&self) -> Rgba {
+        self.auxiliary()
+    }
+    /// Right auxiliary workbench material (`--po-surface-auxiliary`).
+    pub fn auxiliary(&self) -> Rgba {
+        self.sidebar
+    }
+}
+
+/// `app-shell/layout/desktopPaneLayout.ts` pane contract.
+/// Engine-rendered document pages (PDF): paper and the page drop shadow of
+/// Chromium's viewer. Content colours come from the document itself.
+/// `#rrggbb` of a palette colour, for web documents the app generates.
+pub fn css_hex(c: gpui::Rgba) -> String {
+    let byte = |v: f32| (v.clamp(0., 1.) * 255.).round() as u8;
+    format!("#{:02x}{:02x}{:02x}", byte(c.r), byte(c.g), byte(c.b))
+}
+pub mod document_page {
+    pub fn paper() -> gpui::Hsla {
+        gpui::white()
+    }
+    pub fn shadow() -> gpui::Hsla {
+        gpui::hsla(0., 0., 0., 0.3)
+    }
+}
+pub mod pane {
+    pub const DEFAULT_EXPLORER_WIDTH: f32 = 320.;
+    pub const MIN_EXPLORER_WIDTH: f32 = 220.;
+    pub const MAX_EXPLORER_WIDTH: f32 = 520.;
+    pub const DEFAULT_RIGHT_SIDEBAR_WIDTH: f32 = 560.;
+    pub const MIN_RIGHT_SIDEBAR_WIDTH: f32 = 320.;
+    pub const MIN_MAIN_PANE_WIDTH: f32 = 320.;
+    pub const EXPLORER_RESIZE_GUTTER_WIDTH: f32 = 8.;
+    /// `EXPLORER_COLLAPSE_THRESHOLD` / `RIGHT_SIDEBAR_COLLAPSE_THRESHOLD`:
+    /// how far past its minimum a dragged pane edge goes before it collapses.
+    pub const EXPLORER_COLLAPSE_THRESHOLD: f32 = MIN_EXPLORER_WIDTH * 0.5;
+    pub const RIGHT_SIDEBAR_COLLAPSE_THRESHOLD: f32 = MIN_RIGHT_SIDEBAR_WIDTH * 0.5;
+    /// `.po-collapsed-pane-edge-handle`: the closed right sidebar's hit lane
+    /// at the window edge.
+    pub const COLLAPSED_EDGE_HIT: f32 = 12.;
+    /// `window-layout-contract.mjs`: the product-level window floor.
+    pub const WINDOW_MIN_WIDTH: f32 = 720.;
+    pub const WINDOW_MIN_HEIGHT: f32 = 520.;
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::prelude::v1::test;
+    /// OKLCH lands where CSS puts it, and each Space's tint keeps one hue:
+    /// a light, clearly coloured canvas that differs between Spaces.
+    #[test]
+    fn oklch_and_space_tints_are_clean_and_distinct() {
+        let close = |a: f32, b: f32| (a - b).abs() < 0.01;
+        let white = oklch(1., 0., 0., 1.);
+        assert!(close(white.r, 1.) && close(white.g, 1.) && close(white.b, 1.));
+        let black = oklch(0., 0., 0., 1.);
+        assert!(close(black.r, 0.) && close(black.g, 0.) && close(black.b, 0.));
+        let neutral = oklch(0.985, 0., 0., 1.);
+        assert!(close(neutral.r, neutral.g) && close(neutral.g, neutral.b));
+        for dark in [false, true] {
+            let base = Theme::new(dark);
+            let amber = space_tint(base, 3);
+            let violet = space_tint(base, 1);
+            assert_ne!(amber.canvas, violet.canvas);
+            assert_ne!(amber.canvas, base.canvas);
+            // Amber is warm (red over blue); violet leans blue.
+            assert!(amber.canvas.r > amber.canvas.b);
+            assert!(violet.canvas.b > violet.canvas.g);
+            // Text keeps its contrast against the tinted canvas.
+            let lum = |c: Rgba| 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+            assert!((lum(amber.text) - lum(amber.canvas)).abs() > 0.6);
+        }
+    }
+    #[test]
+    fn every_file_icon_binding_uses_the_active_palette_and_inherited_ink() {
+        for (pack, _) in pack_choices() {
+            for dark in [false, true] {
+                let palette = pack_theme(pack, dark);
+                for id in crate::file_kind::themes() {
+                    for token in crate::file_kind::theme(id).ink_tokens() {
+                        let ink = palette.file_ink(token, palette.muted);
+                        assert!(ink.r.is_finite() && ink.g.is_finite() && ink.b.is_finite());
+                        if token == "currentColor" {
+                            assert_eq!(ink, palette.muted);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    /// `readTerminalTheme`: a terminal selects with the product's pair, the
+    /// text selection and the same at 55% while inactive, unless the theme
+    /// names an inactive text selection or a terminal pair of its own.
+    #[test]
+    fn a_terminal_selects_with_the_product_pair_unless_the_theme_names_its_own() {
+        let theme = |pairs: &[(&str, &str)]| {
+            let tokens = pairs
+                .iter()
+                .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+                .collect();
+            Theme::from_tokens(&tokens, false)
+        };
+        let product = theme(&[("text-selection-bg", "rgba(30, 120, 80, 0.3)")]);
+        assert_eq!(product.terminal_selection, product.selection);
+        assert_eq!(
+            product.terminal_selection_inactive,
+            Rgba {
+                a: product.selection.a * 0.55,
+                ..product.selection
+            }
+        );
+        let text = theme(&[
+            ("text-selection-bg", "rgba(30, 120, 80, 0.3)"),
+            ("text-selection-inactive-bg", "rgba(30, 120, 80, 0.15)"),
+        ]);
+        assert_eq!(text.terminal_selection, text.selection);
+        assert_eq!(
+            text.terminal_selection_inactive,
+            parse_color("rgba(30, 120, 80, 0.15)")
+        );
+        let own = theme(&[
+            ("text-selection-bg", "rgba(30, 120, 80, 0.3)"),
+            ("text-selection-inactive-bg", "rgba(30, 120, 80, 0.15)"),
+            ("terminal-selection", "rgba(10, 20, 30, 0.4)"),
+            ("terminal-selection-inactive", "rgba(140, 90, 200, 0.2)"),
+        ]);
+        assert_eq!(own.terminal_selection, parse_color("rgba(10, 20, 30, 0.4)"));
+        assert_eq!(
+            own.terminal_selection_inactive,
+            parse_color("rgba(140, 90, 200, 0.2)")
+        );
+        for (pack, _) in pack_choices() {
+            for dark in [false, true] {
+                let t = pack_theme(pack, dark);
+                assert!(
+                    t.terminal_selection_inactive.a < t.terminal_selection.a,
+                    "{pack}"
+                );
+            }
+        }
+    }
+    /// `semanticNavigationCursor`: actions keep the arrow; links and
+    /// navigation destinations take the hand only while Pointer cursors is on.
+    #[test]
+    fn the_hand_is_only_for_destinations_and_only_when_asked_for() {
+        use gpui::CursorStyle::{Arrow, PointingHand};
+        set_pointer_cursors(false);
+        assert_eq!((clickable_cursor(), navigation_cursor()), (Arrow, Arrow));
+        set_pointer_cursors(true);
+        assert_eq!(
+            (clickable_cursor(), navigation_cursor()),
+            (Arrow, PointingHand)
+        );
+        set_pointer_cursors(false);
+    }
+
+    #[test]
+    fn the_product_scrollbar_reveals_on_hover_and_for_900ms_after_a_scroll() {
+        let scrollbar = product_scrollbar(&Theme::new(false));
+        assert_eq!(scrollbar.mode(), gpui_kit::base::ScrollbarMode::Hover);
+        assert_eq!(
+            scrollbar.motion().idle(),
+            std::time::Duration::from_millis(900)
+        );
+    }
+
+    #[test]
+    fn semantic_tokens_follow_the_web_formulas() {
+        let dark = Theme::new(true);
+        // --desktop-sidebar-text-color = mix(muted 84%, text) = #afafb7.
+        let c = dark.sidebar_text;
+        assert_eq!(
+            (
+                (c.r * 255.).round(),
+                (c.g * 255.).round(),
+                (c.b * 255.).round()
+            ),
+            (175., 175., 183.)
+        );
+        assert_eq!(pack_choices().next().unwrap().0, "default.neutral");
+        set_pack("default.github");
+        assert_eq!(pack_id(), "default.github");
+        set_pack("missing");
+        assert_eq!(pack_id(), "default.neutral");
+        // --desktop-sidebar-utility-icon-color = mix(muted 80%, sidebar).
+        assert_eq!(dark.sidebar_utility, mix(dark.muted, dark.sidebar, 0.8));
+        assert!(dark.sidebar_utility != dark.muted);
+        // color-mix with transparent only scales alpha.
+        assert!((dark.shell_divider.a - 0.10).abs() < 1e-6);
+        let half = mix(rgba(0xffffff80), rgba(0x00000000), 0.5);
+        assert!((half.a - 0.251).abs() < 0.01 && (half.r - 1.).abs() < 1e-6);
+    }
+}

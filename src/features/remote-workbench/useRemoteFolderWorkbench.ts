@@ -7,23 +7,16 @@ import {
   type DataNode,
   type WorkspaceContentChange,
 } from "@puppyone/shared-ui";
-import type { DataPort, ResourceUri, Workspace, WorkspaceFolder } from "@puppyone/shared-ui";
 import type { FilesVisibilitySettings } from "../../preferences";
 import { createExplorerDataPort, useDataNodeActions, useProjectExplorerSelection } from "../data-workspace";
 import { useDesktopEditorWorkbench } from "../editor-workbench";
 
-/** What any remote folder provider gives the shared workbench: Cloud project or another computer. */
-export type RemoteFolderService = {
-  workspace: Workspace;
-  folder: WorkspaceFolder;
-  dataPort: DataPort;
-  writable: boolean;
-  invalidateReads: () => void;
-  resolveResource: (resource: string | null) => { folder: WorkspaceFolder; providerPath: string | null; resourceUri: ResourceUri } | null;
-  getPathForCopy: (resource: string) => string;
-  watch?: (changed: () => void, failed: (error: Error) => void) => () => void;
-  resume?: () => Promise<unknown> | unknown;
-};
+import type { RemoteFolderChange, RemoteFolderService } from "./remoteFolderService";
+
+export type { RemoteFolderChange, RemoteFolderService } from "./remoteFolderService";
+
+/** File activity must settle this long before history-like views refetch. */
+const CONTENT_SETTLE_MS = 2_000;
 
 const noop = () => undefined;
 
@@ -91,10 +84,27 @@ export function useRemoteFolderWorkbench<S extends RemoteFolderService>({ servic
   const [refreshToken, setRefreshToken] = useState<WorkspaceContentChange>({ sequence: 0, entries: [] });
   const [navigationError, setNavigationError] = useState<string | null>(null);
   const navigationRequest = useRef(0);
-  const revalidate = useCallback(() => {
-    if (service) setRefreshToken(current => appendWorkspaceContentChange(current, { rootUri: service.folder.uri, paths: null }));
+  const revalidate = useCallback((paths: RemoteFolderChange = null) => {
+    if (service) setRefreshToken(current => appendWorkspaceContentChange(current, { rootUri: service.folder.uri, paths }));
   }, [service]);
-  const refresh = useCallback(() => { service?.invalidateReads(); revalidate(); }, [service, revalidate]);
+  /**
+   * After an own operation the provider already invalidated what it touched;
+   * named resources refresh only their rows. Without them the scope is unknown.
+   */
+  const refresh = useCallback((resources?: readonly string[] | null) => {
+    if (!service) return;
+    // Also bound to buttons: anything but a resource list is an unscoped refresh.
+    const paths = Array.isArray(resources) ? resources.map((resource) => service.resolveResource(resource)?.providerPath ?? null) : null;
+    if (paths?.length && paths.every((path): path is string => Boolean(path))) { revalidate(paths); return; }
+    service.invalidateReads(); revalidate();
+  }, [service, revalidate]);
+  // History and similar commit views follow settled file activity, not every save.
+  const [contentSettledKey, setContentSettledKey] = useState("0");
+  useEffect(() => {
+    if (refreshToken.sequence === 0) return;
+    const timer = setTimeout(() => setContentSettledKey(String(refreshToken.sequence)), CONTENT_SETTLE_MS);
+    return () => clearTimeout(timer);
+  }, [refreshToken.sequence]);
   const activateNode = useCallback((node: DataNode) => {
     if (!service?.resolveResource(node.path)) return;
     setActiveNode(node);
@@ -144,7 +154,7 @@ export function useRemoteFolderWorkbench<S extends RemoteFolderService>({ servic
   }, [service, refresh]);
   useEffect(() => {
     if (!active || !service?.watch) return;
-    return service.watch(() => { setNavigationError(null); revalidate(); }, failure => setNavigationError(failure.message));
+    return service.watch((paths) => { setNavigationError(null); revalidate(paths); }, failure => setNavigationError(failure.message));
   }, [active, service, revalidate, connectionAttempt]);
   useEffect(() => {
     if (!active) return;
@@ -163,7 +173,7 @@ export function useRemoteFolderWorkbench<S extends RemoteFolderService>({ servic
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [active, closeEditor, editorWorkbench]);
-  return { service, surfaceService, surfaceVisited, dataPort, visited, editorWorkbench: selectionAwareEditorWorkbench, activeNode, actions, refreshToken, refresh,
+  return { service, surfaceService, surfaceVisited, dataPort, visited, editorWorkbench: selectionAwareEditorWorkbench, activeNode, actions, refreshToken, contentSettledKey, refresh,
     onActivePathChange, setActiveNode, closeEditor, resumeWorkspace, error: navigationError ?? error };
 }
 

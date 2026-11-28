@@ -1,0 +1,24 @@
+//! The product's AgentService tests, over the same harness.
+#[cfg(test)]
+mod control;
+/// The Agent service over scripted runtimes, for this crate's tests and the
+/// window's (`test-support`).
+pub mod harness;
+#[cfg(test)]
+mod requests;
+#[cfg(test)]
+mod runtime_contract;
+#[cfg(test)]
+mod service;
+
+#[cfg(test)]
+mod resolution;
+
+#[cfg(test)]
+mod concurrency;
+
+#[cfg(test)]
+mod history_identity;
+
+#[cfg(test)]
+mod input_policy;

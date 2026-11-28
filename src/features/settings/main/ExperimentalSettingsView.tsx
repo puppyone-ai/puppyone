@@ -51,6 +51,9 @@ export function ExperimentalSettingsView() {
       id: "cloud",
       rows: [
         { messageKey: "cloudWorkspace", settingKey: "enableCloudWorkspace" },
+        { messageKey: "cloudComputerScreen", settingKey: "enableCloudComputerScreen" },
+        { messageKey: "isolatedAgentSandboxes", settingKey: "enableIsolatedAgentSandboxes" },
+        { messageKey: "computerMode", settingKey: "enableComputerMode" },
         ...(hostDevicesAvailable ? [{ messageKey: "hostDevices", settingKey: "enableHostDevices" as const }] : []),
         // The only switch that lets the Desktop ask for money: src/features/payments/README.md.
         // Paid compute needs a PuppyOne account, not Cloud, so it is offered whenever accounts are.

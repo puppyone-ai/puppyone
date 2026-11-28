@@ -5,6 +5,7 @@ import React, { useLayoutEffect } from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterTypingPause } from "../../../support/editor/autoSave";
 import {
   createWorkspaceResourceUri,
   createWorkspaceRootUri,
@@ -56,11 +57,8 @@ describe("DocumentSessionBoundary", () => {
       await Promise.resolve();
     });
 
-    await act(async () => {
-      edit?.();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
+    await act(async () => { edit?.(); });
+    await afterTypingPause();
 
     expect(persistence.persist).toHaveBeenCalledWith(expect.objectContaining({
       path: documentId,
@@ -134,11 +132,8 @@ describe("DocumentSessionBoundary", () => {
       await Promise.resolve();
     });
 
-    await act(async () => {
-      edit?.();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
+    await act(async () => { edit?.(); });
+    await afterTypingPause();
 
     expect(persistence.persist).toHaveBeenCalledWith(expect.objectContaining({
       path: "strict.md",
@@ -181,7 +176,7 @@ describe("DocumentSessionBoundary", () => {
 
     act(() => renderDocument("a.md", onPersistedA, (edit) => { editA = edit; }));
     act(() => editA?.());
-    await act(async () => Promise.resolve());
+    await afterTypingPause();
     expect(persistence.persist).toHaveBeenCalledWith(expect.objectContaining({
       path: "a.md",
       content: "updated a.md",

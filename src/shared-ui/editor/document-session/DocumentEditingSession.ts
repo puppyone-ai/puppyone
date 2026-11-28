@@ -19,7 +19,7 @@ import type {
   ExternalBaselineResult,
 } from "./types";
 import {
-  createImmediateAutoSaveScheduler,
+  createIdleAutoSaveScheduler,
   type DocumentAutoSaveScheduler,
 } from "./autoSavePolicy";
 
@@ -138,7 +138,7 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
     this.saveMode = options.saveMode;
     this.persistedContent = options.initialContent;
     this.storageVersion = options.initialVersion ?? null;
-    this.autoSave = createImmediateAutoSaveScheduler(() => {
+    this.autoSave = createIdleAutoSaveScheduler(() => {
       if (this.disposed || this.saveMode !== "auto" || !this.dirty) return;
       void this.requestAutomaticSave().catch(() => {
         // enqueue has already projected the failure into observable state.
@@ -182,6 +182,9 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
         this.detachedSnapshot = source.readSnapshot();
       }
       this.source = source.retainedSource ?? null;
+      // Leaving the view is a pause: write pending typing now, before an
+      // external update can be adopted over it while the document is hidden.
+      this.autoSave.flush();
     };
   };
 
@@ -228,6 +231,10 @@ export class DocumentEditingSession implements DocumentEditingSessionHandle {
     this.dirty = true;
     this.publish(this.inFlight ? "saving" : "dirty", null);
     if (this.saveMode === "auto") this.scheduleImmediateCommit();
+  };
+
+  flushPendingAutoSave = (): void => {
+    this.autoSave.flush();
   };
 
   requestSave = async (): Promise<void> => {

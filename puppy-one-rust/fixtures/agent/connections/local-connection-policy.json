@@ -1,0 +1,997 @@
+[
+ {
+  "name": "ready",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "authentication": "signed-in",
+   "version": "1.2.3",
+   "protocolCompatible": true,
+   "hasModels": true
+  },
+  "gates": null,
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "version": "1.2.3",
+   "authentication": "signed-in",
+   "integration": "ready",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": true,
+    "protocolProbe": true
+   },
+   "selectable": true,
+   "statusMessage": "Codex 1.2.3 is ready for native Agent sessions.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ]
+  }
+ },
+ {
+  "name": "missing probe",
+  "probe": null,
+  "gates": null,
+  "expected": {
+   "id": "local-agent",
+   "displayName": "Local Agent",
+   "installation": "broken",
+   "version": null,
+   "authentication": "unknown",
+   "integration": "blocked",
+   "capabilities": {
+    "versionProbe": false,
+    "authenticationProbe": false,
+    "protocolProbe": false
+   },
+   "selectable": false,
+   "statusMessage": "Local Agent was detected, but its version or status probe could not be completed safely.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ]
+  }
+ },
+ {
+  "name": "not-found",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "not-found",
+   "authentication": "signed-in",
+   "version": "1.2.3",
+   "protocolCompatible": true,
+   "hasModels": true
+  },
+  "gates": null,
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "not-found",
+   "version": "1.2.3",
+   "authentication": "signed-in",
+   "integration": "inventory-only",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": true,
+    "protocolProbe": true
+   },
+   "selectable": false,
+   "statusMessage": "Codex was not found in known installation locations.",
+   "actions": [
+    {
+     "id": "learn-more",
+     "label": "Learn more"
+    }
+   ]
+  }
+ },
+ {
+  "name": "unsupported",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "unsupported",
+   "authentication": "signed-in",
+   "version": "1.2.3",
+   "protocolCompatible": true,
+   "hasModels": true
+  },
+  "gates": null,
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "unsupported",
+   "version": "1.2.3",
+   "authentication": "signed-in",
+   "integration": "incompatible",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": true,
+    "protocolProbe": true
+   },
+   "selectable": false,
+   "statusMessage": "Codex 1.2.3 is older than the tested compatibility baseline.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ]
+  }
+ },
+ {
+  "name": "broken",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "broken",
+   "authentication": "signed-in",
+   "version": "1.2.3",
+   "protocolCompatible": true,
+   "hasModels": true
+  },
+  "gates": null,
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "broken",
+   "version": "1.2.3",
+   "authentication": "signed-in",
+   "integration": "blocked",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": true,
+    "protocolProbe": true
+   },
+   "selectable": false,
+   "statusMessage": "Codex was detected, but its version or status probe could not be completed safely.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ]
+  }
+ },
+ {
+  "name": "invalid",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "invalid",
+   "authentication": "signed-in",
+   "version": "1.2.3",
+   "protocolCompatible": true,
+   "hasModels": true
+  },
+  "gates": null,
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "broken",
+   "version": "1.2.3",
+   "authentication": "signed-in",
+   "integration": "blocked",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": true,
+    "protocolProbe": true
+   },
+   "selectable": false,
+   "statusMessage": "Codex was detected, but its version or status probe could not be completed safely.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ]
+  }
+ },
+ {
+  "name": "signed-out",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "authentication": "signed-out",
+   "version": "1.2.3",
+   "protocolCompatible": true,
+   "hasModels": true
+  },
+  "gates": null,
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "version": "1.2.3",
+   "authentication": "signed-out",
+   "integration": "setup-required",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": true,
+    "protocolProbe": true
+   },
+   "selectable": false,
+   "statusMessage": "Codex 1.2.3 is detected but requires sign-in. Refresh after signing in with its documented CLI flow.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ]
+  }
+ },
+ {
+  "name": "expired",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "authentication": "expired",
+   "version": "1.2.3",
+   "protocolCompatible": true,
+   "hasModels": true
+  },
+  "gates": null,
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "version": "1.2.3",
+   "authentication": "expired",
+   "integration": "setup-required",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": true,
+    "protocolProbe": true
+   },
+   "selectable": false,
+   "statusMessage": "Codex 1.2.3 is detected, but its local session has expired.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ]
+  }
+ },
+ {
+  "name": "error",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "authentication": "error",
+   "version": "1.2.3",
+   "protocolCompatible": true,
+   "hasModels": true
+  },
+  "gates": null,
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "version": "1.2.3",
+   "authentication": "error",
+   "integration": "blocked",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": true,
+    "protocolProbe": true
+   },
+   "selectable": false,
+   "statusMessage": "Codex 1.2.3 is detected, but its authentication state could not be read.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ]
+  }
+ },
+ {
+  "name": "unknown",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "authentication": "unknown",
+   "version": "1.2.3",
+   "protocolCompatible": true,
+   "hasModels": true
+  },
+  "gates": null,
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "version": "1.2.3",
+   "authentication": "unknown",
+   "integration": "blocked",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": false,
+    "protocolProbe": true
+   },
+   "selectable": false,
+   "statusMessage": "Codex 1.2.3 is detected, but its authentication status was not recognized.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ]
+  }
+ },
+ {
+  "name": "invalid",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "authentication": "invalid",
+   "version": "1.2.3",
+   "protocolCompatible": true,
+   "hasModels": true
+  },
+  "gates": null,
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "version": "1.2.3",
+   "authentication": "unknown",
+   "integration": "blocked",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": false,
+    "protocolProbe": true
+   },
+   "selectable": false,
+   "statusMessage": "Codex 1.2.3 is detected, but its authentication status was not recognized.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ]
+  }
+ },
+ {
+  "name": "protocol unavailable",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "authentication": "signed-in",
+   "version": "1.2.3",
+   "protocolCompatible": false,
+   "hasModels": true
+  },
+  "gates": null,
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "version": "1.2.3",
+   "authentication": "signed-in",
+   "integration": "protocol-unavailable",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": true,
+    "protocolProbe": false
+   },
+   "selectable": false,
+   "statusMessage": "Codex 1.2.3 is detected. This PuppyOne build does not support its native Agent protocol.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ]
+  }
+ },
+ {
+  "name": "protocol precedes authentication",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "authentication": "error",
+   "version": "1.2.3",
+   "protocolCompatible": false,
+   "hasModels": true,
+   "unavailableMessage": " Needs\nupgrade "
+  },
+  "gates": null,
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "version": "1.2.3",
+   "authentication": "error",
+   "integration": "protocol-unavailable",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": true,
+    "protocolProbe": false
+   },
+   "selectable": false,
+   "statusMessage": "Codex 1.2.3 is detected. Needs upgrade",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ]
+  }
+ },
+ {
+  "name": "missing models",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "authentication": "signed-in",
+   "version": "1.2.3",
+   "protocolCompatible": true,
+   "hasModels": false
+  },
+  "gates": null,
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "version": "1.2.3",
+   "authentication": "signed-in",
+   "integration": "setup-required",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": true,
+    "protocolProbe": true
+   },
+   "selectable": false,
+   "statusMessage": "Codex 1.2.3 is detected, but no compatible text-and-tools model is available.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ]
+  }
+ },
+ {
+  "name": "strict protocol boolean",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "authentication": "signed-in",
+   "version": "1.2.3",
+   "protocolCompatible": 1,
+   "hasModels": true
+  },
+  "gates": null,
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "version": "1.2.3",
+   "authentication": "signed-in",
+   "integration": "protocol-unavailable",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": true,
+    "protocolProbe": false
+   },
+   "selectable": false,
+   "statusMessage": "Codex 1.2.3 is detected. This PuppyOne build does not support its native Agent protocol.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ]
+  }
+ },
+ {
+  "name": "strict models boolean",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "authentication": "signed-in",
+   "version": "1.2.3",
+   "protocolCompatible": true,
+   "hasModels": 1
+  },
+  "gates": null,
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "version": "1.2.3",
+   "authentication": "signed-in",
+   "integration": "setup-required",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": true,
+    "protocolProbe": true
+   },
+   "selectable": false,
+   "statusMessage": "Codex 1.2.3 is detected, but no compatible text-and-tools model is available.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ]
+  }
+ },
+ {
+  "name": "backend denied",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "authentication": "signed-in",
+   "version": "1.2.3",
+   "protocolCompatible": true,
+   "hasModels": true
+  },
+  "gates": {
+   "backendRegistered": false
+  },
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "version": "1.2.3",
+   "authentication": "signed-in",
+   "integration": "setup-required",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": true,
+    "protocolProbe": true
+   },
+   "selectable": false,
+   "statusMessage": "Codex 1.2.3 is detected but is not enabled for this workspace.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ]
+  }
+ },
+ {
+  "name": "workspace denied",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "authentication": "signed-in",
+   "version": "1.2.3",
+   "protocolCompatible": true,
+   "hasModels": true
+  },
+  "gates": {
+   "workspaceAllowed": false
+  },
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "version": "1.2.3",
+   "authentication": "signed-in",
+   "integration": "setup-required",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": true,
+    "protocolProbe": true
+   },
+   "selectable": false,
+   "statusMessage": "Codex 1.2.3 is detected but is not enabled for this workspace.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ]
+  }
+ },
+ {
+  "name": "only explicit false denies gates",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "authentication": "signed-in",
+   "version": "1.2.3",
+   "protocolCompatible": true,
+   "hasModels": true
+  },
+  "gates": {
+   "backendRegistered": null,
+   "workspaceAllowed": 0
+  },
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "version": "1.2.3",
+   "authentication": "signed-in",
+   "integration": "ready",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": true,
+    "protocolProbe": true
+   },
+   "selectable": true,
+   "statusMessage": "Codex 1.2.3 is ready for native Agent sessions.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ]
+  }
+ },
+ {
+  "name": "sanitized fields",
+  "probe": {
+   "id": " CODEX ",
+   "displayName": " Agent\nName\u0000 ",
+   "installation": "detected",
+   "authentication": "signed-in",
+   "version": " v1.2+test ",
+   "protocolCompatible": true,
+   "hasModels": true,
+   "source": "configured"
+  },
+  "gates": null,
+  "expected": {
+   "id": "codex",
+   "displayName": "Agent Name",
+   "installation": "detected",
+   "version": "v1.2+test",
+   "authentication": "signed-in",
+   "integration": "ready",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": true,
+    "protocolProbe": true
+   },
+   "selectable": true,
+   "statusMessage": "Agent Name v1.2+test is ready for native Agent sessions.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ],
+   "source": "configured"
+  }
+ },
+ {
+  "name": "invalid fields",
+  "probe": {
+   "id": "bad id",
+   "displayName": "\u0000",
+   "installation": "detected",
+   "authentication": "signed-in",
+   "version": "bad version",
+   "protocolCompatible": true,
+   "hasModels": true,
+   "source": "private-path"
+  },
+  "gates": null,
+  "expected": {
+   "id": "local-agent",
+   "displayName": "Local Agent",
+   "installation": "detected",
+   "version": null,
+   "authentication": "signed-in",
+   "integration": "ready",
+   "capabilities": {
+    "versionProbe": false,
+    "authenticationProbe": true,
+    "protocolProbe": true
+   },
+   "selectable": true,
+   "statusMessage": "Local Agent is ready for native Agent sessions.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ]
+  }
+ },
+ {
+  "name": "long fields",
+  "probe": {
+   "id": "codex",
+   "displayName": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "installation": "detected",
+   "authentication": "signed-in",
+   "version": "111111111111111111111111111111111111111111111111111111111111111111111111111111111",
+   "protocolCompatible": true,
+   "hasModels": true
+  },
+  "gates": null,
+  "expected": {
+   "id": "codex",
+   "displayName": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "installation": "detected",
+   "version": null,
+   "authentication": "signed-in",
+   "integration": "ready",
+   "capabilities": {
+    "versionProbe": false,
+    "authenticationProbe": true,
+    "protocolProbe": true
+   },
+   "selectable": true,
+   "statusMessage": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx is ready for native Agent sessions.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ]
+  }
+ },
+ {
+  "name": "user-installation",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "authentication": "signed-in",
+   "version": "1.2.3",
+   "protocolCompatible": true,
+   "hasModels": true,
+   "source": "user-installation"
+  },
+  "gates": null,
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "version": "1.2.3",
+   "authentication": "signed-in",
+   "integration": "ready",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": true,
+    "protocolProbe": true
+   },
+   "selectable": true,
+   "statusMessage": "Codex 1.2.3 is ready for native Agent sessions.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ],
+   "source": "user-installation"
+  }
+ },
+ {
+  "name": "system-installation",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "authentication": "signed-in",
+   "version": "1.2.3",
+   "protocolCompatible": true,
+   "hasModels": true,
+   "source": "system-installation"
+  },
+  "gates": null,
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "version": "1.2.3",
+   "authentication": "signed-in",
+   "integration": "ready",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": true,
+    "protocolProbe": true
+   },
+   "selectable": true,
+   "statusMessage": "Codex 1.2.3 is ready for native Agent sessions.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ],
+   "source": "system-installation"
+  }
+ },
+ {
+  "name": "path-installation",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "authentication": "signed-in",
+   "version": "1.2.3",
+   "protocolCompatible": true,
+   "hasModels": true,
+   "source": "path-installation"
+  },
+  "gates": null,
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "version": "1.2.3",
+   "authentication": "signed-in",
+   "integration": "ready",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": true,
+    "protocolProbe": true
+   },
+   "selectable": true,
+   "statusMessage": "Codex 1.2.3 is ready for native Agent sessions.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ],
+   "source": "path-installation"
+  }
+ },
+ {
+  "name": "application-bundle",
+  "probe": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "authentication": "signed-in",
+   "version": "1.2.3",
+   "protocolCompatible": true,
+   "hasModels": true,
+   "source": "application-bundle"
+  },
+  "gates": null,
+  "expected": {
+   "id": "codex",
+   "displayName": "Codex",
+   "installation": "detected",
+   "version": "1.2.3",
+   "authentication": "signed-in",
+   "integration": "ready",
+   "capabilities": {
+    "versionProbe": true,
+    "authenticationProbe": true,
+    "protocolProbe": true
+   },
+   "selectable": true,
+   "statusMessage": "Codex 1.2.3 is ready for native Agent sessions.",
+   "actions": [
+    {
+     "id": "refresh",
+     "label": "Refresh"
+    },
+    {
+     "id": "learn-more",
+     "label": "Learn why"
+    }
+   ],
+   "source": "application-bundle"
+  }
+ }
+]

@@ -1,0 +1,2 @@
+@puppyone-theme { id: local.user.asset-ok; name: Asset Ok; version: 1.0.0; modes: light; }
+@puppyone markdown { :root { --po-md-content-font: "Body", url("fonts/body.woff2"); } }

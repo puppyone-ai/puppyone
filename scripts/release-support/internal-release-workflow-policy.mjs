@@ -1,39 +1,32 @@
 const PINNED_ACTION_PATTERN = /uses:\s+actions\/[A-Za-z0-9_.-]+@[a-f0-9]{40}(?:\s+#.*)?$/gm;
 const UNPINNED_ACTION_PATTERN = /uses:\s+actions\/[A-Za-z0-9_.-]+@(?![a-f0-9]{40}(?:\s|$))[^ \n]+/g;
 
-export function inspectContinuousIntegrationWorkflow(workflowSource) {
+// Desktop Internal Release trusts this workflow's push runs, so every commit on
+// a release branch must get one: no path filter and no cancelled pushes.
+export function inspectRustAcceptanceWorkflow(workflowSource) {
   workflowSource = normalizeNewlines(workflowSource);
-  const errors = inspectSource(workflowSource, "continuous integration workflow");
+  const errors = inspectSource(workflowSource, "Rust desktop acceptance workflow");
   if (errors.length > 0) return errors;
   requireSnippets(workflowSource, errors, [
-    ["pull_request:", "CI must run for pull requests"],
-    ["branches:\n      - main", "CI must run for pushes to main"],
-    ["permissions:\n  contents: read", "CI must use a read-only default token"],
-    ["npm ci", "CI must install the lockfile exactly"],
-    ["npm run check:release -- --group source", "CI must run the canonical source checks, including updater P0 coverage"],
-    ["npm run check:release -- --group app", "CI must run the canonical build and real application checks"],
-    ["needs: [source-checks, app-checks, platform-contracts, windows-package, cloud-email-sign-in]", "the required Build gate must aggregate every release-check group, the Windows package smoke and the Cloud email sign-in"],
-    ["uses: puppyone-ai/puppyone-cloud/.github/workflows/desktop-login-e2e.yml@", "CI must sign in with email through the paired Cloud Web"],
-    ["if: always()", "failed or skipped groups must reach the required Build gate"],
-    ['test "$SOURCE_RESULT" = success', "source checks must pass before the Build gate succeeds"],
-    ['test "$APP_RESULT" = success', "application checks must pass before the Build gate succeeds"],
-    ['test "$PLATFORM_RESULT" = success', "all platform checks must pass before the Build gate succeeds"],
-    ['test "$WINDOWS_PACKAGE_RESULT" = success', "the Windows NSIS package smoke must pass before the Build gate succeeds"],
-    ['test "$CLOUD_EMAIL_SIGN_IN_RESULT" = success', "email sign-in through the paired Cloud must pass before the Build gate succeeds"],
-    ["scripts/print-desktop-target-matrix.mjs --scope contracts", "CI must resolve native test runners from the target manifest"],
-    ["fromJSON(needs.resolve-desktop-targets.outputs.matrix)", "CI must fan out the target contract matrix"],
-    ["npm run check:release -- --group platform", "CI must verify platform contracts on every declared native runner"],
-    ["runs-on: windows-2025", "CI must build the Windows package on the pinned native runner"],
-    ["npm run package:windows:release", "CI must verify a real Windows NSIS package"],
-    ["Smoke-test silent NSIS installation", "CI must install the generated NSIS package"],
+    ["pull_request:", "Rust desktop acceptance must run for pull requests"],
+    ["branches: [qubits, main, 'release/**']", "Rust desktop acceptance must run for pushes to every release branch"],
+    ["cancel-in-progress: ${{ github.event_name == 'pull_request' }}", "a newer push must not cancel the run a release commit needs"],
+    ["permissions:\n  contents: read", "Rust desktop acceptance must use a read-only default token"],
+    ["python3 tools/verify.py", "Rust desktop acceptance must run the release verification checks"],
+    ["Check the release workflows' own tooling", "Rust desktop acceptance must test the release tooling before a release needs it"],
+    ["name: Build", "Rust desktop acceptance must provide the required Build status check"],
+    ["if: always()", "a failed or skipped acceptance must reach the required Build gate"],
+    ['test "$ACCEPTANCE_RESULT" = success', "acceptance must pass before the Build gate succeeds"],
   ]);
   forbidSnippets(workflowSource, errors, [
-    ["contents: write", "CI must not receive repository write permission"],
-    ["id-token: write", "CI must not receive an OIDC publication token"],
-    ["CSC_LINK", "CI must not receive Apple signing credentials"],
-    ["R2_ACCESS_KEY_ID", "CI must not receive R2 publication credentials"],
-    ["R2_SECRET_ACCESS_KEY", "CI must not receive R2 publication credentials"],
-    ["CLOUDFLARE_ACCOUNT_ID", "CI must not receive release publication credentials"],
+    ["paths:", "a path filter would leave release commits without the run Internal releases require"],
+    ["paths-ignore:", "a path filter would leave release commits without the run Internal releases require"],
+    ["contents: write", "Rust desktop acceptance must not receive repository write permission"],
+    ["id-token: write", "Rust desktop acceptance must not receive an OIDC publication token"],
+    ["CSC_LINK", "Rust desktop acceptance must not receive Apple signing credentials"],
+    ["R2_ACCESS_KEY_ID", "Rust desktop acceptance must not receive R2 publication credentials"],
+    ["R2_SECRET_ACCESS_KEY", "Rust desktop acceptance must not receive R2 publication credentials"],
+    ["CLOUDFLARE_ACCOUNT_ID", "Rust desktop acceptance must not receive release publication credentials"],
   ]);
   inspectPinnedActions(workflowSource, errors);
   return errors;
@@ -51,17 +44,18 @@ export function inspectInternalReleaseWorkflow(workflowSource) {
     ["Verify Internal release version moves forward", "the Internal build must reject non-monotonic release versions"],
     ["verify-desktop-release-version.mjs", "the Internal build must use the canonical release version verifier"],
     ["actions: read", "the Internal build must have least-privilege access to verify source CI"],
-    ["Verify green main source", "the Internal workflow must reject non-main or unverified source commits"],
-    ["refs/heads/main", "the Internal workflow must require the protected main branch"],
-    ["actions/workflows/ci.yml/runs", "the Internal workflow must verify the exact commit's CI result"],
-    [".event == \"push\"", "the Internal workflow must require a main push CI run"],
+    ["Verify green source branch", "the Internal workflow must reject unverified source commits or other branches"],
+    ["refs/heads/main | refs/heads/qubits | refs/heads/release/*) ;;", "the Internal workflow must accept only main, qubits and release/* branches"],
+    ["-f branch=\"${GITHUB_REF_NAME}\"", "the Internal workflow must verify CI on the branch it builds from"],
+    ["actions/workflows/rust-tests.yml/runs", "the Internal workflow must verify the exact commit's Rust desktop acceptance result"],
+    [".event == \"push\"", "the Internal workflow must require a push CI run on its branch"],
     [".head_sha == env.GITHUB_SHA", "the Internal workflow must match the exact source SHA in returned CI records"],
     [".status == \"completed\"", "the Internal workflow must require completed CI records"],
     [".conclusion == \"success\"", "the Internal workflow must require successful CI"],
     ["scripts/prepare-desktop-build.mjs", "the Internal workflow must use the canonical Build Identity resolver"],
     ["--channel internal", "the Internal workflow must resolve only the Internal build channel"],
     ["--target macos-arm64", "the Internal workflow must resolve its build target through the target manifest"],
-    ["npm run dist:mac:prepared", "the Internal workflow must package the prepared identity"],
+    ["puppy-one-rust/tools/release/package-macos.py", "the Internal workflow must package the prepared identity"],
     ["Verify packaged Internal Build Identity", "the Internal workflow must inspect packaged identity"],
     ["--build-info generated/desktop-build-info.json", "release metadata must consume resolved Build Identity"],
     ["Create self-describing release bundle", "the internal build must create release metadata"],
@@ -80,7 +74,7 @@ export function inspectInternalReleaseWorkflow(workflowSource) {
     ["TAG=\"v${VERSION}-internal.", "the workflow must not construct versions independently"],
   ]);
   assertOrder(workflowSource, errors, [
-    "Verify green main source",
+    "Verify green source branch",
     "Resolve immutable release identity",
     "Install locked dependencies",
     "Test updater monotonicity P0",
