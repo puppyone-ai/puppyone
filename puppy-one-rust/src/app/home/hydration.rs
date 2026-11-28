@@ -515,12 +515,14 @@ impl Homepage {
     pub(in crate::app) fn relaunch_first_paint(&mut self) {
         self.released_for = None;
         self.released_restoring = false;
-        self.first_paint = Some(Instant::now());
+        self.restart_first_paint();
     }
-    /// Tests: a new first-paint wait starts now.
+    /// Tests: a new first-paint wait starts now. Its budget only runs out
+    /// through `expire_first_paint`, so a busy runner's wall clock cannot
+    /// release the list before the test means it to.
     #[cfg(test)]
     pub(in crate::app) fn restart_first_paint(&mut self) {
-        self.first_paint = Some(Instant::now());
+        self.first_paint = Some(Instant::now() + Duration::from_secs(600));
     }
 
     pub(in crate::app::home) fn release_first_paint(&mut self, cx: &mut Context<Self>) {
