@@ -5,6 +5,11 @@ use core::prelude::v1::test;
 #[gpui::test]
 fn native_buttons_toggle_slots_and_open_settings(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
+    view.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |p, cx| {
+            p.change(|p| p.experimental.hidden_header = false, cx)
+        })
+    });
     // Collapsed, the Explorer's expand button is in the Header.
     command(&view, cx, Command::ToggleExplorer);
     view.update(cx, |s, cx| assert!(!s.panes.read(cx).explorer().open));
@@ -64,11 +69,11 @@ fn project_popup_toggle_outside_and_escape_restore_focus(cx: &mut TestAppContext
         assert!(s.chrome.read(cx).project_focus.is_focused(w));
     });
 }
-/// `WindowNavigationRows`: the current place is checked; choosing a place
-/// closes the menu and opens the Homepage on it. Escape closes the menu
-/// and returns to the Header.
+/// The space's menu lists the projects in this space and the way Home —
+/// never the spaces themselves. Escape closes it and returns to the Header;
+/// Home goes Home.
 #[gpui::test]
-fn a_place_opens_the_homepage_on_it_and_escape_closes_the_menu(cx: &mut TestAppContext) {
+fn the_space_menu_lists_its_projects_and_escape_closes_it(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     // The place menu shows only with an account service and Cloud on.
     let (broker, browser) = crate::cloud::auth::account_fixture();
@@ -84,16 +89,21 @@ fn a_place_opens_the_homepage_on_it_and_escape_closes_the_menu(cx: &mut TestAppC
     command(&view, cx, Command::LocationMenu);
     draw(cx);
     draw(cx);
-    let device = crate::localization::t(if cfg!(target_os = "macos") {
+    let row = |key: &str| -> &'static str {
+        Box::leak(format!("menu-item:{}", crate::localization::t(key)).into_boxed_str())
+    };
+    let device = row(if cfg!(target_os = "macos") {
         "shell.workspaceSwitcher.location.thisMac"
     } else {
         "shell.workspaceSwitcher.location.thisComputer"
     });
-    let selector: &'static str = Box::leak(format!("menu-item:{device}").into_boxed_str());
+    let home = row("shell.workspaceSwitcher.home");
+    assert!(cx.debug_bounds(home).is_some(), "the space menu is open");
     assert!(
-        cx.debug_bounds(selector).is_some(),
-        "the place menu is open"
+        cx.debug_bounds(row("shell.workspaceSwitcher.createNew"))
+            .is_some()
     );
+    assert!(cx.debug_bounds(device).is_none(), "no list of places");
     command(&view, cx, Command::Escape);
     view.update_in(cx, |s, w, cx| {
         assert!(s.chrome.read(cx).popover.is_none());
@@ -102,26 +112,19 @@ fn a_place_opens_the_homepage_on_it_and_escape_closes_the_menu(cx: &mut TestAppC
     command(&view, cx, Command::LocationMenu);
     draw(cx);
     draw(cx);
-    let row = cx
-        .debug_bounds(selector)
-        .expect("the place menu opens again");
-    cx.simulate_click(row.center(), Modifiers::none());
+    let home = cx.debug_bounds(home).expect("the space menu opens again");
+    cx.simulate_click(home.center(), Modifiers::none());
     view.read_with(cx, |s, cx| {
         assert!(s.chrome.read(cx).popover.is_none());
         assert!(s.session.project.read(cx).home);
-        assert_eq!(
-            s.home.read(cx).place_focus.as_ref().map(|f| f.0.clone()),
-            Some(super::home::groups::GroupId::LocalOnly)
-        );
     });
 }
-/// `the Header's place, and the way to every other place`: in a project
-/// window the place menu offers Home, this computer with a way to start a
-/// space, then the account and Settings, and Home goes Home; signed out it
-/// offers this computer and Sign in. With the project rail on, the Header
-/// keeps the place alone.
+/// The person lives in the project's menu: signed in it offers Account and
+/// Settings, signed out Settings and Sign in; the space's menu offers
+/// neither, nor a way to start a space. With the project rail on, the
+/// Header keeps the place alone.
 #[gpui::test]
-fn the_place_menu_offers_home_the_places_and_the_account_or_sign_in(cx: &mut TestAppContext) {
+fn the_project_menu_holds_the_account_and_settings_or_sign_in(cx: &mut TestAppContext) {
     let (view, cx) = setup(cx);
     let (broker, browser) = crate::cloud::auth::account_fixture();
     view.update(cx, |s, cx| {
@@ -138,48 +141,42 @@ fn the_place_menu_offers_home_the_places_and_the_account_or_sign_in(cx: &mut Tes
     let row = |key: &str| -> &'static str {
         Box::leak(format!("menu-item:{}", crate::localization::t(key)).into_boxed_str())
     };
-    let device = row(if cfg!(target_os = "macos") {
-        "shell.workspaceSwitcher.location.thisMac"
-    } else {
-        "shell.workspaceSwitcher.location.thisComputer"
-    });
-    let open = |cx: &mut VisualTestContext| {
-        command(&view, cx, Command::LocationMenu);
+    let open = |cx: &mut VisualTestContext, which: Command| {
+        command(&view, cx, which);
         draw(cx);
         draw(cx);
     };
-    open(cx);
+    open(cx, Command::LocationMenu);
     for key in [
-        "shell.workspaceSwitcher.home",
         "settings.space.create",
         "settings.sidebar.account",
         "shell.navigation.settings",
+        "cloud.auth.signIn",
     ] {
-        assert!(cx.debug_bounds(row(key)).is_some(), "{key}");
+        assert!(cx.debug_bounds(row(key)).is_none(), "space menu: {key}");
     }
-    assert!(cx.debug_bounds(device).is_some());
+    command(&view, cx, Command::Escape);
+    open(cx, Command::ProjectMenu);
+    let info = cx
+        .debug_bounds("project-menu-info")
+        .expect("project info leads the project menu");
+    for key in ["settings.sidebar.account", "shell.navigation.settings"] {
+        let item = cx
+            .debug_bounds(row(key))
+            .unwrap_or_else(|| panic!("project menu: {key}"));
+        assert!(info.origin.y < item.origin.y, "project info leads {key}");
+    }
     assert!(cx.debug_bounds(row("cloud.auth.signIn")).is_none());
-    let home = cx
-        .debug_bounds(row("shell.workspaceSwitcher.home"))
-        .unwrap();
-    cx.simulate_click(home.center(), Modifiers::none());
-    view.read_with(cx, |s, cx| {
-        assert!(s.session.project.read(cx).home);
-        assert!(s.chrome.read(cx).popover.is_none());
-    });
-    view.update(cx, |s, cx| {
-        s.session.project.update(cx, |p, _| p.home = false)
-    });
+    command(&view, cx, Command::Escape);
     cx.update(|_, cx| crate::features::cloud::account::sign_out(cx));
     settle_cloud(&view, cx, "signed out", &|_, cx| {
         !crate::features::cloud::account::has_account(cx)
     });
-    open(cx);
-    assert!(cx.debug_bounds(device).is_some());
-    assert!(cx.debug_bounds(row("cloud.auth.signIn")).is_some());
-    for key in ["settings.space.create", "settings.sidebar.account"] {
-        assert!(cx.debug_bounds(row(key)).is_none(), "{key}");
+    open(cx, Command::ProjectMenu);
+    for key in ["shell.navigation.settings", "cloud.auth.signIn"] {
+        assert!(cx.debug_bounds(row(key)).is_some(), "signed out: {key}");
     }
+    assert!(cx.debug_bounds(row("settings.sidebar.account")).is_none());
     command(&view, cx, Command::Escape);
     draw(cx);
     assert!(cx.debug_bounds("header-project").is_some());
@@ -217,6 +214,9 @@ fn the_homepage_brand_opens_the_places_and_the_account_but_not_home(cx: &mut Tes
         assert!(cx.debug_bounds(end).is_none(), "{end}");
     }
     view.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |p, cx| {
+            p.change(|p| p.experimental.hidden_header = false, cx)
+        });
         s.session
             .project
             .update(cx, |p, _| p.record.fixture = false)
@@ -265,6 +265,9 @@ fn project_menu_home_shows_the_homepage_and_hides_the_editor(cx: &mut TestAppCon
         assert!(!s.home_visible(cx));
     });
     view.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |p, cx| {
+            p.change(|p| p.experimental.hidden_header = false, cx)
+        });
         s.session
             .project
             .update(cx, |p, _| p.record.fixture = false)
@@ -549,6 +552,9 @@ fn the_header_expands_a_collapsed_explorer_and_keeps_the_project_beside_editor_t
         s.workspace_root(cx).as_deref() == Some(root.as_path())
     });
     view.update(cx, |s, cx| {
+        s.prefs.store.update(cx, |p, cx| {
+            p.change(|p| p.experimental.hidden_header = false, cx)
+        });
         s.session
             .docs
             .update(cx, |d, _| d.begin(Intent::OpenFile("a.md".into())))
@@ -634,5 +640,184 @@ fn the_folder_header_offers_changes_and_the_agent_only_while_its_tool_is_on(
         draw(cx);
         assert!(cx.debug_bounds("header-changes").is_some(), "{on}");
         assert_eq!(cx.debug_bounds("header-agent").is_some(), on);
+    }
+}
+
+/// Without the Header (experimental): the panes reach the window's top; the
+/// sidebar toggle, the place and the project stand over the Explorer and
+/// keep their places when it closes; the tools stand above the document,
+/// never over the right sidebar. A narrowed Explorer shortens the place
+/// before the project.
+#[gpui::test]
+fn the_hidden_header_keeps_the_project_over_the_explorer_and_the_tools_above_the_document(
+    cx: &mut TestAppContext,
+) {
+    let temp = tempfile::tempdir().unwrap();
+    let root = temp.path().canonicalize().unwrap().join("alpha-app");
+    std::fs::create_dir(&root).unwrap();
+    std::fs::write(root.join("a.md"), "# A\n").unwrap();
+    let (view, cx) = setup(cx);
+    cx.update(|_, cx| cx.set_reduce_motion(true));
+    cx.simulate_resize(size(px(1280.), px(800.)));
+    view.update_in(cx, |s, w, cx| s.open_project(root.clone(), w, cx));
+    settle_cloud(&view, cx, "the project", &|s, cx| {
+        s.workspace_root(cx).as_deref() == Some(root.as_path())
+    });
+    // Measure the normal Header widths before switching to headerless mode.
+    let store = view.read_with(cx, |s, _| s.prefs.store.clone());
+    store.update(cx, |store, cx| {
+        store.change(|p| p.experimental.hidden_header = false, cx)
+    });
+    draw(cx);
+    let full_place = cx
+        .debug_bounds("project-place")
+        .expect("the place")
+        .size
+        .width;
+    store.update(cx, |store, cx| {
+        store.change(|p| p.experimental.hidden_header = true, cx)
+    });
+    draw(cx);
+    let header = px(crate::theme::HEADER);
+    let layout = |cx: &mut VisualTestContext| view.read_with(cx, |s, _| s.frame.layout);
+    let l = layout(cx);
+    // The Header is removed from the layout: every pane and resize edge runs
+    // full-height from `y = 0` to `h`.
+    assert_eq!(l.header.h, 0., "header is removed in layout");
+    assert_eq!(l.explorer.y, 0., "explorer runs from window top");
+    assert_eq!(l.editor.y, 0., "editor runs from window top");
+    assert_eq!(l.auxiliary.y, 0., "auxiliary runs from window top");
+    let left_sash = cx.debug_bounds("left-sash").expect("the left resize sash");
+    assert_eq!(left_sash.origin.y, px(0.), "left sash starts at window top");
+    assert_eq!(
+        left_sash.bottom(),
+        px(800.),
+        "left sash reaches window bottom"
+    );
+    // While the Explorer is open, there is no collapse button; the place is
+    // compact (mark-only) so the project name has room to breathe.
+    assert!(
+        cx.debug_bounds("collapse-explorer").is_none(),
+        "no collapse toggle while explorer is open"
+    );
+    assert!(cx.debug_bounds("expand-explorer").is_none());
+    let explorer = l.explorer;
+    let place = cx.debug_bounds("project-place").expect("the compact place");
+    let project = cx.debug_bounds("header-project").expect("the project");
+    assert!(
+        place.size.width <= px(crate::theme::control()) && place.size.width < full_place,
+        "place is compact logo-only in headerless sidebar: {place:?} vs {full_place:?}"
+    );
+    assert!(
+        (place.center().y - project.center().y).abs() <= px(0.5),
+        "compact place and project controls stay vertically aligned: place={place:?} project={project:?}"
+    );
+    let full_compact_project = project.size.width;
+    for part in [place, project] {
+        assert!(part.bottom() <= header, "at the top: {part:?}");
+        assert!(
+            part.right() <= px(explorer.right()),
+            "inside the Explorer: {part:?}"
+        );
+    }
+    let changes = cx.debug_bounds("header-changes").expect("Changes");
+    assert!(changes.bottom() <= header);
+    assert!(changes.left() >= px(l.editor.x));
+    // With the right sidebar open, its resize edge also runs full height and
+    // the tools stay inside the main pane before it.
+    command(&view, cx, Command::ToggleRightSidebar);
+    draw(cx);
+    let l_right = layout(cx);
+    let right_sash = cx
+        .debug_bounds("right-sash")
+        .expect("the right resize sash");
+    assert_eq!(
+        right_sash.origin.y,
+        px(0.),
+        "right sash starts at window top"
+    );
+    assert_eq!(
+        right_sash.bottom(),
+        px(800.),
+        "right sash reaches window bottom"
+    );
+    let changes_with_right = cx
+        .debug_bounds("header-changes")
+        .expect("Changes with right sidebar");
+    assert!(changes_with_right.right() <= px(l_right.editor.right()));
+    command(&view, cx, Command::ToggleRightSidebar);
+    draw(cx);
+    // Its menu hangs below it as in the Header.
+    cx.simulate_click(project.center(), Modifiers::none());
+    draw(cx);
+    view.read_with(cx, |s, cx| {
+        assert_eq!(
+            s.chrome.read(cx).popover,
+            Some(super::chrome::Popover::Project)
+        )
+    });
+    command(&view, cx, Command::Escape);
+    // Even in a narrowed Explorer, the compact logo-only place leaves room
+    // for the project name to stay untruncated.
+    let set_explorer_width = |cx: &mut VisualTestContext, width: f32| {
+        view.update(cx, |s, cx| {
+            s.panes.update(cx, |p, cx| {
+                p.restore(
+                    super::panes::StoredPanes {
+                        explorer_width: width,
+                        ..p.stored()
+                    },
+                    cx,
+                )
+            })
+        });
+        draw(cx);
+    };
+    for width in [300., 260., 220.] {
+        set_explorer_width(cx, width);
+        let place_w = cx
+            .debug_bounds("project-place")
+            .expect("place in narrow explorer")
+            .size
+            .width;
+        let project_b = cx
+            .debug_bounds("header-project")
+            .expect("project in narrow explorer");
+        assert!(
+            place_w <= px(crate::theme::control()),
+            "place stays compact at {width}px: {place_w:?}"
+        );
+        assert!(
+            project_b.size.width >= px(super::chrome::PROJECT_MIN_WIDTH),
+            "project keeps at least PROJECT_MIN_WIDTH at {width}px: {project_b:?}"
+        );
+        assert!(
+            project_b.right() <= px(width),
+            "project stays inside {width}px explorer: {project_b:?}"
+        );
+        if width >= 260. {
+            assert_eq!(
+                project_b.size.width, full_compact_project,
+                "project stays untruncated at {width}px"
+            );
+        }
+    }
+    // Collapsed, the expand button and the compact place/project sit in the top 40px.
+    command(&view, cx, Command::ToggleExplorer);
+    draw(cx);
+    let expand = cx
+        .debug_bounds("expand-explorer")
+        .expect("collapsed explorer shows expand button");
+    let collapsed_place = cx
+        .debug_bounds("project-place")
+        .expect("collapsed explorer keeps the place");
+    let collapsed_project = cx
+        .debug_bounds("header-project")
+        .expect("collapsed explorer keeps the project");
+    for part in [expand, collapsed_place, collapsed_project] {
+        assert!(
+            part.bottom() <= header,
+            "at the top when collapsed: {part:?}"
+        );
     }
 }

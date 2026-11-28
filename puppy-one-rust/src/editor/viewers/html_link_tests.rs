@@ -163,9 +163,6 @@ fn page<'a>(
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
         }
-        cx.text_system()
-            .add_fonts(crate::editor::view::style::font_bytes())
-            .unwrap();
     });
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path().canonicalize().unwrap();

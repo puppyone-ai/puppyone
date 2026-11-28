@@ -150,7 +150,7 @@ impl RenderOnce for SpacePlanBadge {
             .border_color(border)
             .rounded_full()
             .text_color(color)
-            .font_family(theme::MONO)
+            .font_family(theme::mono())
             .text_size(px(size))
             .line_height(px(size))
             .whitespace_nowrap()

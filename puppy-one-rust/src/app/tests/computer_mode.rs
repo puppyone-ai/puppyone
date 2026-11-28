@@ -18,6 +18,8 @@ fn computer_home<'a>(
             .update(cx, |p, _| p.record.fixture = false);
         s.prefs.store.update(cx, |p, _| {
             p.state.experimental.computer_mode = true;
+            p.state.experimental.home_space_layout =
+                crate::features::settings::HomeSpaceLayout::Classic;
             for (i, folder) in folders.iter().enumerate() {
                 p.state.remember_project(folder, i as u64 + 1);
             }

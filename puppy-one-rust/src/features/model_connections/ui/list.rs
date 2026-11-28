@@ -222,7 +222,7 @@ impl ModelConnections {
                     )
                     .child(
                         div()
-                            .font_family(theme::MONO)
+                            .font_family(theme::mono())
                             .text_size(px(m.ui.page_title))
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_color(t.text)

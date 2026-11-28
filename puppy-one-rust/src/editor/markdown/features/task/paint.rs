@@ -8,7 +8,7 @@
 use super::style::TaskStyle;
 use crate::editor::view::{
     projection::LeafText,
-    render::{RenderCx, chromium_baseline, primary_metrics},
+    render::{RenderCx, chromium_baseline, primary_metrics_for},
     style::{Embed, Paint, Rect, TextStyle},
     widget::{LineEmbed, WidgetCx},
 };
@@ -61,8 +61,8 @@ pub struct CompletedStrike {
 }
 
 impl CompletedStrike {
-    fn shaping_runs(leaf: &LeafText, style: &TextStyle) -> Vec<TextRun> {
-        let base = RenderCx::font(style);
+    fn shaping_runs(leaf: &LeafText, style: &TextStyle, language: Option<&str>) -> Vec<TextRun> {
+        let base = RenderCx::font_for(style, language);
         let mono = TextStyle {
             mono: true,
             ..style.clone()
@@ -135,8 +135,9 @@ impl LineEmbed for CompletedStrike {
         if leaf.text.is_empty() {
             return (div().size_full().into_any_element(), row_lh);
         }
+        let language = cx.render.language();
         let wrap = (!self.nowrap).then(|| cx.render.snap(cx.width));
-        let runs = Self::shaping_runs(&leaf, &self.text);
+        let runs = Self::shaping_runs(&leaf, &self.text, language);
         let shaped = cx.render.window.text_system().shape_text(
             leaf.text.clone().into(),
             px(self.text.size),
@@ -149,7 +150,7 @@ impl LineEmbed for CompletedStrike {
         };
         let rows = line.wrap_boundaries.len() + 1;
         let total_height = rows as f32 * row_lh;
-        let primary = primary_metrics(cx.render.window, &self.text);
+        let primary = primary_metrics_for(cx.render.window, &self.text, language);
         let mut row_spans: Vec<Option<(f32, f32)>> = vec![None; rows];
         for (byte_idx, ch) in leaf.text.char_indices() {
             let end_idx = byte_idx + ch.len_utf8();

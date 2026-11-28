@@ -5,7 +5,7 @@ use super::super::{MarkdownExtension, features::mdx};
 use crate::{
     editor::{
         text::selection::Selection,
-        view::{EditorView, bind_keys, decoration::Block, style},
+        view::{EditorView, bind_keys, decoration::Block},
     },
     typography::Scale,
 };
@@ -22,7 +22,6 @@ fn setup<'a>(
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
         }
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
         bind_keys(cx);
     });
     let text = text.to_owned();

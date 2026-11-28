@@ -29,10 +29,12 @@ class ThemeContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / 'tools').mkdir()
-            for name in ['import-theme-contract.mjs', 'product-source.mjs']:
+            for name in ['import-theme-contract.mjs', 'product-source.mjs', 'system-fonts.mjs']:
                 shutil.copy(ROOT / 'tools' / name, root / 'tools' / name)
             shutil.copy(ROOT / 'product-source.json', root / 'product-source.json')
             shutil.copytree(ROOT / 'assets/themes', root / 'assets/themes')
+            (root / 'assets/typography').mkdir(parents=True, exist_ok=True)
+            shutil.copy(ROOT / 'assets/typography/fonts.json', root / 'assets/typography/fonts.json')
             self.assertEqual(self.check(root).returncode, 0)
             warm = root / 'assets/themes/builtin/default-warm.css'
             original = warm.read_bytes()

@@ -247,7 +247,7 @@ impl EditorView {
             }
         }
         extensions.ensure_keymaps_registered(cx);
-        Self {
+        let mut view = Self {
             state,
             secondary: Vec::new(),
             committed_rev: 0,
@@ -268,7 +268,12 @@ impl EditorView {
             chrome_inset: 0.,
             has_header_banner: false,
             model: None,
-        }
+        };
+        // Settle the initial document surface (background, content language,
+        // chrome insets) before Frame 1 renders, without mutating state in
+        // `EditorView::render`.
+        view.sync_decorations(false);
+        view
     }
 
     /// Make this the document's own view (`DocumentModels`): it continues
@@ -892,7 +897,11 @@ impl EditorView {
                 ..Default::default()
             })
             .with_selection(surface.selection.into())
-            .with_paragraph_gap(rems(0.));
+            .with_paragraph_gap(rems(0.))
+            // The platform faces have no inline-code or strong builds: code
+            // keeps the text size, strong the product's weight.
+            .with_inline_code_scale(1.)
+            .with_bold_weight(super::style::face_weight(super::style::STRONG_WEIGHT));
         if let Some(padding) = surface.inline_code_padding {
             style = style.with_inline_code_padding(padding);
         }

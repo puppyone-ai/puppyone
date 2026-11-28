@@ -47,7 +47,10 @@ struct Slot {
     opening: u64,
     closing: bool,
     reported_error: Option<String>,
-    restoring: bool,
+    /// Its tab came from the saved layout and its file has not been read
+    /// yet: if the file is gone or is not a file, the tab closes quietly;
+    /// any other failure shows in its pane. Never a window dialog.
+    restored: bool,
     rehydrating: Option<PathBuf>,
     drop_target: Option<drops::Target>,
 }
@@ -57,23 +60,19 @@ struct Host {
     slots: BTreeMap<SlotId, Slot>,
     hibernated: BTreeMap<String, super::retention::HibernatedSlot>,
     view_states: super::view_state::ViewStateStore,
+    /// Most-recently-opened relative file paths (newest first, capped at
+    /// [`MAX_RECENT_FILES`]), persisted with workspace metadata so the quiet
+    /// empty-editor list and `starting_file` fallback survive closing all tabs.
+    recent_files: Vec<PathBuf>,
     rows: Vec<Node>,
-    interacted: bool,
-    restore: Option<serde_json::Value>,
     metadata_loaded: bool,
     metadata_value: Option<serde_json::Value>,
     metadata_due: Option<std::time::Instant>,
     pane_lifetimes: BTreeMap<String, u64>,
     pane_serial: u64,
-}
-impl Host {
-    fn interact(&mut self) {
-        self.interacted = true;
-        self.restore = None;
-        // Restore-only copies have never owned input. Retire their channels and
-        // watches before accepting an interaction; late completions are dropped.
-        self.slots.retain(|_, slot| !slot.restoring);
-    }
+    /// Just entered: once its saved layout is in, a project with no tab to
+    /// show opens its starting file ([`Runtime::starting_file`]).
+    starting: bool,
 }
 #[derive(Default)]
 pub struct Runtime {
@@ -127,6 +126,10 @@ pub struct Runtime {
     pub children_update: Option<(PathBuf, workspace::Result<Vec<Node>>)>,
     /// Changes outside the focused document also invalidate tabs/layout once.
     pub generation: u64,
+    /// A project entered with no tab to show opens its README, else the
+    /// first file at its root (`workbench.startupEditor: "readme"`). Native
+    /// only, like the saved layout: fixtures open nothing by themselves.
+    pub starting_file: bool,
     /// Optional override for live slot LRU cap (`WB-01`, defaults to `MAX_LIVE_SLOTS`).
     max_live_slots: Option<usize>,
     /// Optional override for background project `Host` cap (`WB-02`, defaults to `MAX_BACKGROUND_HOSTS`).
@@ -194,7 +197,6 @@ impl Runtime {
             .as_ref()
             .and_then(|id| self.hosts.get_mut(id))
             .map(|h| {
-                h.interact();
                 h.sync_panes();
                 StateMut(h)
             })
@@ -227,6 +229,34 @@ impl Runtime {
                     .collect()
             })
             .unwrap_or_else(|| vec![0])
+    }
+    /// The file currently being read into the active pane, and whether the
+    /// workspace is remote (Cloud / other computer). Used to paint a centered
+    /// loading animation immediately while switching Cloud files.
+    pub fn loading_active_pane(&self) -> Option<(&std::path::Path, bool)> {
+        let host = self.active.as_ref().and_then(|key| self.hosts.get(key))?;
+        let remote = host
+            .empty
+            .workspace
+            .as_ref()
+            .is_some_and(|ws| ws.local_root().is_none());
+        let active_key = host.state.layout.active_editor();
+        host.slots
+            .values()
+            .find(|s| {
+                s.files.busy()
+                    && s.files.opened().is_none()
+                    && s.drop_target.is_none()
+                    && ((!s.admitted && s.opening == self.navigation)
+                        || (s.admitted && active_key == Some(s.key.as_str()))
+                        || (s.rehydrating.is_some() && active_key == Some(s.key.as_str())))
+            })
+            .map(|s| (s.path.as_path(), remote))
+    }
+    /// Whether the active pane is waiting on a remote (Cloud / device) file
+    /// read, so native web content behind the loading overlay stays hidden.
+    pub fn loading_remote_pane(&self) -> bool {
+        self.loading_active_pane().is_some_and(|(_, remote)| remote)
     }
     pub fn slot(&self, id: SlotId) -> Option<&Documents> {
         if id == 0 {
@@ -609,11 +639,12 @@ impl Runtime {
                     return;
                 }
                 let host = self.hosts.get_mut(self.active.as_ref().unwrap()).unwrap();
-                host.interact();
                 let hibernated = host.hibernated.remove(&key);
+                // A file still loading (a restored tab, a drop) is the one
+                // asked for: it opens here, and its failure says why.
                 if let Some(slot) = host.slots.values_mut().find(|s| s.key == key) {
                     slot.opening = self.navigation;
-                    slot.restoring = false;
+                    slot.restored = false;
                     slot.rehydrating = None;
                     slot.drop_target = None;
                     return;
@@ -638,11 +669,12 @@ impl Runtime {
                         opening: self.navigation,
                         closing: false,
                         reported_error: None,
-                        restoring: false,
+                        restored: false,
                         rehydrating: None,
                         drop_target: None,
                     },
                 );
+                self.generation += 1;
             }
             Intent::CloseFile => {
                 let id = self.active_slot();
@@ -686,6 +718,17 @@ impl Runtime {
         self.navigation += 1;
         if let Some(mut state) = self.state_mut() {
             state.activate(key);
+        }
+        if let Some(host) = self.active.as_ref().and_then(|id| self.hosts.get_mut(id)) {
+            let path = host
+                .slots
+                .values()
+                .find(|s| s.key == key)
+                .map(|s| s.path.clone())
+                .or_else(|| host.hibernated.get(key).map(|h| h.path.clone()));
+            if let Some(path) = path {
+                host.record_recent(path);
+            }
         }
         self.generation += 1;
     }
@@ -881,14 +924,15 @@ impl Runtime {
     }
     pub fn poll(&mut self, wake: &Wake) {
         if self.abandoned {
-            self.poll_metadata(wake);
+            self.poll_metadata();
             self.persist_metadata(wake, true);
             return;
         }
         if std::mem::take(&mut self.resume_cloud) {
             self.resume_visible_cloud(wake);
         }
-        self.poll_metadata(wake);
+        self.poll_metadata();
+        self.open_starting_file(wake);
         self.rehydrate_visible_hibernated(wake);
         let scratch_notices = self.scratch.notice_state_key();
         self.scratch.poll(wake);
@@ -927,9 +971,9 @@ impl Runtime {
                             slots: BTreeMap::new(),
                             hibernated: BTreeMap::new(),
                             view_states: super::view_state::ViewStateStore::new(),
+                            recent_files: Vec::new(),
                             rows,
-                            interacted: false,
-                            restore: None,
+                            starting: !self.file_window,
                             metadata_loaded: self.file_window
                                 || self
                                     .storage
@@ -982,6 +1026,7 @@ impl Runtime {
                     .or(self.children_update.take());
             }
             let mut remove = Vec::new();
+            let mut admitted_recent = Vec::new();
             for (id, slot) in &mut host.slots {
                 let before = (slot.files.status_key(), slot.files.notice_state_key());
                 slot.files.poll(wake);
@@ -1000,6 +1045,27 @@ impl Runtime {
                     slot.reported_error = slot.files.error.clone();
                     self.reopen_file.get_or_insert(path);
                 }
+                // A restored tab whose file is gone, or is not a file, was
+                // the saved layout's word, not a request: it closes quietly
+                // (`retainResolvedDocuments`).
+                let gone = slot.restored
+                    && !slot.admitted
+                    && slot.files.error.is_some()
+                    && slot.files.opened().is_none()
+                    && !slot.files.busy()
+                    && slot.files.read_error.is_some_and(|kind| {
+                        matches!(
+                            kind,
+                            crate::workspace::ErrorKind::NotFound
+                                | crate::workspace::ErrorKind::InvalidInput
+                        )
+                    });
+                if gone {
+                    host.state.close(&slot.key);
+                    remove.push(*id);
+                    self.generation += 1;
+                    continue;
+                }
                 // A file a workbench pane could not read: the pane says
                 // why, instead of a window dialog (`FilePreview` error).
                 // Not a regular file (a folder, a link) never becomes a pane,
@@ -1015,25 +1081,28 @@ impl Runtime {
                     && slot.files.opened().is_none()
                     && !slot.files.busy()
                     && !self.file_window
-                    && !slot.restoring
-                    && slot.rehydrating.is_none()
                     && slot.drop_target.is_none()
                     && (!slot.admitted || slot.failed);
                 if read_failed {
                     if !slot.admitted {
-                        let input = Input {
-                            id: slot.key.clone(),
-                            label: slot
-                                .path
-                                .file_name()
-                                .unwrap_or_default()
-                                .to_string_lossy()
-                                .into_owned(),
-                        };
-                        if slot.opening == self.navigation && self.active.as_ref() == Some(key) {
-                            host.state.open(input);
-                        } else if !host.state.catalog.editors.iter().any(|e| e.id == input.id) {
-                            host.state.catalog.editors.push(input);
+                        // A hibernated or restored tab is in place already.
+                        slot.restored = false;
+                        if slot.rehydrating.take().is_none() {
+                            let input = Input {
+                                id: slot.key.clone(),
+                                label: slot
+                                    .path
+                                    .file_name()
+                                    .unwrap_or_default()
+                                    .to_string_lossy()
+                                    .into_owned(),
+                            };
+                            if slot.opening == self.navigation && self.active.as_ref() == Some(key)
+                            {
+                                host.state.open(input);
+                            } else if !host.state.catalog.editors.iter().any(|e| e.id == input.id) {
+                                host.state.catalog.editors.push(input);
+                            }
                         }
                         slot.admitted = true;
                     }
@@ -1043,7 +1112,7 @@ impl Runtime {
                     }
                     slot.reported_error = slot.files.error.clone();
                 } else if let Some(error) = &slot.files.error {
-                    if !slot.restoring && slot.reported_error.as_ref() != Some(error) {
+                    if !slot.restored && slot.reported_error.as_ref() != Some(error) {
                         self.error = Some(error.clone());
                         slot.reported_error = Some(error.clone());
                     }
@@ -1055,6 +1124,7 @@ impl Runtime {
                                     path,
                                     failed_at_navigation: Some(self.navigation),
                                     models: slot.files.take_document_models(),
+                                    restored: slot.restored,
                                 },
                             );
                         }
@@ -1087,10 +1157,6 @@ impl Runtime {
                         } else {
                             remove.push(*id);
                         }
-                    } else if slot.restoring {
-                        if host.restore.is_none() {
-                            remove.push(*id);
-                        }
                     } else if slot.rehydrating.take().is_some() {
                         if let Some(existing) = host
                             .state
@@ -1118,12 +1184,14 @@ impl Runtime {
                         host.state.catalog.editors.push(input);
                     }
                     slot.admitted = true;
-                    if !slot.restoring
-                        && let Some(vs) = host.view_states.get(&slot.key).cloned()
-                    {
+                    slot.restored = false;
+                    let admitted_path = slot.path.clone();
+                    if let Some(vs) = host.view_states.get(&slot.key).cloned() {
                         self.pending_view_restores.insert(*id, vs);
                     }
                     self.generation += 1;
+                    // Record after the slot borrow ends.
+                    admitted_recent.push(admitted_path);
                 }
                 if slot.closing && !slot.files.busy() && slot.files.opened().is_none() {
                     host.state.close(&slot.key);
@@ -1141,6 +1209,9 @@ impl Runtime {
             for id in remove {
                 host.slots.remove(&id);
             }
+            for path in admitted_recent {
+                host.record_recent(path);
+            }
             host.sync_panes();
         }
         if let Some(error) = self.scratch.error.take() {
@@ -1152,7 +1223,7 @@ impl Runtime {
             self.close_refused = true;
         }
         self.poll_mutations(wake);
-        self.poll_metadata(wake);
+        self.poll_metadata();
         if !self.quitting {
             self.enforce_slot_retention();
             self.rehydrate_visible_hibernated(wake);
@@ -1277,7 +1348,7 @@ impl Runtime {
             .map_or(0, |h| {
                 h.slots
                     .values()
-                    .filter(|s| s.admitted && !s.closing && !s.restoring)
+                    .filter(|s| s.admitted && !s.closing)
                     .count()
             })
     }
@@ -1290,7 +1361,7 @@ impl Runtime {
             .is_some_and(|h| h.hibernated.contains_key(resource_key))
     }
 
-    fn is_hibernated_or_loading(&self, resource_key: &str) -> bool {
+    pub fn is_hibernated_or_loading(&self, resource_key: &str) -> bool {
         self.active
             .as_ref()
             .and_then(|ws| self.hosts.get(ws))
@@ -1327,9 +1398,6 @@ impl Runtime {
         let Some(host) = self.hosts.get(&ws_key) else {
             return;
         };
-        if host.restore.is_some() {
-            return;
-        }
         let visible_keys: std::collections::HashSet<&str> = host
             .state
             .layout
@@ -1348,7 +1416,6 @@ impl Runtime {
                 visible: visible_keys.contains(slot.key.as_str()),
                 admitted: slot.admitted,
                 closing: slot.closing,
-                restoring: slot.restoring,
                 dirty: slot.files.dirty,
                 saving_or_busy: slot.files.saving() || slot.files.busy(),
                 cloud_conflict: slot.files.cloud_conflict(),
@@ -1372,10 +1439,12 @@ impl Runtime {
             let Some(mut slot) = host.slots.remove(&slot_id) else {
                 continue;
             };
-            let Some((_, path)) = slot.files.opened() else {
-                continue;
-            };
-            let rel = path.to_path_buf();
+            // A tab whose read failed keeps its file: it is read again when
+            // it shows.
+            let rel = slot
+                .files
+                .opened()
+                .map_or_else(|| slot.path.clone(), |(_, path)| path.to_path_buf());
             slot.files.pause_watch();
             let models = slot.files.take_document_models();
             self.composing_slots.remove(&slot_id);
@@ -1394,6 +1463,7 @@ impl Runtime {
                     path: rel,
                     failed_at_navigation: None,
                     models,
+                    restored: false,
                 },
             );
             self.generation += 1;
@@ -1408,17 +1478,17 @@ impl Runtime {
         let Some(ws_key) = self.active.clone() else {
             return;
         };
-        let visible_keys: Vec<String> = match self.hosts.get(&ws_key) {
-            Some(host) if host.restore.is_none() => host
-                .state
-                .layout
-                .root
-                .panes()
-                .into_iter()
-                .filter_map(|(_, k)| k.map(str::to_owned))
-                .collect(),
-            _ => return,
+        let Some(host) = self.hosts.get(&ws_key) else {
+            return;
         };
+        let visible_keys: Vec<String> = host
+            .state
+            .layout
+            .root
+            .panes()
+            .into_iter()
+            .filter_map(|(_, k)| k.map(str::to_owned))
+            .collect();
         for vis_key in visible_keys {
             let blocked_or_missing = {
                 let host = &self.hosts[&ws_key];
@@ -1458,7 +1528,7 @@ impl Runtime {
                     opening: self.navigation,
                     closing: false,
                     reported_error: None,
-                    restoring: false,
+                    restored: entry.restored,
                     rehydrating: Some(entry.path),
                     drop_target: None,
                 },
@@ -1471,7 +1541,6 @@ impl Runtime {
         host.slots.values().any(|slot| {
             !slot.admitted
                 || slot.closing
-                || slot.restoring
                 || slot.files.dirty
                 || slot.files.saving()
                 || slot.files.busy()
@@ -1493,7 +1562,6 @@ impl Runtime {
         }
         let can_unload = self.hosts.get(workspace_key).is_some_and(|host| {
             host.metadata_loaded
-                && host.restore.is_none()
                 && !Self::host_has_unsaved_or_busy_slots(host)
                 && !self.host_has_pending_mutations(workspace_key)
         });
@@ -1541,7 +1609,7 @@ impl Runtime {
             .map(|(key, host)| super::retention::BackgroundHostCandidate {
                 key: key.clone(),
                 active: self.active.as_ref() == Some(key),
-                restoring_or_loading_metadata: !host.metadata_loaded || host.restore.is_some(),
+                loading_metadata: !host.metadata_loaded,
                 has_unsaved_or_busy_slots: Self::host_has_unsaved_or_busy_slots(host),
                 has_pending_mutations: self.host_has_pending_mutations(key),
             })

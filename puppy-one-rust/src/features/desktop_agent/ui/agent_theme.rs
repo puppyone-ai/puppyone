@@ -17,8 +17,10 @@ pub struct AgentTheme {
     pub border_subtle: Rgba,
     pub control_surface: Rgba,
     pub composer_surface: Rgba,
+    pub composer_border: Rgba,
+    pub composer_border_focus: Rgba,
+    pub composer_placeholder: Rgba,
     pub user_message_surface: Rgba,
-    pub user_message_border: Rgba,
     pub row_hover: Rgba,
     pub tool_action: Rgba,
     pub tool_active: Rgba,
@@ -69,14 +71,26 @@ impl AgentTheme {
             border_subtle,
             control_surface,
             code_header_surface: crate::theme::alpha(control_surface, 0.3),
-            composer_surface: t.active,
-            user_message_surface: t.hover,
-            user_message_border: alpha(border_subtle, 0.62),
+            // Composer lifts cleanly above the sidebar via surface contrast and
+            // a crisp 1px border (no heavy drop shadow or outer focus halo);
+            // sent prompts stay quiet and borderless.
+            composer_surface: if t.dark {
+                mix(text, t.panel_raised, 0.04)
+            } else {
+                t.panel_raised
+            },
+            composer_border: alpha(text, if t.dark { 0.13 } else { 0.15 }),
+            composer_border_focus: alpha(text, if t.dark { 0.24 } else { 0.28 }),
+            composer_placeholder: mix(text_muted, t.subtle, 0.52),
+            user_message_surface: alpha(text, if t.dark { 0.04 } else { 0.045 }),
             row_hover: alpha(t.hover, 0.86),
-            tool_action: text_muted,
-            tool_active: mix(text, text_muted, 0.78),
+            // Tool steps are quiet process logs beneath the conversation:
+            // quiet icon, softly muted verb, and an even lighter subtle
+            // command/subject on the right (all sharpening on hover).
+            tool_action: mix(text_muted, t.subtle, 0.45),
+            tool_active: mix(text, text_muted, 0.65),
             tool_glyph: t.subtle,
-            tool_subject: mix(text, text_muted, 0.86),
+            tool_subject: t.subtle,
             evidence_rail: t.border_strong,
             inline_code_surface: mix(text, canvas, 0.08),
             inline_code_border: mix(text, canvas, 0.14),
@@ -92,13 +106,50 @@ impl AgentTheme {
             blocking_icon_surface: alpha(t.warning, 0.1),
             blocking_icon: mix(t.warning, text_muted, 0.62),
             accent: t.accent,
-            action_disabled_text: alpha(text, 0.48),
-            action_disabled_surface: alpha(text, 0.14),
+            action_disabled_text: t.text_disabled,
+            action_disabled_surface: alpha(text, if t.dark { 0.075 } else { 0.055 }),
             primary_hover: mix(text, canvas, 0.88),
             loader: t.muted,
             launcher_placeholder_surface: alpha(control_surface, 0.64),
             launcher_placeholder_text: alpha(t.subtle, 0.82),
             launcher_focus_border: mix(t.focus_ring, border_subtle, 0.58),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AgentTheme;
+    use crate::theme::pack_theme;
+
+    #[test]
+    fn composer_surface_respects_dark_and_light_polarity() {
+        let dark = pack_theme("default-neutral", true);
+        let dark_agent = AgentTheme::new(&dark);
+        let dark_lum = (dark_agent.composer_surface.r
+            + dark_agent.composer_surface.g
+            + dark_agent.composer_surface.b)
+            / 3.;
+        assert!(
+            dark_lum < 0.25,
+            "dark composer surface must stay dark, got {:?}",
+            dark_agent.composer_surface
+        );
+        assert!(
+            dark_lum > dark.auxiliary().r,
+            "dark composer surface should lift subtly above the dark sidebar"
+        );
+
+        let light = pack_theme("default-neutral", false);
+        let light_agent = AgentTheme::new(&light);
+        let light_lum = (light_agent.composer_surface.r
+            + light_agent.composer_surface.g
+            + light_agent.composer_surface.b)
+            / 3.;
+        assert!(
+            light_lum > 0.90,
+            "light composer surface must stay bright, got {:?}",
+            light_agent.composer_surface
+        );
     }
 }

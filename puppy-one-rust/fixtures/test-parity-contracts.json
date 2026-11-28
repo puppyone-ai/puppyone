@@ -22899,7 +22899,7 @@
     },
     {
       "id": "typography-font-roles",
-      "acceptance": "Typography preferences keep one font per role: the UI font is pinned to Geist Sans and legacy UI font choices are discarded; content follows the theme by default, and the legacy default font (Geist before version 3, the 'theme' id) migrates to following the theme while an explicit choice is kept; code defaults to Geist Mono and terminals to the system monospace stack; a font missing from the catalog, or one of the wrong role, resolves to that role's product font with the fallback recorded; changing the content font changes nothing else; and ids that are not catalog ids (CSS, URLs, paths) are refused before they reach the resolver.",
+      "acceptance": "Typography preferences keep one font per role: the UI font is pinned to the product default (the platform's system face in the native app, which bundles no fonts) and legacy UI font choices are discarded; content follows the theme by default, and the legacy default font (Geist before version 3, the 'theme' id, and in the native app every retired Geist id) migrates to following the theme while an explicit choice is kept; code defaults to the product's monospace (the system monospace stack natively) and terminals to the system monospace stack; a font missing from the catalog, or one of the wrong role, resolves to that role's product font with the fallback recorded; changing the content font changes nothing else; and ids that are not catalog ids (CSS, URLs, paths) are refused before they reach the resolver.",
       "typescript": [
         {
           "path": "tests/architecture/appearance/typography/typographyArchitecture.test.ts",
@@ -22931,7 +22931,7 @@
       "rust": [
         {
           "package": "po-ui",
-          "test": "typography::fonts::tests::the_product_defaults_are_geist_for_code_and_the_system_stack_for_terminals"
+          "test": "typography::fonts::tests::the_product_defaults_are_the_platform_faces"
         },
         {
           "package": "po-ui",
@@ -27196,7 +27196,7 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "app::tests::sign_in_dialog::place_menu_sign_in_opens_explainer_and_dismissals_never_start_oauth"
+          "test": "app::tests::sign_in_dialog::project_menu_sign_in_opens_explainer_and_dismissals_never_start_oauth"
         },
         {
           "package": "po-app",
@@ -28442,7 +28442,7 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "app::tests::cloud_share::the_agents_stand_in_the_header_and_open_their_dialog"
+          "test": "app::tests::cloud_share::the_agents_are_one_quiet_header_entry_with_their_list"
         }
       ]
     },
@@ -28678,12 +28678,12 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "app::tests::cloud_share::the_agents_stand_in_the_header_and_open_their_dialog"
+          "test": "app::tests::cloud_share::the_agents_are_one_quiet_header_entry_with_their_list"
         },
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "app::tests::cloud_share::a_face_shows_its_card_after_a_moment_and_never_over_a_request"
+          "test": "app::tests::cloud_share::the_entry_names_who_works_and_its_list_puts_them_first"
         },
         {
           "package": "po-app",
@@ -28776,12 +28776,7 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "app::cloud_agents_ui::tests::requests_lead_then_whoever_is_at_work_and_the_rest_rest"
-        },
-        {
-          "package": "po-app",
-          "target": "puppy-one-rust",
-          "test": "app::cloud_agents_ui::tests::each_mark_and_the_stack_are_named_as_a_person_reads_them"
+          "test": "app::cloud_agents_ui::tests::the_header_entry_says_who_works_and_who_asks"
         },
         {
           "package": "po-app",
@@ -28808,7 +28803,7 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "app::tests::cloud_share::the_agents_stand_in_the_header_and_open_their_dialog"
+          "test": "app::tests::cloud_share::the_agents_are_one_quiet_header_entry_with_their_list"
         },
         {
           "package": "po-app",
@@ -28818,7 +28813,7 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "app::tests::cloud_share::the_dialog_meets_everyone_in_one_grid_and_stays_when_the_last_one_goes"
+          "test": "app::tests::cloud_share::the_list_writes_nothing_until_asked_and_the_entry_stays_when_the_last_one_goes"
         },
         {
           "package": "po-app",
@@ -28877,12 +28872,12 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "app::tests::cloud_share::a_face_shows_its_card_after_a_moment_and_never_over_a_request"
+          "test": "app::tests::cloud_share::the_entry_names_who_works_and_its_list_puts_them_first"
         },
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "app::cloud_agents_ui::tests::a_card_says_when_it_worked_who_it_is_and_how_it_got_in"
+          "test": "app::cloud_agents_ui::tests::a_panel_row_keeps_status_and_access_concise"
         }
       ]
     },
@@ -28937,7 +28932,7 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "app::tests::cloud_share::the_dialog_meets_everyone_in_one_grid_and_stays_when_the_last_one_goes"
+          "test": "app::tests::cloud_share::the_list_writes_nothing_until_asked_and_the_entry_stays_when_the_last_one_goes"
         },
         {
           "package": "po-app",
@@ -29009,7 +29004,7 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "app::tests::cloud_share::the_agents_stand_in_the_header_and_open_their_dialog"
+          "test": "app::tests::cloud_share::the_agents_are_one_quiet_header_entry_with_their_list"
         },
         {
           "package": "po-app",
@@ -33392,7 +33387,7 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "app::tests::cloud_share::a_face_shows_its_card_after_a_moment_and_never_over_a_request"
+          "test": "app::tests::cloud_share::the_entry_names_who_works_and_its_list_puts_them_first"
         }
       ]
     },
@@ -33459,12 +33454,12 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "app::tests::window_chrome::the_place_menu_offers_home_the_places_and_the_account_or_sign_in"
+          "test": "app::tests::window_chrome::the_project_menu_holds_the_account_and_settings_or_sign_in"
         },
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "app::tests::window_chrome::a_place_opens_the_homepage_on_it_and_escape_closes_the_menu"
+          "test": "app::tests::window_chrome::the_space_menu_lists_its_projects_and_escape_closes_it"
         }
       ]
     },
@@ -39416,7 +39411,7 @@
     },
     {
       "id": "markdown-reading-weight-language",
-      "acceptance": "The reading weight follows the document's script before the interface locale: kana or hangul content reads as Japanese or Korean (normal weight) even under a Chinese interface, Han content takes the Han weight, and a document with no script signal follows the interface language.",
+      "acceptance": "The content language follows the document's script before the interface locale: kana or hangul content reads as Japanese or Korean even under a Chinese interface, Han content as Chinese, and a document with no script signal follows the interface language. (The native app reads every language at one body weight; the language picks the script fallback faces.)",
       "typescript": [
         {
           "path": "tests/unit/editor/formats/markdown/parsing/markdownContentLanguage.test.ts",
@@ -39436,7 +39431,7 @@
       "rust": [
         {
           "package": "po-editor",
-          "test": "editor::markdown::core::presentation::content_language::tests::reading_weight_follows_content_then_interface_and_stays_latched"
+          "test": "editor::markdown::core::presentation::content_language::tests::the_language_follows_content_then_interface_and_stays_latched"
         }
       ]
     },
@@ -45975,12 +45970,12 @@
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "app::tests::window_chrome::a_place_opens_the_homepage_on_it_and_escape_closes_the_menu"
+          "test": "app::tests::window_chrome::the_space_menu_lists_its_projects_and_escape_closes_it"
         },
         {
           "package": "po-app",
           "target": "puppy-one-rust",
-          "test": "app::tests::window_chrome::the_place_menu_offers_home_the_places_and_the_account_or_sign_in"
+          "test": "app::tests::window_chrome::the_project_menu_holds_the_account_and_settings_or_sign_in"
         },
         {
           "package": "po-app",
@@ -47708,7 +47703,7 @@
         },
         {
           "package": "po-ui",
-          "test": "ui::fonts::tests::the_interface_is_geist_and_system_keywords_never_enter_the_cascade"
+          "test": "ui::fonts::tests::the_interface_is_the_system_face_and_keywords_never_enter_the_cascade"
         },
         {
           "package": "po-ui",

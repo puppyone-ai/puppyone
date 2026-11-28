@@ -38,7 +38,7 @@ impl TranscriptView {
             ActivityView::Hidden => div().into_any_element(),
             ActivityView::ContextDivider(label) => context_divider(label.into(), &a),
             ActivityView::Notice { error, label } => h_flex()
-                .mx(px(4.))
+                .mx(px(10.))
                 .mb(px(6.))
                 .gap(px(6.))
                 .text_size(px(theme::ty().left.meta))
@@ -221,7 +221,7 @@ impl TranscriptView {
                     );
                     let chevron = Icon::new("chevron-right")
                         .with_size(px(13.))
-                        .stroke(2.)
+                        .stroke(1.85)
                         .color(a.tool_glyph)
                         .when(open, |icon| icon.rotate(std::f32::consts::FRAC_PI_2));
                     let (toggle, splice) = (key.clone(), row_id.to_string());

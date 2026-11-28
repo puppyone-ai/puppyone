@@ -883,13 +883,12 @@ fn view_action(
         .color(t.subtle)
         .rounded(px(metric::TOOLBAR_ACTION_RADIUS))
 }
-/// `.desktop-git-view-header`: `min-height: 36px; padding: 4px 10px 2px 14px`.
+/// `.desktop-git-view-header`: matches the 40px top bar centerline.
 fn view_header(t: Theme) -> Div {
     h_flex()
         .flex_shrink_0()
-        .min_h(px(36.))
-        .pt(px(4.))
-        .pb(px(2.))
+        .h(px(theme::HEADER))
+        .items_center()
         .pl(px(14.))
         .pr(px(10.))
         .gap(px(6.))
@@ -958,15 +957,15 @@ impl SourceControl {
             ' ' => change.index,
             other => other,
         };
-        // `getGitDisplayName`: `old -> new` for a rename (Geist draws the
-        // arrow ligature).
+        // `getGitDisplayName`: `old -> new` for a rename.
         let base = |p: &str| p.rsplit('/').next().unwrap_or(p).to_owned();
         let name = match change.original.as_deref().filter(|o| *o != change.path) {
             Some(old) => format!("{} -> {}", base(old), base(&change.path)),
             None => base(&change.path),
         };
         // `.desktop-working-tree-state` sits on the name's baseline; GPUI
-        // text has none to align to, so place it by Geist's metrics.
+        // text has none to align to, so place it by the product's line
+        // metrics (a 1.3 em line, a 1.005 em ascent).
         let baseline =
             |size: f32, line: f32| (line - size * theme::NORMAL_LINE_HEIGHT) / 2. + size * 1.005;
         let marker_top =
@@ -1784,7 +1783,7 @@ impl SourceControl {
                         .text_size(px(theme::ty().ui.meta))
                         .line_height(relative(theme::NORMAL_LINE_HEIGHT))
                         .text_color(color)
-                        .when(italic, |d| d.font_family(theme::SANS_ITALIC).italic())
+                        .when(italic, |d| d.italic())
                         .child(text),
                 )
         };

@@ -106,7 +106,7 @@ impl DocksView {
             let selector = format!("agent-approval-detail:{text}");
             div()
                 .debug_selector(move || selector)
-                .font_family(theme::MONO)
+                .font_family(theme::mono())
                 .text_size(px(m.right.code))
                 .line_height(px(m.right.code * 1.5))
                 .text_color(a.text_muted)

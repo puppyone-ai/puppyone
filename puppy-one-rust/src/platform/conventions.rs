@@ -110,6 +110,12 @@ pub struct Conventions {
     pub append_ui_font_fallbacks: bool,
     /// Ordered OS-native UI + CJK fallback font families.
     pub ui_font_fallbacks: &'static [&'static str],
+    /// The system family CSS `ui-monospace` names, if GPUI can load it by
+    /// name (macOS's SF Mono).
+    pub ui_monospace_font: Option<&'static str>,
+    /// The system family CSS `ui-serif` names, if GPUI can load it by name
+    /// (macOS's New York).
+    pub ui_serif_font: Option<&'static str>,
     /// Default built-in Git credential helper when no explicit helper is configured.
     pub default_git_credential_helper: Option<&'static str>,
     /// Native mechanism for starting the local host daemon at login.
@@ -156,6 +162,8 @@ impl Conventions {
                 has_macos_app_visibility_shortcuts: true,
                 append_ui_font_fallbacks: false,
                 ui_font_fallbacks: &["PingFang SC", "Hiragino Sans GB"],
+                ui_monospace_font: Some(".AppleSystemUIFontMonospaced"),
+                ui_serif_font: Some(".AppleSystemUIFontSerif"),
                 default_git_credential_helper: Some("osxkeychain"),
                 start_at_login_mechanism: StartAtLoginMechanism::LaunchAgent,
                 host_shell_kind: HostShellKind::PosixSh,
@@ -187,6 +195,8 @@ impl Conventions {
                 has_macos_app_visibility_shortcuts: false,
                 append_ui_font_fallbacks: true,
                 ui_font_fallbacks: &["Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei"],
+                ui_monospace_font: None,
+                ui_serif_font: None,
                 default_git_credential_helper: None,
                 start_at_login_mechanism: StartAtLoginMechanism::Unsupported,
                 host_shell_kind: HostShellKind::CmdExe,
@@ -218,6 +228,8 @@ impl Conventions {
                 has_macos_app_visibility_shortcuts: false,
                 append_ui_font_fallbacks: true,
                 ui_font_fallbacks: &["Noto Sans CJK SC", "Noto Sans", "DejaVu Sans"],
+                ui_monospace_font: None,
+                ui_serif_font: None,
                 default_git_credential_helper: None,
                 start_at_login_mechanism: StartAtLoginMechanism::Unsupported,
                 host_shell_kind: HostShellKind::PosixSh,
@@ -230,6 +242,16 @@ impl Conventions {
     /// Formats a primary-modifier shortcut label (e.g. `"⌘C"` on macOS, `"Ctrl+C"` elsewhere).
     pub fn format_primary_shortcut(&self, key: &str) -> String {
         format!("{}{key}", self.primary_modifier_symbol)
+    }
+
+    /// Optical vertical lift (px) for single-line Header text: on macOS GPUI
+    /// centers line boxes with `(ascent + descent) / 2`, which leaves SF Pro
+    /// glyphs ~1.5px below traffic lights and place icons.
+    pub const fn header_text_optical_y(self) -> f32 {
+        match self.os {
+            Os::Macos => -1.5,
+            Os::Windows | Os::Linux | Os::Other => 0.,
+        }
     }
 }
 
@@ -279,5 +301,9 @@ mod tests {
         assert_eq!(mac.reveal_label_key, "workspace.node.revealInFinder");
         assert_eq!(win.reveal_label_key, "native.desktop.showInExplorer");
         assert_eq!(linux.reveal_label_key, "native.desktop.showInFiles");
+
+        assert_eq!(mac.header_text_optical_y(), -1.5);
+        assert_eq!(win.header_text_optical_y(), 0.);
+        assert_eq!(linux.header_text_optical_y(), 0.);
     }
 }

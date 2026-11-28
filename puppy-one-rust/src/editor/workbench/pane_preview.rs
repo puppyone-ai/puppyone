@@ -90,7 +90,7 @@ impl PanePreview {
         window: &mut Window,
         cx: &mut App,
     ) -> Entity<Self> {
-        let pane = drag.pane.unwrap_or_default();
+        let pane = drag.resolved_pane().unwrap_or_default();
         let size = preview_size(f32::from(pane.size.width), f32::from(pane.size.height));
         let preview = cx.new(|_| Self {
             size,

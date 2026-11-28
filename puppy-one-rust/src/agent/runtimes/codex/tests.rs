@@ -9,6 +9,7 @@ use super::codex_history_reader::{
     request_codex_metadata_only_thread,
 };
 use super::codex_reference_input::build_codex_turn_input;
+use super::codex_standby::CodexStandbyPool;
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::application::tests_support::run_local;
 use crate::agent::runtime::agent_runtime_port::{
@@ -42,6 +43,8 @@ fn adapter_with_events(
         on_event,
         on_exit: Rc::new(|_| {}),
         on_session_persisted: None,
+        standby: None,
+        fast_model_list_timeout_ms: None,
     })
 }
 
@@ -1407,6 +1410,8 @@ fn live_codex_app_server_inspection() {
             on_event: Rc::new(|_| {}),
             on_exit: Rc::new(move |info| sink.borrow_mut().push(info)),
             on_session_persisted: None,
+            standby: None,
+            fast_model_list_timeout_ms: None,
         });
         let inspection = adapter.inspect().await.unwrap();
         crate::agent::runtime::agent_runtime_port::assert_agent_runtime_inspection(
@@ -1466,5 +1471,264 @@ fn late_interrupt_receipt_does_not_answer_the_next_turns_native_approval() {
         assert_eq!(connection.responses.borrow().len(), 1);
         assert_eq!(connection.responses.borrow()[0]["id"], 88);
         adapter.dispose().await.unwrap();
+    });
+}
+
+#[test]
+fn bootstrap_session_inspects_and_starts_or_resumes_thread_on_one_connection() {
+    run_local(async {
+        let spawns = Rc::new(std::cell::Cell::new(0usize));
+        let connection = FakeConnection::new();
+        connection.result(
+            "account/read",
+            json!({ "account": { "type": "chatgpt", "email": "dev@example.com", "planType": "plus" }, "requiresOpenaiAuth": true }),
+        );
+        connection.result(
+            "model/list",
+            json!({ "data": [{ "id": "gpt-5.4", "model": "gpt-5.4", "displayName": "GPT-5.4", "isDefault": true }] }),
+        );
+        connection.result(
+            "thread/start",
+            json!({ "thread": { "id": "thread-boot-1", "preview": "New", "createdAt": 1, "updatedAt": 1 } }),
+        );
+        let spawns_create = spawns.clone();
+        let conn_create = connection.clone();
+        let adapter = CodexAppServerAdapter::new(CodexAdapterOptions {
+            executable_path: "/usr/local/bin/codex".into(),
+            environment: Some(json!({})),
+            workspace_root: "/workspace".into(),
+            app_version: "test".into(),
+            spawner: None,
+            connection_factory: Some(Rc::new(move |_| {
+                spawns_create.set(spawns_create.get() + 1);
+                Ok(conn_create.clone()
+                    as Rc<dyn crate::agent::transports::rpc_connection::RpcConnection>)
+            })),
+            on_event: Rc::new(|_| {}),
+            on_exit: Rc::new(|_| {}),
+            on_session_persisted: None,
+            standby: None,
+            fast_model_list_timeout_ms: None,
+        });
+        assert!(adapter.implements("bootstrapSession"));
+        let booted = adapter
+            .bootstrap_session(json!({ "kind": "create", "model": "gpt-5.4" }))
+            .await
+            .unwrap();
+        assert_eq!(spawns.get(), 1);
+        assert_eq!(connection.requests_of("initialize").len(), 1);
+        assert_eq!(connection.requests_of("account/read").len(), 1);
+        assert_eq!(connection.requests_of("model/list").len(), 1);
+        assert_eq!(connection.requests_of("thread/start").len(), 1);
+        assert_eq!(
+            booted["providerSession"]["providerSessionId"],
+            "thread-boot-1"
+        );
+        assert_eq!(booted["inspection"]["models"][0]["model"], "gpt-5.4");
+        adapter.dispose().await.unwrap();
+
+        // Signed-out account must return providerSession: null without creating a thread.
+        let unauth_conn = FakeConnection::new();
+        unauth_conn.result(
+            "account/read",
+            json!({ "account": null, "requiresOpenaiAuth": true }),
+        );
+        unauth_conn.result(
+            "model/list",
+            json!({ "data": [{ "id": "gpt-5.4", "model": "gpt-5.4", "displayName": "GPT-5.4", "isDefault": true }] }),
+        );
+        let unauth_adapter = self::adapter(&unauth_conn);
+        let unauth_boot = unauth_adapter
+            .bootstrap_session(json!({ "kind": "create", "model": "gpt-5.4" }))
+            .await
+            .unwrap();
+        assert!(unauth_boot["providerSession"].is_null());
+        assert!(unauth_conn.requests_of("thread/start").is_empty());
+        unauth_adapter.dispose().await.unwrap();
+    });
+}
+
+#[test]
+fn slow_model_list_falls_back_to_cached_models_while_keeping_account_read_synchronous() {
+    run_local(async {
+        let dir = tempfile::tempdir().unwrap();
+        let cache_path = dir.path().join("codex-models-cache.json");
+        let pool = CodexStandbyPool::new(Some(cache_path.clone()));
+        pool.store_models(&[json!({
+            "id": "gpt-5.4-cached",
+            "model": "gpt-5.4-cached",
+            "displayName": "GPT-5.4 Cached",
+            "isDefault": true,
+            "variants": ["medium", "high"],
+            "defaultVariant": "medium",
+        })]);
+
+        // Reloading a fresh pool from disk must pick up the persisted catalog.
+        let reloaded = CodexStandbyPool::new(Some(cache_path));
+        assert_eq!(reloaded.cached_models().unwrap().len(), 1);
+
+        let connection = FakeConnection::new();
+        // Account check returns synchronously with signed-out state (must never be bypassed).
+        connection.result(
+            "account/read",
+            json!({ "account": { "type": "chatgpt", "email": "live@example.com" }, "requiresOpenaiAuth": true }),
+        );
+        let (tx, rx) = tokio::sync::oneshot::channel::<Value>();
+        let rx = RefCell::new(Some(rx));
+        connection.answer("model/list", move |_| {
+            let rx = rx.borrow_mut().take().unwrap();
+            Box::pin(async move {
+                let value = rx.await.unwrap();
+                Ok(value)
+            })
+        });
+
+        let adapter = CodexAppServerAdapter::new(CodexAdapterOptions {
+            executable_path: "/usr/local/bin/codex".into(),
+            environment: Some(json!({})),
+            workspace_root: "/workspace".into(),
+            app_version: "test".into(),
+            spawner: None,
+            connection_factory: Some(connection.factory()),
+            on_event: Rc::new(|_| {}),
+            on_exit: Rc::new(|_| {}),
+            on_session_persisted: None,
+            standby: Some(reloaded.clone()),
+            fast_model_list_timeout_ms: Some(25),
+        });
+        let started = std::time::Instant::now();
+        let inspection = adapter.inspect().await.unwrap();
+        assert!(started.elapsed() < std::time::Duration::from_secs(2));
+        assert_eq!(
+            inspection["account"]["account"]["email"],
+            "live@example.com"
+        );
+        assert_eq!(inspection["models"][0]["model"], "gpt-5.4-cached");
+
+        // When the slow live model/list eventually arrives in the background, it updates the cache.
+        tx.send(json!({
+            "data": [{ "id": "gpt-5.5-live", "model": "gpt-5.5-live", "displayName": "GPT-5.5 Live", "isDefault": true }]
+        }))
+        .unwrap();
+        for _ in 0..16 {
+            tokio::task::yield_now().await;
+        }
+        assert_eq!(
+            reloaded.cached_models().unwrap()[0]["model"],
+            "gpt-5.5-live"
+        );
+        adapter.dispose().await.unwrap();
+        reloaded.dispose_all().await.unwrap();
+    });
+}
+
+#[test]
+fn standby_handover_reuses_inspected_connection_exclusively_and_disposes_cleanly() {
+    run_local(async {
+        let pool = CodexStandbyPool::with_options(std::time::Duration::from_secs(30), 2, None);
+        let spawns = Rc::new(std::cell::Cell::new(0usize));
+        let connections: Rc<RefCell<Vec<Rc<FakeConnection>>>> = Rc::default();
+        let factory = {
+            let spawns = spawns.clone();
+            let connections = connections.clone();
+            Rc::new(move |_| {
+                spawns.set(spawns.get() + 1);
+                let conn = FakeConnection::new();
+                conn.result(
+                    "account/read",
+                    json!({ "account": { "type": "chatgpt" }, "requiresOpenaiAuth": true }),
+                );
+                conn.result(
+                    "model/list",
+                    json!({ "data": [{ "id": "gpt-5.4", "model": "gpt-5.4", "displayName": "GPT-5.4", "isDefault": true }] }),
+                );
+                conn.result(
+                    "thread/start",
+                    json!({ "thread": { "id": format!("thread-{}", spawns.get()), "preview": "S", "createdAt": 1, "updatedAt": 1 } }),
+                );
+                connections.borrow_mut().push(conn.clone());
+                Ok(conn as Rc<dyn crate::agent::transports::rpc_connection::RpcConnection>)
+            })
+        };
+        let make_adapter = |workspace: &str| {
+            CodexAppServerAdapter::new(CodexAdapterOptions {
+                executable_path: "/usr/local/bin/codex".into(),
+                environment: Some(json!({})),
+                workspace_root: workspace.into(),
+                app_version: "test".into(),
+                spawner: None,
+                connection_factory: Some(factory.clone()),
+                on_event: Rc::new(|_| {}),
+                on_exit: Rc::new(|_| {}),
+                on_session_persisted: None,
+                standby: Some(pool.clone()),
+                fast_model_list_timeout_ms: None,
+            })
+        };
+
+        // 1. Standalone inspect() followed by dispose() parks the initialized connection.
+        let inspector = make_adapter("/workspace-a");
+        inspector.inspect().await.unwrap();
+        inspector.dispose().await.unwrap();
+        assert_eq!(spawns.get(), 1);
+        assert_eq!(pool.len(), 1);
+        assert!(!connections.borrow()[0].closed.get());
+
+        // Unexpected server request while parked is cleanly rejected with -32601.
+        connections.borrow()[0].emit(request(json!({ "id": 77, "method": "unexpected/request" })));
+        assert_eq!(connections.borrow()[0].errors.borrow().len(), 1);
+        assert_eq!(connections.borrow()[0].errors.borrow()[0]["code"], -32601);
+
+        // 2. First session in /workspace-a claims the standby connection exclusively (0 new spawns, 0 extra initialize).
+        let session_a1 = make_adapter("/workspace-a");
+        let booted_a1 = session_a1
+            .bootstrap_session(json!({ "kind": "create", "model": "gpt-5.4" }))
+            .await
+            .unwrap();
+        assert_eq!(spawns.get(), 1);
+        assert_eq!(pool.len(), 0);
+        assert_eq!(connections.borrow()[0].requests_of("initialize").len(), 1);
+        assert_eq!(
+            booted_a1["providerSession"]["providerSessionId"],
+            "thread-1"
+        );
+
+        // 3. Second concurrent session in /workspace-a MUST get its own independent process (zero multiplexing).
+        let session_a2 = make_adapter("/workspace-a");
+        let booted_a2 = session_a2
+            .bootstrap_session(json!({ "kind": "create", "model": "gpt-5.4" }))
+            .await
+            .unwrap();
+        assert_eq!(spawns.get(), 2);
+        assert_eq!(
+            booted_a2["providerSession"]["providerSessionId"],
+            "thread-2"
+        );
+
+        // 4. Disposing session_a1 terminates ONLY its own process (not parked because thread_id is set) and leaves session_a2 alive.
+        session_a1.dispose().await.unwrap();
+        assert!(connections.borrow()[0].closed.get());
+        assert!(!connections.borrow()[1].closed.get());
+        assert_eq!(pool.len(), 0);
+        session_a2.dispose().await.unwrap();
+        assert!(connections.borrow()[1].closed.get());
+
+        // 5. Standby connection that exits unexpectedly is auto-evicted; dispose_all kills remaining parked processes.
+        let inspector_b = make_adapter("/workspace-b");
+        inspector_b.inspect().await.unwrap();
+        inspector_b.dispose().await.unwrap();
+        assert_eq!(pool.len(), 1);
+        let conn_b = connections.borrow()[2].clone();
+        conn_b.closed.set(true);
+        conn_b.emit(ConnectionEvent::Exit(json!({ "expected": false })));
+        assert_eq!(pool.len(), 0);
+
+        let inspector_c = make_adapter("/workspace-c");
+        inspector_c.inspect().await.unwrap();
+        inspector_c.dispose().await.unwrap();
+        assert_eq!(pool.len(), 1);
+        pool.dispose_all().await.unwrap();
+        assert_eq!(pool.len(), 0);
+        assert!(connections.borrow()[3].closed.get());
     });
 }

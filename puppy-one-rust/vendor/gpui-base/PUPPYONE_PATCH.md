@@ -1,6 +1,6 @@
 # gpui-base 0.8.0, patched for PuppyOne
 
-This is the crates.io release of `gpui-base` 0.8.0 with ten additions, used
+This is the crates.io release of `gpui-base` 0.8.0 with twelve additions, used
 through `[patch.crates-io]` in `puppy-one-rust/Cargo.toml`. Nothing else
 differs from the published source.
 
@@ -160,6 +160,18 @@ code run, and every place that adds `INLINE_CODE_PADDING` asks
 `TextViewStyle::with_link_underline(false)` leaves links without the
 underline (`link_underline` returns `None`). Unset, nothing changes. The
 Markdown editor sets both from its theme (`src/editor/view/editor.rs`).
+
+## The patch: inline code scale and bold weight
+
+The app sets text in the platform's own faces and bundles none, so it can no
+longer cancel Kit's inline-code size (0.875 of the text) or its bold mark
+(700) with purpose-built families. The product keeps inline code at the
+text size (`--po-md-inline-code-font-size` unset) and draws strong text at
+`--po-md-strong-weight` (600). `TextViewStyle::with_inline_code_scale` sets
+the code run's size fraction (`InlineHighlight::font_size_scale`, default
+0.875) and `TextViewStyle::with_bold_weight` the bold mark's weight (default
+bold); `mark_highlight` reads both. Unset, nothing changes. The Markdown
+editor sets 1 and 600 (`src/editor/view/editor.rs`).
 
 ## The patch: observed accessibility range values
 

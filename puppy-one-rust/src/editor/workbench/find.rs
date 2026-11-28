@@ -24,6 +24,8 @@ pub enum FindEvent {
 pub struct FindBar {
     input: Entity<TextInput>,
     pub open: bool,
+    /// Room reserved above the bar for floating pane chrome.
+    pub top_inset: f32,
     /// `EditorFindResult`.
     pub current: usize,
     pub total: usize,
@@ -52,6 +54,7 @@ impl FindBar {
         Self {
             input,
             open: false,
+            top_inset: 0.,
             current: 0,
             total: 0,
             dark,
@@ -151,7 +154,7 @@ impl Render for FindBar {
             .id("editor-find-widget")
             .occlude()
             .absolute()
-            .top(px(10.))
+            .top(px(10. + self.top_inset))
             .right(px(12.))
             .w(px(304.))
             .h(px(theme::control()))

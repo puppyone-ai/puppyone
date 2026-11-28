@@ -229,11 +229,11 @@ impl SettingsWorkspaceSurface {
         let text_input = |input: &Entity<crate::ui::form_input::TextInput>,
                           placeholder: String,
                           cx: &mut Context<Self>| {
-            input.update(cx, |i, _| {
+            input.update(cx, |i, cx| {
                 i.appearance = false;
                 i.prompt_text = Some((m.ui.meta, 17.));
                 i.placeholder_color = Some(|t| t.subtle);
-                i.set_placeholder(placeholder);
+                i.set_placeholder(placeholder, cx);
                 i.min_height = 17.;
             });
             div()
@@ -691,7 +691,7 @@ fn remote_row(
                     .unwrap_or_else(|| tr("settings.shared.notConfigured").into())
                     .into(),
             )
-            .font_family(theme::MONO)
+            .font_family(theme::mono())
             .text_color(t.text),
         )
         .when(push_differs, |d| {

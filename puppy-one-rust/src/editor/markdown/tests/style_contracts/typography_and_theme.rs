@@ -644,7 +644,7 @@ fn t3_math_00_prose_fonts_do_not_reach_math_render_requests() {
         let mermaid_req = mermaid::widget::request_for_tests("graph TD; A-->B", dark, scale, 1.0);
         let mermaid_payload = render_service::payload_for_tests(&mermaid_req);
         assert!(
-            mermaid_payload.contains("fontFamily") && mermaid_payload.contains("Geist"),
+            mermaid_payload.contains("fontFamily") && mermaid_payload.contains("system-ui"),
             "positive control: Mermaid payload must carry fontFamily (dark={dark}, scale={scale:?}): {mermaid_payload}"
         );
     }

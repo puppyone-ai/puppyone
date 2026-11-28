@@ -35,6 +35,9 @@ pub struct SessionPickers {
     active: Option<usize>,
     /// The keyboard is in the active option's submenu, on this child.
     sub: Option<usize>,
+    /// Open popover below trigger (`Anchor::TopLeft`) instead of above
+    /// (`Anchor::BottomLeft`), used when the composer sits in upper-middle Act 1.
+    anchor_below: bool,
     query: Entity<TextInput>,
     focus: FocusHandle,
     scroll: ScrollHandle,
@@ -57,10 +60,19 @@ impl SessionPickers {
             open: None,
             active: None,
             sub: None,
+            anchor_below: false,
             query,
             focus: cx.focus_handle(),
             scroll: ScrollHandle::new(),
         }
+    }
+    /// Controls whether dropdown popovers open below the trigger chip.
+    pub fn set_anchor_below(&mut self, below: bool) {
+        self.anchor_below = below;
+    }
+    /// Whether any parameter picker popover is currently open.
+    pub fn is_open(&self) -> bool {
+        self.open.is_some()
     }
     /// Dev captures: `id`'s picker shows open.
     #[cfg(feature = "dev-capture")]
@@ -112,22 +124,21 @@ impl SessionPickers {
         let searchable = control.options.len() > 6;
         let trigger_selector = format!("agent-picker-{id:?}");
         let label_selector = format!("agent-picker-{id:?}:{label}");
-        let trigger = div()
+        let trigger = h_flex()
             .id(SharedString::from(format!("agent-picker-{id:?}")))
             .debug_selector(move || trigger_selector)
-            .h(px(theme::control_compact()))
+            .h(px(22.))
             .px(px(6.))
-            .flex()
-            .items_center()
+            .gap(px(3.))
             .min_w_0()
             .max_w(px(width))
             .overflow_hidden()
-            .rounded(px(theme::metric::CONTROL_RADIUS))
+            .rounded(px(6.))
             .text_color(a.text_subtle)
             .when(disabled, |d| d.opacity(0.45))
             .when(!disabled, |d| {
                 d.cursor(theme::clickable_cursor())
-                    .hover(move |s| s.bg(a.row_hover))
+                    .hover(move |s| s.bg(a.row_hover).text_color(a.text))
                     .on_click(cx.listener(move |s, _, window, cx| {
                         if s.open == Some(id) {
                             s.close(cx);
@@ -151,21 +162,30 @@ impl SessionPickers {
                     .debug_selector(move || label_selector)
                     .min_w_0()
                     .truncate()
-                    .text_size(px(theme::ty().left.content))
-                    .line_height(px(theme::ty().left.line_height))
+                    .text_size(px(theme::ty().right.caption))
+                    .line_height(px(16.))
                     .child(label),
             )
-            // The picker's affordance: it switches between choices.
             .child(
-                Icon::new("chevrons-up-down")
-                    .with_size(px(11.))
-                    .stroke(1.8)
-                    .color(a.text_subtle)
-                    .flex_none(),
+                Icon::new("chevron-down")
+                    .with_size(px(10.5))
+                    .stroke(2.)
+                    .color(theme::alpha(a.text_subtle, 0.8)),
             );
         let mut root = div().relative().flex_shrink(1.).min_w_0().child(trigger);
         if open {
-            root = root.child(
+            let anchor_wrap = if self.anchor_below {
+                div().absolute().bottom_0().left_0().child(
+                    deferred(
+                        anchored()
+                            .anchor(Anchor::TopLeft)
+                            .offset(point(px(0.), px(4.)))
+                            .snap_to_window_with_margin(px(8.))
+                            .child(self.popover(control, cx)),
+                    )
+                    .with_priority(gpui_kit::base::POPUP_PRIORITY),
+                )
+            } else {
                 div().absolute().top_0().left_0().child(
                     deferred(
                         anchored()
@@ -174,9 +194,10 @@ impl SessionPickers {
                             .snap_to_window_with_margin(px(8.))
                             .child(self.popover(control, cx)),
                     )
-                    .with_priority(1),
-                ),
-            );
+                    .with_priority(gpui_kit::base::POPUP_PRIORITY),
+                )
+            };
+            root = root.child(anchor_wrap);
         }
         root.into_any_element()
     }

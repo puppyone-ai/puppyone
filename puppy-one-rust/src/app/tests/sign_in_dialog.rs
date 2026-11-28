@@ -159,10 +159,10 @@ fn header_sign_in_opens_explainer_switches_moments_and_completes_oauth(cx: &mut 
 }
 
 #[gpui::test]
-fn place_menu_sign_in_opens_explainer_and_dismissals_never_start_oauth(cx: &mut TestAppContext) {
+fn project_menu_sign_in_opens_explainer_and_dismissals_never_start_oauth(cx: &mut TestAppContext) {
     let (view, cx, control) = signed_out_shell(cx);
 
-    command(&view, cx, Command::LocationMenu);
+    command(&view, cx, Command::ProjectMenu);
     draw(cx);
     draw(cx);
     let label = crate::localization::t("cloud.auth.signIn");

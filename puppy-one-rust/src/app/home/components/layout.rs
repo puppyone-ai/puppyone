@@ -189,6 +189,7 @@ impl RenderOnce for OnboardingTelemetryDisclosure {
 type ProjectDragMoveHandler = Rc<dyn Fn(&DragMoveEvent<ProjectDrag>, &mut Window, &mut App)>;
 type WindowActionHandler = Rc<dyn Fn(&mut Window, &mut App)>;
 type FolderDropHandler = Rc<dyn Fn(&[PathBuf], &mut Window, &mut App)>;
+type ScrollWheelHandler = Rc<dyn Fn(&ScrollWheelEvent, &mut Window, &mut App)>;
 
 /// Outer `.onboarding-homepage-shell` + `.onboarding-homepage` surface shared
 /// by empty first-run and returning-user Projects Home.
@@ -199,6 +200,8 @@ pub(in crate::app::home) struct OnboardingHomeLayout {
     viewport_h: f32,
     error_width: f32,
     body: AnyElement,
+    canvas: Option<Rgba>,
+    overlays: Vec<AnyElement>,
     error: Option<SharedString>,
     intro_opacity: Option<f32>,
     show_telemetry_disclosure: bool,
@@ -206,6 +209,7 @@ pub(in crate::app::home) struct OnboardingHomeLayout {
     on_external_drag_enter: Option<WindowActionHandler>,
     on_external_drop: Option<FolderDropHandler>,
     on_external_drag_leave: Option<WindowActionHandler>,
+    on_scroll_wheel: Option<ScrollWheelHandler>,
 }
 
 impl OnboardingHomeLayout {
@@ -222,6 +226,8 @@ impl OnboardingHomeLayout {
             viewport_h,
             error_width,
             body: body.into_any_element(),
+            canvas: None,
+            overlays: Vec::new(),
             error: None,
             intro_opacity: None,
             show_telemetry_disclosure: false,
@@ -229,7 +235,27 @@ impl OnboardingHomeLayout {
             on_external_drag_enter: None,
             on_external_drop: None,
             on_external_drag_leave: None,
+            on_scroll_wheel: None,
         }
+    }
+
+    /// One flat colour for the whole page (a Space's unified tone).
+    pub fn canvas(mut self, canvas: Option<Rgba>) -> Self {
+        self.canvas = canvas;
+        self
+    }
+
+    pub fn overlays(mut self, overlays: Vec<AnyElement>) -> Self {
+        self.overlays = overlays;
+        self
+    }
+
+    pub fn on_scroll_wheel(
+        mut self,
+        handler: impl Fn(&ScrollWheelEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_scroll_wheel = Some(Rc::new(handler));
+        self
     }
 
     pub fn error(mut self, error: Option<String>) -> Self {
@@ -289,7 +315,7 @@ impl RenderOnce for OnboardingHomeLayout {
 
         at(Rect::new(0., 0., self.viewport_w, self.viewport_h))
             .id("homepage")
-            .bg(t.canvas)
+            .bg(self.canvas.unwrap_or(t.canvas))
             .flex()
             .flex_col()
             .items_center()
@@ -299,6 +325,10 @@ impl RenderOnce for OnboardingHomeLayout {
             .when(!has_projects, |d| d.justify_center().py(px(48.)))
             .px(px(pad))
             .child(page)
+            .children(self.overlays)
+            .when_some(self.on_scroll_wheel, |d, handler| {
+                d.on_scroll_wheel(move |event, window, cx| handler(event, window, cx))
+            })
             .when_some(self.on_project_drag_move, |d, handler| {
                 d.on_drag_move::<ProjectDrag>(move |event, window, cx| handler(event, window, cx))
             })

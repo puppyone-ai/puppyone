@@ -8,6 +8,7 @@ import {execFileSync} from 'node:child_process';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import {root, productRoot} from './product-bundle.mjs';
+import {systemFonts} from './system-fonts.mjs';
 
 // Where WebKit differs from the product's Chromium, bundles adapt the
 // engine, never the product code:
@@ -99,7 +100,8 @@ export async function bundleProductPage({name, entry, styles, workers = {}, base
     loader: {'.woff2': cssFonts === 'inline' ? 'dataurl' : 'empty', '.woff': 'empty', '.ttf': 'empty', '.svg': 'empty', '.png': 'empty'},
     external: ['/fonts/*', '/assets/*', ...cssExternal],
   });
-  files[`${name}.css`] = cssRewrite(css.outputFiles[0].text).replaceAll('url(/fonts/', 'url(fonts/').replaceAll('url("/fonts/', 'url("fonts/');
+  // The bundled faces become the system ones (`system-fonts.mjs`).
+  files[`${name}.css`] = systemFonts(cssRewrite(css.outputFiles[0].text)).replaceAll('url(/fonts/', 'url(fonts/').replaceAll('url("/fonts/', 'url("fonts/');
   inputs.push(...Object.keys(css.metafile.inputs));
   const sources = [...new Set(inputs)]
     .filter(p => !p.startsWith('<') && !p.startsWith('(disabled):') && p !== path.basename(entry) && !p.includes('node_modules/')).sort();

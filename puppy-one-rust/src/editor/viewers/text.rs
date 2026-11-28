@@ -356,6 +356,10 @@ impl ViewerSurface for TextSurface {
         self.editor.update(cx, |e, cx| e.set_chrome_inset(top, cx));
     }
 
+    fn supports_chrome_inset(&self) -> bool {
+        true
+    }
+
     fn scroll_state(&self, cx: &App) -> (f32, bool) {
         (self.editor.read(cx).scroll_top(), false)
     }

@@ -55,7 +55,7 @@ pub(super) fn table(
     let measure = |inlines: &[Inline], bold: bool, window: &mut Window| -> f32 {
         let text = plain(inlines);
         let font = Font {
-            family: "Geist".into(),
+            family: crate::theme::sans().into(),
             weight: if bold {
                 FontWeight::SEMIBOLD
             } else {

@@ -326,7 +326,7 @@ impl Render for Lab {
         let root = div()
             .track_focus(&self.focus)
             .size_full()
-            .font_family("Geist")
+            .font_family(crate::theme::sans())
             .font_weight(FontWeight::NORMAL)
             .text_size(px(theme::font_size(theme::FONT)))
             .text_color(t.text)

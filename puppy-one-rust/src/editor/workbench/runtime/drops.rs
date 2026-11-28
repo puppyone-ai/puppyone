@@ -83,7 +83,6 @@ impl Runtime {
             .values()
             .any(|slot| slot.admitted && slot.key == key)
         {
-            host.interact();
             host.state.open_at_edge(
                 Input {
                     id: key,

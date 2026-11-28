@@ -25,6 +25,8 @@ pub(in crate::app) enum Navigate {
     CreateSpace,
     OpenAccount,
     OpenSettings,
+    /// Settings on the open folder's own page (`Project`).
+    ProjectSettings,
     SignIn,
 }
 

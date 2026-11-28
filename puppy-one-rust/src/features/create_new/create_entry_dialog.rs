@@ -68,6 +68,10 @@ impl CreateEntryDialog {
             error: None,
         }
     }
+    #[cfg(test)]
+    pub fn kind(&self) -> Entry {
+        self.kind
+    }
     pub fn busy(&self) -> bool {
         self.busy
     }

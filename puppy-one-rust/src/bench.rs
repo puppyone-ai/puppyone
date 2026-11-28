@@ -93,21 +93,7 @@ pub fn app() -> TestAppContext {
     );
     app.update(|cx| {
         gpui_kit::init(cx);
-        cx.text_system()
-            .add_fonts(vec![
-                std::borrow::Cow::Borrowed(include_bytes!("../assets/Geist-Regular.ttf")),
-                std::borrow::Cow::Borrowed(include_bytes!("../assets/Geist-Medium.ttf")),
-                std::borrow::Cow::Borrowed(include_bytes!("../assets/Geist-SemiBold.ttf")),
-                std::borrow::Cow::Borrowed(include_bytes!("../assets/Geist-Bold.ttf")),
-                std::borrow::Cow::Borrowed(include_bytes!("../assets/OpenSans-Regular.ttf")),
-                std::borrow::Cow::Borrowed(include_bytes!("../assets/OpenSans-Bold.ttf")),
-                std::borrow::Cow::Borrowed(include_bytes!("../assets/OpenSans-Italic.ttf")),
-                std::borrow::Cow::Borrowed(include_bytes!("../assets/OpenSans-BoldItalic.ttf")),
-            ])
-            .unwrap();
-        cx.text_system()
-            .add_fonts(crate::editor::view::style::font_bytes())
-            .unwrap();
+        crate::theme::register_fonts(cx);
     });
     app
 }

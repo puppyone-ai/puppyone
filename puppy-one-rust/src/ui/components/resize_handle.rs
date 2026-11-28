@@ -6,11 +6,12 @@
 //! transparent (or [`rest`](ResizeHandle::rest)), takes
 //! `--po-pane-resizer-hover-color` under the pointer and the active colour
 //! with a 1px ring while dragged. A pane edge also paints the frame's own
-//! divider at the lane's start, the stroke beside it (`.po-pane-edge-chrome`).
+//! hairline divider near the lane's start, the stroke beside it
+//! (`.po-pane-edge-chrome`).
 //!
 //! The owner positions and sizes the lane (`Styled`) and runs the drag from
 //! [`on_drag_start`](ResizeHandle::on_drag_start).
-use crate::ui::appearance::ActiveAppearance;
+use crate::{theme, ui::appearance::ActiveAppearance};
 use gpui::{prelude::*, *};
 use gpui_kit::base::{Disableable, StyledExt as _};
 use std::rc::Rc;
@@ -25,6 +26,7 @@ pub struct ResizeHandle {
     axis: Axis,
     stroke: f32,
     divider: Option<Rgba>,
+    divider_at: f32,
     rest: Option<Rgba>,
     hover: Option<Rgba>,
     cursor: Option<CursorStyle>,
@@ -46,6 +48,7 @@ impl ResizeHandle {
             axis,
             stroke: 0.,
             divider: None,
+            divider_at: 0.,
             rest: None,
             hover: None,
             cursor: None,
@@ -61,10 +64,16 @@ impl ResizeHandle {
         self.stroke = offset;
         self
     }
-    /// The pane frame's own 1px edge, painted at the lane's start whatever
+    /// The pane frame's own hairline edge, painted at the lane's start (or
+    /// [`divider_at`](Self::divider_at)) whatever
     /// the state (`.po-pane-edge-chrome::before`).
     pub fn divider(mut self, color: Rgba) -> Self {
         self.divider = Some(color);
+        self
+    }
+    /// The divider's offset from the lane's start (default 0).
+    pub fn divider_at(mut self, offset: f32) -> Self {
+        self.divider_at = offset;
         self
     }
     /// The stroke at rest (default transparent).
@@ -137,15 +146,15 @@ impl RenderOnce for ResizeHandle {
         let grabbable = !self.disabled || self.resizing;
         let group = SharedString::from(format!("resize-handle-{}", self.id));
         let hover = self.hover.unwrap_or(t.pane_resizer_hover);
-        // A 1px line across the lane at `offset` from its start.
-        let line = move |offset: f32| {
+        // A `width` line across the lane at `offset` from its start.
+        let line = move |offset: f32, width: f32| {
             div()
                 .absolute()
                 .when(horizontal, |d| {
-                    d.top_0().bottom_0().left(px(offset)).w(px(1.))
+                    d.top_0().bottom_0().left(px(offset)).w(px(width))
                 })
                 .when(!horizontal, |d| {
-                    d.left_0().right_0().top(px(offset)).h(px(1.))
+                    d.left_0().right_0().top(px(offset)).h(px(width))
                 })
         };
         let cursor = self.cursor.unwrap_or(if horizontal {
@@ -170,9 +179,13 @@ impl RenderOnce for ResizeHandle {
                         .border_color(t.focus_ring),
                 )
             })
-            .children(self.divider.map(|color| line(0.).bg(color)))
+            .children(
+                self.divider.map(|color| {
+                    line(self.divider_at, theme::metric::SHELL_DIVIDER_WIDTH).bg(color)
+                }),
+            )
             .child(
-                line(self.stroke)
+                line(self.stroke, 1.)
                     .when_some(self.rest, |d, color| d.bg(color))
                     .when(self.resizing, |d| {
                         d.bg(t.pane_resizer_active).shadow(vec![BoxShadow {

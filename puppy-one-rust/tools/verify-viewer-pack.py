@@ -22,8 +22,11 @@ def main():
         raise RuntimeError(f'Pinned pack build failed; see {out / "package.log"}')
     if source_hashes() != before:
         raise RuntimeError('Pack packaging changed verified source files')
+    receipt = json.loads((ROOT / 'assets/web/excalidraw.json').read_text())
     spec = json.loads((ROOT / 'assets/web/excalidraw-fonts.json').read_text())
-    archive = ROOT / f'artifacts/viewer-packs/puppyone.excalidraw-{spec["version"]}.tar.gz'
+    key = f"{receipt['outputs']['excalidraw.js']}:{receipt['outputs']['excalidraw.css']}".encode('utf-8')
+    version = f"{spec['version']}-b{hashlib.sha256(key).hexdigest()[:12]}"
+    archive = ROOT / f'artifacts/viewer-packs/puppyone.excalidraw-{version}.tar.gz'
     required = [{
         'package': 'po-platform',
         'test': 'platform::viewer_packs::tests::the_actual_pinned_pack_installs_all_sdk_fonts_without_network_fallback',

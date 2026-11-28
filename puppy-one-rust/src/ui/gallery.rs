@@ -186,7 +186,7 @@ impl Render for Gallery {
             .p(px(28.))
             .bg(t.sidebar)
             .text_color(t.text)
-            .font_family("Geist")
+            .font_family(crate::theme::sans())
             .text_size(px(14.))
             .child(section(
                 "Button",

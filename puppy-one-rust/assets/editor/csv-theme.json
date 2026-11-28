@@ -465,7 +465,7 @@
      "en": 400,
      "zh-Hans": 400
     },
-    "fontFamily": "\"Geist Sans\", ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
+    "fontFamily": "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
     "fontSize": "12px",
     "fontWeight": "400",
     "lineHeight": "17.4px",
@@ -799,7 +799,7 @@
      "en": 400,
      "zh-Hans": 400
     },
-    "fontFamily": "\"Geist Sans\", ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
+    "fontFamily": "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
     "fontSize": "13px",
     "fontWeight": "400",
     "lineHeight": "18.85px",
@@ -1133,7 +1133,7 @@
      "en": 400,
      "zh-Hans": 400
     },
-    "fontFamily": "\"Geist Sans\", ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
+    "fontFamily": "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
     "fontSize": "14px",
     "fontWeight": "400",
     "lineHeight": "20.3px",
@@ -1467,7 +1467,7 @@
      "en": 400,
      "zh-Hans": 400
     },
-    "fontFamily": "\"Geist Sans\", ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
+    "fontFamily": "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
     "fontSize": "12px",
     "fontWeight": "400",
     "lineHeight": "17.4px",
@@ -1801,7 +1801,7 @@
      "en": 400,
      "zh-Hans": 400
     },
-    "fontFamily": "\"Geist Sans\", ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
+    "fontFamily": "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
     "fontSize": "13px",
     "fontWeight": "400",
     "lineHeight": "18.85px",
@@ -2135,7 +2135,7 @@
      "en": 400,
      "zh-Hans": 400
     },
-    "fontFamily": "\"Geist Sans\", ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
+    "fontFamily": "ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", ui-sans-serif, system-ui, -apple-system, \"system-ui\", \"Segoe UI\", \"Apple Color Emoji\", \"Segoe UI Emoji\", \"Noto Color Emoji\", sans-serif",
     "fontSize": "14px",
     "fontWeight": "400",
     "lineHeight": "20.3px",

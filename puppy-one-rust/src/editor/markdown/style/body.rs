@@ -22,7 +22,9 @@ impl BodyStyle {
         Self {
             text: TextStyle {
                 size,
-                weight: t.number("--po-md-content-weight"),
+                // `--po-md-content-weight` is the product's Geist-tuned
+                // reading weight; the platform faces read at their Regular.
+                weight: crate::editor::view::style::READING_WEIGHT,
                 italic: false,
                 mono: false,
                 color: t.color("--po-md-content-color"),

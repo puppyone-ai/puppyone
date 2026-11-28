@@ -7,6 +7,7 @@
 //! `node-menu:<path>` (the row's "⋮"), `create-menu:<path>` (the row's "+"),
 //! `new-menu` (list-end "New"), `context:<x>,<y>` (right click),
 //! `submenu` (Custom files), `project-menu`, `location-menu`, `changes`,
+//! `hidden-header` (the window without the Header, experimental),
 //! `agent`, `toggle-explorer`, `home`, `remember:<absolute path>` and
 //! `forget:<absolute path>` (a recent project), `create-project:<name>`
 //! (the create dialog with a fixed name), `git-diff:<path>` /
@@ -21,8 +22,9 @@
 //! link's card, with `PUPPYONE_TEMPLATE_LAB`), `agents-fixture` /
 //! `agents-fixture:<roster|empty|invite|invite-connecting>` (the Cloud Header with fixture Agents,
 //! nobody asking to join, or nobody yet; `invite`: nobody until the message
-//! goes out, then Claude Code asks to join), `agents:<more|invite|agent id>` (their dialog), `agent-card:<id>`
-//! (the card under a Header face), `agents-copy` (the invite copied),
+//! goes out, then Claude Code asks to join), `agents:<more|invite>` (their dialog), `agents-panel`
+//! (the list under the Header's Agents entry), `computer-peek` (the Header
+//! Computer button's live preview), `agents-copy` (the invite copied),
 //! `agents-allow` (the first asking Agent let in), `agents-lapse` (the
 //! message lapsed), `agents-overdue` (the Agent let in has not connected in time),
 //! `agent-chat:<runtime id>` (a new chat on a detected
@@ -30,7 +32,8 @@
 //! `agent-prompt:<text>` (the chat sends it), `agent-idle` (no turn
 //! running), `agent-model:<text>` (the chat picks the model whose route or
 //! name contains it), `agent-turns:<n>` (n turns settled), `agent-history` (History with discovery allowed) and
-//! `agent-history-open` (its first chat opens), `scroll-x:<by>,<x>,<y>` (a
+//! `agent-history-open` (its first chat opens), `scroll-y:<by>,<x>,<y>` (a
+//! wheel at a window point), `scroll-x:<by>,<x>,<y>` (a
 //! horizontal wheel at a window point), and in a file window `file-menu:<view|settings>` (a
 //! title bar menu), `file-edit` (a space typed at the end of the first
 //! line) and `blur` (focus leaves the document). The capture waits
@@ -70,12 +73,17 @@ enum Step {
     /// A horizontal wheel scroll of this many pixels right at a window point
     /// (`scroll-x:<by>,<x>,<y>`: a wide table's own scrolling).
     ScrollX(f32, f32, f32),
+    /// A wheel scroll of this many pixels down at a window point
+    /// (`scroll-y:<by>,<x>,<y>`: a list other than the editor).
+    ScrollY(f32, f32, f32),
     /// A left click at a window point.
     Click(f32, f32),
     /// The Sub Theme for both colour modes.
     Pack(String),
     /// The colour mode (`dark` or `light`), switched while the window runs.
     Mode(bool),
+    /// `hidden-header`: the window without the Header (experimental).
+    HiddenHeader,
     /// The pointer moved to a window point.
     Move(f32, f32),
     /// The left button pressed / released at a window point (a drag is
@@ -110,10 +118,12 @@ enum Step {
     /// `agents-fixture[:roster|empty]`: a hosted project's Agents, one
     /// asking to join; nobody asking; or nobody yet.
     AgentsFixture(String),
-    /// `agents:<opener>`: the Agents dialog, opened from a mark.
+    /// `agents:<opener>`: the Agents dialog (`more` its roster, `invite` the invite).
     Agents(String),
-    /// `agent-card:<id>`: the card under a Header face.
-    AgentCard(String),
+    /// `agents-panel`: the list under the Header's Agents entry.
+    AgentsPanel,
+    /// `computer-peek`: the Header Computer button's live preview.
+    ComputerPeek,
     /// `agents-copy`: the message copied; the invite waits for the Agent.
     AgentsCopy,
     /// `agents-allow`: the first Agent asking to join is let in.
@@ -181,16 +191,21 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "home" => Step::Command(crate::app::Command::Home),
                 "wait" => Step::Wait(arg.trim().parse().ok()?),
                 "scroll" => Step::Scroll(arg.trim().parse().ok()?),
-                "scroll-x" => {
+                "scroll-x" | "scroll-y" => {
                     let n: Vec<f32> = arg
                         .split(',')
                         .map(|v| v.trim().parse().ok())
                         .collect::<Option<_>>()?;
                     let [by, x, y] = n[..] else { return None };
-                    Step::ScrollX(by, x, y)
+                    if name == "scroll-x" {
+                        Step::ScrollX(by, x, y)
+                    } else {
+                        Step::ScrollY(by, x, y)
+                    }
                 }
                 "pack" => Step::Pack(arg.trim().to_owned()),
                 "mode" => Step::Mode(arg.trim() == "dark"),
+                "hidden-header" => Step::HiddenHeader,
                 "click" | "move" | "press" | "release" => {
                     let n: Vec<f32> = arg
                         .split(',')
@@ -217,7 +232,8 @@ fn parse(text: &str) -> VecDeque<Step> {
                 "pin" => Step::Pin(path()),
                 "agents-fixture" => Step::AgentsFixture(arg.to_string()),
                 "agents" => Step::Agents(arg.to_string()),
-                "agent-card" => Step::AgentCard(arg.to_string()),
+                "agents-panel" => Step::AgentsPanel,
+                "computer-peek" => Step::ComputerPeek,
                 "agents-copy" => Step::AgentsCopy,
                 "agents-allow" => Step::AgentsAllow,
                 "agents-lapse" => Step::AgentsLapse,
@@ -455,11 +471,16 @@ impl Shell {
                     cx,
                 );
             }
-            Step::ScrollX(by, x, y) => {
+            Step::ScrollX(by, x, y) | Step::ScrollY(by, x, y) => {
+                let delta = if matches!(step, Step::ScrollX(..)) {
+                    point(px(-*by), px(0.))
+                } else {
+                    point(px(0.), px(-*by))
+                };
                 window.dispatch_event(
                     PlatformInput::ScrollWheel(ScrollWheelEvent {
                         position: point(px(*x), px(*y)),
-                        delta: ScrollDelta::Pixels(point(px(-*by), px(0.))),
+                        delta: ScrollDelta::Pixels(delta),
                         modifiers: Modifiers::default(),
                         touch_phase: TouchPhase::Moved,
                     }),
@@ -742,6 +763,9 @@ impl Shell {
                     .store
                     .update(cx, |p, cx| p.change(|p| p.theme_mode = mode, cx))
             }
+            Step::HiddenHeader => self.prefs.store.update(cx, |p, cx| {
+                p.change(|p| p.experimental.hidden_header = true, cx)
+            }),
             Step::Pack(id) => self.prefs.store.update(cx, |p, cx| {
                 p.change(
                     |p| {
@@ -833,19 +857,28 @@ impl Shell {
                     return false;
                 }
                 let opener = match opener.as_str() {
-                    "more" => Opener::More,
                     "invite" => Opener::Invite,
-                    id => Opener::Agent(id.to_owned()),
+                    _ => Opener::More,
                 };
                 self.cloud
                     .update(cx, |c, cx| c.press_agents(opener, window, cx));
             }
-            Step::AgentCard(id) => {
-                if !self.cloud.read(cx).agents.read(cx).manageable {
+            Step::AgentsPanel => {
+                let agents = self.cloud.read(cx).agents.read(cx);
+                if !agents.manageable || agents.agents.is_empty() {
                     return false;
                 }
                 self.cloud.update(cx, |c, cx| {
-                    c.agent_cards.shown = Some(id.clone());
+                    c.agents_panel = true;
+                    cx.notify()
+                });
+            }
+            Step::ComputerPeek => {
+                if !self.cloud.read(cx).screen.read(cx).entry_available(cx) {
+                    return false;
+                }
+                self.cloud.update(cx, |c, cx| {
+                    c.computer_peek = true;
                     cx.notify()
                 });
             }

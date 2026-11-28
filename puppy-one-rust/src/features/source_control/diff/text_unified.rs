@@ -99,7 +99,7 @@ pub(super) fn line(line: &DiffLine, p: &DiffPalette, density: super::Density) ->
         .min_h(px(18.))
         .bg(bg)
         .text_color(fg)
-        .font_family(theme::MONO)
+        .font_family(theme::mono())
         .text_size(px(density.code_size()))
         .line_height(px(18.))
         .child(
@@ -115,12 +115,13 @@ pub(super) fn line(line: &DiffLine, p: &DiffPalette, density: super::Density) ->
                 .child(number.map(|n| n.to_string()).unwrap_or_default()),
         )
         .child(
-            // `font-weight: 650` on the mono face: its 600 instance.
+            // `font-weight: 650` on the mono face: its Semibold.
             div()
                 .w(px(18.))
                 .flex_shrink_0()
                 .text_center()
-                .font_family("PuppyOne Geist Mono 600")
+                .font_family(theme::mono())
+                .font_weight(crate::editor::view::style::face_weight(650.))
                 .text_color(prefix_color)
                 .child(prefix),
         )

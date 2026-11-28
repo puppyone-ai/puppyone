@@ -56,8 +56,8 @@ fn the_homepage_lists_a_linked_folder_and_its_cloud_project_as_two_entries(
             p.state.remember_project(&linked, 1);
         });
         s.refresh_cloud_catalog(true, cx);
-        // The Header project menu hydrates the same list as the Homepage.
-        s.set_popover(Some(Popover::Project), cx);
+        // The Header space menu hydrates the same list as the Homepage.
+        s.set_popover(Some(Popover::Place), cx);
     });
     cx.update(|_, cx| {
         crate::features::cloud::account::install_fixture(broker, browser, cx);
@@ -1097,9 +1097,13 @@ fn projects_home_toolbar_and_agent_start_create_blank_project_with_seeded_chat(
         s.session
             .project
             .update(cx, |p, _| p.record.fixture = false);
-        s.prefs
-            .store
-            .update(cx, |p, _| p.state.remember_project(&existing, 1));
+        s.prefs.store.update(cx, |p, _| {
+            p.state.experimental.home_space_layout =
+                crate::features::settings::HomeSpaceLayout::Classic;
+            p.state.experimental.hide_home_view_controls = false;
+            p.state.experimental.start_with_agent = true;
+            p.state.remember_project(&existing, 1);
+        });
         s.home.update(cx, |h, _| {
             h.discovery.local_agents_override = Some(all_local);
             h.discovery.cloud_details_override = true;
@@ -1690,12 +1694,8 @@ fn project_actions_take_the_keyboard_from_their_button_and_give_it_back(cx: &mut
     assert!(trigger_focused(cx, &trigger));
     // A press elsewhere closes the menu and leaves focus where it landed.
     let trigger = open_actions(&view, cx);
-    let elsewhere = cx.debug_bounds("home-view-controls").unwrap();
-    cx.simulate_mouse_down(
-        elsewhere.origin - point(px(40.), px(0.)),
-        MouseButton::Left,
-        Modifiers::default(),
-    );
+    let elsewhere = cx.debug_bounds("home-arc-head").unwrap();
+    cx.simulate_mouse_down(elsewhere.center(), MouseButton::Left, Modifiers::default());
     draw(cx);
     assert!(!actions_open(&view, cx));
     assert!(!trigger_focused(cx, &trigger));
@@ -1962,7 +1962,15 @@ fn homepage_view_menus_start_on_the_current_choice_and_answer_the_same_keys(
     let (view, cx, _temp) = homepage_with_actions(cx);
     view.update(cx, |s, cx| {
         s.prefs.store.update(cx, |p, cx| {
-            p.change(|p| p.homepage_project_sort = HomepageSort::Name, cx)
+            p.change(
+                |p| {
+                    p.experimental.home_space_layout =
+                        crate::features::settings::HomeSpaceLayout::Classic;
+                    p.experimental.hide_home_view_controls = false;
+                    p.homepage_project_sort = HomepageSort::Name;
+                },
+                cx,
+            )
         })
     });
     draw(cx);

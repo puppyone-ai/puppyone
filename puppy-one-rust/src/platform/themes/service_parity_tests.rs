@@ -517,8 +517,8 @@ fn the_starter_markdown_profile_is_complete_and_edits_load_without_a_rewrite() {
             "--po-md-inline-code-background: #e1d2c3;",
         )
         .replace(
-            "--po-md-code-font: \"Geist Mono\"",
-            "--po-md-code-font: \"Example Mono\"",
+            "--po-md-code-font: ui-monospace",
+            "--po-md-code-font: \"Example Mono\", ui-monospace",
         );
     assert_ne!(edited, source);
     std::fs::write(&created.path, &edited).unwrap();

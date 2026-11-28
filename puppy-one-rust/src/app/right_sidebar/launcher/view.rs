@@ -1,26 +1,25 @@
-//! Port of `AuxiliaryWorkbenchLauncher` / `TerminalLauncher` (chat mode) with
-//! `auxiliary-workbench-launcher.css`: detected local agents, then the bundled
-//! Built-in Agent, then Terminal, inside a bordered group whose heading and
-//! History control sit on its top border. Right-click an Agent to run its CLI
-//! in a terminal instead of Chat.
+//! L1 composer-first launcher layout composition for the right sidebar:
+//! hero composer card (`composer.rs`), delayed discovery feedback, local Agent
+//! setup suggestions, recent sessions when history is permitted, and quiet
+//! bottom utility actions (Terminal, History, Scan again).
 use super::*;
-use crate::ui::appearance::ActiveAppearance;
-use crate::{
-    localization::t as tr,
-    theme,
-    ui::agent_brand_mark::{LauncherIdentity, launcher_icon},
-    ui::components::{AnchoredMenu, IconButton, Menu, MenuItem, Spinner},
+use crate::features::desktop_agent::{
+    AgentTheme, create_agent_chat_history_target, format_history_date,
 };
-use gpui_kit::base::{Disableable as _, h_flex, v_flex};
+use crate::localization::{Arg, bidi_isolate, t as tr, tf};
+use crate::theme;
+use crate::ui::agent_brand_mark::{AgentMark, monochrome_mark};
+use crate::ui::appearance::ActiveAppearance;
+use crate::ui::components::{Icon, Spinner, tooltip};
+use crate::ui::resource_drag::ResourceDrag;
+use gpui_kit::base::{h_flex, v_flex};
+use gpui_kit::component::Sizable as _;
 
-/// `.desktop-terminal-launcher-content`: `min(100%, 252px)`, 264px from a 460px container.
+/// Responsive L1 stage width inside the right sidebar (16px horizontal gutter).
 fn content_width(container: f32) -> f32 {
-    if container >= 460. {
-        264.
-    } else {
-        container.min(252.)
-    }
+    (container - 32.).clamp(220., 380.)
 }
+
 /// Discovery feedback appears only after 200ms (`useDelayedDiscoveryFeedback`).
 const FEEDBACK_DELAY: std::time::Duration = std::time::Duration::from_millis(200);
 
@@ -40,6 +39,7 @@ impl WorkbenchLauncher {
             "terminal.launcher.detecting"
         })
     }
+
     /// `availabilityMessage`, the launcher's polite status: what discovery
     /// is doing once its feedback shows, then that it finished — unless it
     /// failed or found no Agent, which it never announces.
@@ -58,33 +58,35 @@ impl WorkbenchLauncher {
         let found = self.installations.iter().any(|i| !i.bundled());
         (!failed && found).then_some("terminal.launcher.detectionComplete")
     }
-    /// A launcher row's focus, kept by its Agent: a row stays focused while
-    /// discovery adds rows around it.
-    fn row_focus(&mut self, group: Id, id: &'static str, cx: &mut Context<Self>) -> FocusHandle {
-        self.row_focus
-            .entry((group, id))
-            .or_insert_with(|| cx.focus_handle())
-            .clone()
-    }
-    /// `onReturnToLauncher`: the launcher's first usable Agent — detected,
-    /// else bundled — or else its heading takes the keyboard.
+
+    /// `onReturnToLauncher`: when a setup dialog closes, return keyboard focus
+    /// to the launcher's hero composer (when an Agent is usable) or else its
+    /// non-tab-stop heading.
     pub(super) fn return_focus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let group = self
-            .setup_group
-            .filter(|group| self.heading_focus.contains_key(group))
-            .or_else(|| self.heading_focus.keys().min().copied());
-        let Some(group) = group else {
+        let slot = self
+            .setup_slot
+            .filter(|slot| self.pages.contains_key(slot))
+            .or_else(|| self.pages.keys().min().copied());
+        let Some(slot) = slot else {
             return;
         };
-        let target = self
-            .return_targets
-            .get(&group)
-            .and_then(|targets| targets.first())
-            .or_else(|| self.heading_focus.get(&group));
-        if let Some(target) = target.cloned() {
+        let can_chat = self
+            .workbench
+            .upgrade()
+            .is_none_or(|w| w.read(cx).can_create(ItemKind::Chat));
+        let target = if can_chat && self.active_installation().is_some() {
+            self.pages
+                .get(&slot)
+                .and_then(|p| p.input.as_ref().map(|i| i.focus_handle(cx)))
+        } else {
+            None
+        }
+        .or_else(|| self.pages.get(&slot).map(|p| p.heading_focus.clone()));
+        if let Some(target) = target {
             target.focus(window, cx);
         }
     }
+
     /// The launcher's setup section, narrowed to this launcher's surface and
     /// the detected Agents.
     fn setup_section(
@@ -123,285 +125,359 @@ impl WorkbenchLauncher {
         });
         section.update(cx, |s, cx| s.visible(cx)).then_some(section)
     }
-    /// `.desktop-terminal-launcher-tool` / `-shell`: a full-width, start-aligned row.
-    fn launcher_row(
-        &self,
+
+    /// Quiet bottom utility action button (`Terminal`, `History`).
+    fn footer_button(
         id: ElementId,
-        identity: LauncherIdentity,
-        label: SharedString,
-        group: SharedString,
-        available: bool,
+        selector: &'static str,
+        icon: &'static str,
+        label: &'static str,
+        disabled: bool,
         cx: &App,
     ) -> gpui_kit::base::Button {
         let t = cx.palette();
-        let m = theme::ty();
+        let a = AgentTheme::new(&t);
         gpui_kit::base::Button::new(id)
-            .accessibility_label(format!("{}: {label}", tr("terminal.launcher.title")))
-            .group(group.clone())
-            .w_full()
-            .min_h(px(theme::control_large()))
-            .justify_start()
-            .gap(px(9.))
-            .px(px(8.))
-            .py(px(5.))
-            .border_1()
-            .border_color(theme::alpha(t.border, 0.))
-            .rounded(px(theme::metric::CONTROL_RADIUS))
-            .text_color(t.muted)
-            // `:disabled`: a contribution at its `maximumItems`.
-            .disabled(!available)
-            .when(available, |b| {
-                b.cursor(theme::navigation_cursor())
-                    .hover(move |b| b.bg(t.hover).text_color(t.text))
+            .accessibility_label(label)
+            .debug_selector(move || selector.into())
+            .h(px(26.))
+            .px(px(7.))
+            .gap(px(6.))
+            .rounded(px(7.))
+            .text_size(px(12.))
+            .line_height(px(16.))
+            .text_color(t.subtle)
+            .disabled(disabled)
+            .when(disabled, |b| b.opacity(0.45))
+            .when(!disabled, |b| {
+                b.cursor(theme::clickable_cursor())
+                    .hover(move |s| s.bg(t.hover).text_color(a.text_muted))
             })
-            .when(!available, |b| b.opacity(0.52))
             .child(
-                launcher_icon(identity, false, t.dark, t.muted)
-                    .group_hover(group, |s| s.opacity(1.)),
+                Icon::new(icon)
+                    .with_size(px(13.))
+                    .stroke(1.75)
+                    .color(theme::alpha(t.subtle, 0.85)),
             )
-            .child(
-                div()
-                    .min_w_0()
-                    .text_size(px(m.right.content))
-                    .line_height(px(m.right.control_line_height))
-                    .truncate()
-                    .child(label),
+            .child(label)
+    }
+
+    /// Recent sessions list shown beneath the hero composer when history is
+    /// permitted and cached sessions exist.
+    fn render_recent_sessions(
+        &self,
+        slot: LauncherSlot,
+        group: Id,
+        tab: Option<Id>,
+        recent: &[crate::agent::contract::dto::SessionMetadata],
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        if recent.is_empty() {
+            return None;
+        }
+        let key_id = slot.element_key();
+        let t = cx.palette();
+        let a = AgentTheme::new(&t);
+        let row_hover_ink = theme::mix(a.text, a.text_muted, 0.55);
+        let mut list = v_flex().w_full().gap(px(1.));
+        for (index, session) in recent.iter().enumerate() {
+            let icon_key = session
+                .runtime
+                .as_ref()
+                .and_then(|r| r.icon_key.as_deref())
+                .or(session.runtime_id.as_deref())
+                .unwrap_or("");
+            let mark = AgentMark::from_icon_key(icon_key);
+            let title = if session.title.trim().is_empty() {
+                tr("agent.header.newChat").to_string()
+            } else {
+                session.title.clone()
+            };
+            let updated = (session.updated_at_known != Some(false))
+                .then_some(session.updated_at.as_str())
+                .filter(|at| !at.is_empty())
+                .and_then(crate::clock::date_parse)
+                .map(format_history_date)
+                .unwrap_or_default();
+            let target = create_agent_chat_history_target(session);
+            list = list.child(
+                h_flex()
+                    .id(("launcher-recent", key_id * 8 + index as u64))
+                    .debug_selector(move || format!("launcher-recent-{index}"))
+                    .h(px(30.))
+                    .w_full()
+                    .px(px(6.))
+                    .gap(px(8.))
+                    .rounded(px(8.))
+                    .text_size(px(12.5))
+                    .text_color(a.text_muted)
+                    .cursor(theme::navigation_cursor())
+                    .hover(move |s| s.bg(t.hover).text_color(row_hover_ink))
+                    .children(mark.map(|runtime| {
+                        monochrome_mark(runtime, t.dark, 13., a.text_subtle, t.canvas)
+                    }))
+                    .child(div().flex_1().min_w_0().truncate().child(title))
+                    .when(!updated.is_empty(), |r| {
+                        r.child(
+                            div()
+                                .flex_shrink_0()
+                                .text_size(px(11.))
+                                .text_color(theme::alpha(a.text_subtle, 0.78))
+                                .child(updated),
+                        )
+                    })
+                    .on_click(cx.listener(move |s, _, w, cx| {
+                        let Some(workbench) = s.workbench.upgrade() else {
+                            return;
+                        };
+                        let Some(target_tab) = tab.or_else(|| {
+                            workbench.update(cx, |wb, cx| wb.new_launcher_tab(group, cx))
+                        }) else {
+                            return;
+                        };
+                        if s.hosted.is_open() {
+                            s.open_hosted_history_target(group, target_tab, target.clone(), w, cx);
+                        } else {
+                            s.restore_history_target(group, target_tab, target.clone(), w, cx);
+                        }
+                    })),
+            );
+        }
+        Some(
+            v_flex()
+                .w_full()
+                .mt(px(24.))
+                .gap(px(4.))
+                .child(
+                    h_flex()
+                        .w_full()
+                        .px(px(4.))
+                        .pb(px(2.))
+                        .items_center()
+                        .justify_between()
+                        .text_size(px(11.5))
+                        .child(
+                            div()
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(theme::alpha(a.text_subtle, 0.88))
+                                .child(tr("native.launcher.recent")),
+                        )
+                        .child(
+                            div()
+                                .id(("launcher-recent-all", key_id))
+                                .debug_selector(|| "launcher-history".into())
+                                .text_color(a.text_subtle)
+                                .cursor(theme::clickable_cursor())
+                                .hover(move |s| s.text_color(a.text_muted))
+                                .on_click(
+                                    cx.listener(move |s, _, w, cx| {
+                                        s.open_history(group, tab, w, cx)
+                                    }),
+                                )
+                                .child(tr("native.launcher.allHistory")),
+                        ),
+                )
+                .child(list)
+                .into_any_element(),
+        )
+    }
+
+    /// Quiet bottom utility dock aligned to the stage column: Terminal & History
+    /// on the left, subtle icon-only Scan again refresh button on the right.
+    #[allow(clippy::too_many_arguments)]
+    fn render_footer(
+        &self,
+        slot: LauncherSlot,
+        group: Id,
+        tab: Option<Id>,
+        stage_width: f32,
+        cloud: bool,
+        terminals: bool,
+        has_recent: bool,
+        cx: &mut Context<Self>,
+    ) -> Option<AnyElement> {
+        if cloud && has_recent {
+            return None;
+        }
+        let key_id = slot.element_key();
+        let t = cx.palette();
+        let a = AgentTheme::new(&t);
+        let history_btn = (!has_recent).then(|| {
+            Self::footer_button(
+                ElementId::NamedInteger("launcher-history".into(), key_id),
+                "launcher-history",
+                "history",
+                tr("agent.history.title"),
+                false,
+                cx,
             )
+            .on_click(cx.listener(move |s, _, w, cx| s.open_history(group, tab, w, cx)))
+        });
+
+        let left = h_flex()
+            .items_center()
+            .gap(px(2.))
+            .when(!cloud, |f| {
+                f.child(
+                    Self::footer_button(
+                        ElementId::NamedInteger("open-shell".into(), key_id),
+                        "launcher-shell",
+                        "square-terminal",
+                        tr("terminal.title"),
+                        !terminals,
+                        cx,
+                    )
+                    .on_click(cx.listener(move |s, _, w, cx| s.launch(group, tab, None, w, cx))),
+                )
+            })
+            .children(history_btn);
+
+        let scan_btn = (!cloud).then(|| {
+            let disabled = self.scanning;
+            gpui_kit::base::Button::new(ElementId::NamedInteger("launcher-scan".into(), key_id))
+                .accessibility_label(tr("terminal.launcher.scanAgain"))
+                .debug_selector(|| "launcher-scan".into())
+                .size(px(26.))
+                .rounded(px(7.))
+                .disabled(disabled)
+                .when(disabled, |b| b.opacity(0.45))
+                .when(!disabled, |b| {
+                    b.cursor(theme::clickable_cursor())
+                        .hover(move |s| s.bg(t.hover).text_color(a.text_muted))
+                })
+                .tooltip(tooltip(tr("terminal.launcher.scanAgain")))
+                .child(
+                    Icon::new("refresh-cw")
+                        .with_size(px(12.5))
+                        .stroke(1.75)
+                        .color(theme::alpha(t.subtle, 0.82)),
+                )
+                .on_click(cx.listener(|s, _, _, cx| s.rescan(cx)))
+        });
+
+        Some(
+            div()
+                .flex_shrink_0()
+                .w_full()
+                .px(px(16.))
+                .pb(px(10.))
+                .flex()
+                .justify_center()
+                .child(
+                    h_flex()
+                        .w(px(stage_width))
+                        .max_w_full()
+                        .items_center()
+                        .justify_between()
+                        .pt(px(8.))
+                        .border_t_1()
+                        .border_color(theme::alpha(t.divider, 0.55))
+                        .child(left)
+                        .children(scan_btn),
+                )
+                .into_any_element(),
+        )
     }
 
     /// The launcher tab `context.tab`: its History browser when open, else
-    /// the launcher (with its row menu when open).
+    /// the L1 composer-first launcher.
     pub(super) fn render_launcher(
         &mut self,
         context: LauncherContext,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> AnyElement {
         if let Some(history) = context.tab.and_then(|tab| self.render_history(tab)) {
             return history;
         }
-        let menu = self.render_menu(cx);
-        self.launcher(context, cx).children(menu).into_any_element()
+        self.launcher(context, window, cx).into_any_element()
     }
-    /// A launcher row's "open in a terminal" menu, pinned at the pointer.
-    fn render_menu(&self, cx: &mut Context<Self>) -> Option<AnchoredMenu> {
-        let menu = self.menu.as_ref()?;
-        let (group, tab, installation) = (menu.group, menu.tab, menu.installation.clone());
-        let host = cx.weak_entity();
-        let launch = host.clone();
-        let surface = Menu::new("workbench-launcher-menu").min_w(px(180.)).item(
-            MenuItem::new(crate::localization::t("terminal.title")).on_click(move |w, cx| {
-                let _ = launch.update(cx, |s, cx| {
-                    s.menu = None;
-                    s.chat_mode = false;
-                    s.launch(group, tab, Some(installation.clone()), w, cx)
-                });
-            }),
-        );
-        let close = move |cx: &mut App| {
-            let _ = host.update(cx, |s, cx| {
-                if s.menu.take().is_some() {
-                    cx.notify();
-                }
-            });
-        };
-        let close_after_item = close.clone();
-        Some(
-            AnchoredMenu::new(
-                "workbench-context-menu",
-                menu.at,
-                surface.on_dismiss(move |_, cx| close_after_item(cx)),
-            )
-            .on_dismiss(move |_, cx| close(cx)),
-        )
-    }
-    fn launcher(&mut self, context: LauncherContext, cx: &mut Context<Self>) -> Stateful<Div> {
+
+    fn launcher(
+        &mut self,
+        context: LauncherContext,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Stateful<Div> {
         let LauncherContext {
             group, tab, width, ..
         } = context;
+        let slot = LauncherSlot::of(group, tab);
+        let key_id = slot.element_key();
         let t = cx.palette();
         let m = theme::ty();
-        let visible = self.visible_installations();
-        let (chats, terminals) = (context.can_chat, context.can_terminal);
-        // `role="list"`: the detected Agents; discovery's feedback and
-        // status sit outside it. Rows are keyed by Agent, never by place.
-        let mut external = v_flex()
-            .id(("launcher-agents", group))
-            .role(Role::List)
-            .debug_selector(|| "launcher-agents".into())
-            .gap(px(1.));
-        // `onReturnToLauncher`'s targets: usable detected rows, then bundled.
-        let mut returns = vec![];
-        for installation in visible.iter().filter(|i| !i.bundled()).cloned() {
-            let terminal = installation.clone();
-            let id = installation.id;
-            let key = SharedString::from(format!("launch-agent-{group}-{id}"));
-            let available = if installation.chat { chats } else { terminals };
-            let focus = self.row_focus(group, id, cx);
-            if available {
-                returns.push(focus.clone());
-            }
-            external = external.child(
-                self.launcher_row(
-                    ElementId::Name(key.clone()),
-                    LauncherIdentity::brand(installation.runtime.icon_key()),
-                    installation.label.clone().into(),
-                    key,
-                    available,
-                    cx,
-                )
-                .track_focus(&focus)
-                .debug_selector(move || format!("launcher-agent-{id}"))
-                .on_click(cx.listener(move |s, _, w, cx| {
-                    s.chat_mode = true;
-                    s.launch(group, tab, Some(installation.clone()), w, cx)
-                }))
-                .on_mouse_down(
-                    MouseButton::Right,
-                    cx.listener(move |s, e: &MouseDownEvent, _, cx| {
-                        cx.stop_propagation();
-                        s.menu = Some(LauncherMenu {
-                            group,
-                            tab,
-                            installation: terminal.clone(),
-                            at: e.position,
-                        });
-                        cx.notify();
-                    }),
-                ),
-            );
-        }
-        let mut bundled = v_flex().gap(px(1.));
-        for installation in visible.iter().filter(|i| i.bundled()).cloned() {
-            let id = installation.id;
-            let key = SharedString::from(format!("launch-bundled-{group}-{id}"));
-            let available = if installation.chat { chats } else { terminals };
-            let focus = self.row_focus(group, id, cx);
-            if available {
-                returns.push(focus.clone());
-            }
-            bundled = bundled.child(
-                self.launcher_row(
-                    ElementId::Name(key.clone()),
-                    LauncherIdentity::brand(installation.runtime.icon_key()),
-                    installation.label.clone().into(),
-                    key,
-                    available,
-                    cx,
-                )
-                .track_focus(&focus)
-                .debug_selector(move || format!("launcher-agent-{id}"))
-                .on_click(cx.listener(move |s, _, w, cx| {
-                    s.chat_mode = true;
-                    s.launch(group, tab, Some(installation.clone()), w, cx)
-                })),
-            );
-        }
-        let shell = self
-            .launcher_row(
-                ElementId::NamedInteger("open-shell".into(), group),
-                LauncherIdentity::Shell,
-                tr("terminal.title").into(),
-                format!("open-shell-{group}").into(),
-                terminals,
-                cx,
-            )
-            .debug_selector(|| "launcher-shell".into())
-            .on_click(cx.listener(move |s, _, w, cx| s.launch(group, tab, None, w, cx)));
-
-        // `.desktop-terminal-launcher-scan` / `-history`: 18px quiet controls.
-        let quiet = |id: &'static str, icon: Icon, label: &'static str| {
-            IconButton::new(ElementId::NamedInteger(id.into(), group), icon)
-                .label(label)
-                .with_size(px(18.))
-                .color(t.subtle)
-                .rounded(px(4.))
-        };
-        // A scan already running is the one a click would ask for.
-        let scan = quiet(
-            "launcher-scan",
-            Icon::new("refresh-cw").xsmall().stroke(1.7),
-            tr("terminal.launcher.scanAgain"),
-        )
-        .disabled(self.scanning)
-        .debug_selector(|| "launcher-scan".into())
-        .on_click(cx.listener(|s, _, _, cx| s.rescan(cx)));
-
-        // `.desktop-terminal-launcher-history`: opens the cross-runtime
-        // History browser in this launcher (`onOpenHistory`).
-        let history = quiet(
-            "launcher-history",
-            Icon::new("history").with_size(px(13.)).stroke(1.7),
-            tr("agent.history.title"),
-        )
-        .bg(t.auxiliary())
-        .debug_selector(|| "launcher-history".into())
-        .on_click(cx.listener(move |s, _, window, cx| {
-            // Cloud reads the hosted Agent's own history (`CloudAgentHistory`).
-            s.open_history(group, tab, window, cx)
-        }));
         let cloud = self.hosted.is_open();
+        let visible = self.visible_installations();
+        let active = self.active_installation();
+        let (chats, terminals) = (context.can_chat, context.can_terminal);
 
-        let mut entries = v_flex().gap(px(1.)).child(external);
-        // `discoveryPhase="ready"`: no local discovery in Cloud.
+        let hero_card = self.render_hero_composer(
+            slot,
+            group,
+            tab,
+            active.as_ref(),
+            &visible,
+            chats,
+            terminals,
+            cloud,
+            window,
+            cx,
+        );
+
+        // Discovery feedback (200ms delayed, outside the Agent list).
         let scanning = self.scanning && !cloud;
         let feedback = self.discovery_label();
         if scanning && feedback.is_none() {
-            // Re-render once the indicator delay has passed.
             let wake = self.wake.clone();
             wake.after(FEEDBACK_DELAY);
         }
-        if let Some(label) = feedback {
-            // `LauncherDiscoveryFeedback`: an 11px spinning ring in the icon column.
-            entries = entries.child(
-                h_flex()
-                    .debug_selector(|| "launcher-discovery".into())
-                    .min_h(px(theme::control_large()))
-                    .px(px(8.))
-                    .py(px(5.))
-                    .gap(px(9.))
-                    .border_1()
-                    .border_color(theme::alpha(t.border, 0.))
-                    .text_size(px(m.right.content))
-                    .line_height(px(m.right.control_line_height))
-                    .text_color(t.subtle)
-                    .child(div().w(px(18.)).flex().justify_center().child(Spinner::new(
-                        ElementId::NamedInteger("launcher-scanning".into(), group),
-                        t.border,
-                        t.subtle,
-                    )))
-                    .child(tr(label)),
-            );
-        }
-        // `agentSetup`: suggested and running activations, between the
-        // detected Agents and the bundled one.
-        if !cloud && let Some(setup) = self.setup_section(cx) {
-            entries = entries.child(
+        let discovery_row = feedback.map(|label| {
+            h_flex()
+                .debug_selector(|| "launcher-discovery".into())
+                .w_full()
+                .justify_center()
+                .gap(px(7.))
+                .py(px(2.))
+                .text_size(px(m.right.caption))
+                .line_height(px(m.right.meta_line_height))
+                .text_color(t.subtle)
+                .child(Spinner::new(
+                    ElementId::NamedInteger("launcher-scanning".into(), key_id),
+                    t.border,
+                    t.subtle,
+                ))
+                .child(tr(label))
+        });
+
+        // Optional local agent setup suggestion section.
+        let setup_view = (!cloud)
+            .then(|| self.setup_section(cx))
+            .flatten()
+            .map(|setup| {
                 div()
                     .debug_selector(|| "launcher-setup".into())
-                    // Setup returns the keyboard to the launcher it was used in.
+                    .w_full()
                     .capture_any_mouse_down(
-                        cx.listener(move |s, _, _, _| s.setup_group = Some(group)),
+                        cx.listener(move |s, _, _, _| s.setup_slot = Some(slot)),
                     )
-                    .capture_key_down(cx.listener(move |s, _, _, _| s.setup_group = Some(group)))
-                    .child(setup),
-            );
-        }
-        // `terminalEnabled={false}`: a Cloud launcher offers no shell.
-        entries = entries.child(bundled).when(!cloud, |e| e.child(shell));
+                    .capture_key_down(cx.listener(move |s, _, _, _| s.setup_slot = Some(slot)))
+                    .child(setup)
+            });
 
-        // At the chat limit the Agents above are unavailable: say why, and
-        // how to make room (closing a chat), instead of rows that only dim.
-        let limit =
+        // At the chat limit the Agents are unavailable: say why, and how to
+        // make room (closing a chat), instead of a composer that only dims.
+        let limit_row =
             context.chat_limit.then(|| {
                 h_flex()
                     .debug_selector(|| "launcher-chat-limit".into())
+                    .w_full()
                     .min_w_0()
                     .items_start()
                     .gap(px(6.))
-                    .px(px(8.))
-                    .text_color(t.subtle)
+                    .px(px(4.))
                     .text_size(px(m.right.caption))
                     .line_height(px(m.right.caption_line_height))
+                    .text_color(t.subtle)
                     .child(
                         div().mt(px(1.)).flex_shrink_0().child(
                             Icon::new("info")
@@ -423,16 +499,17 @@ impl WorkbenchLauncher {
                         ),
                     ))
             });
-        // `.desktop-terminal-launcher-error`.
-        let error = self.launch_errors.get(&group).map(|message| {
+        // Launch refusal / failure error banner.
+        let error_row = self.launch_error(slot).map(|message| {
             h_flex()
                 .debug_selector(|| "launcher-error".into())
+                .w_full()
                 .min_w_0()
                 .items_start()
                 .gap(px(6.))
-                .px(px(8.))
-                .py(px(5.))
-                .rounded(px(5.))
+                .px(px(10.))
+                .py(px(7.))
+                .rounded(px(8.))
                 .bg(theme::alpha(t.danger, 0.08))
                 .text_color(t.danger)
                 .text_size(px(m.right.caption))
@@ -450,112 +527,193 @@ impl WorkbenchLauncher {
                         .flex_1()
                         .min_w_0()
                         .whitespace_normal()
-                        .child(message.clone()),
+                        .child(message.to_owned()),
                 )
         });
-        let title = tr(if cloud {
-            "cloud.home.cloud"
-        } else {
-            "terminal.launcher.localTitle"
-        });
-        let heading_focus = self
-            .heading_focus
-            .entry(group)
-            .or_insert_with(|| cx.focus_handle().tab_stop(false))
-            .clone();
-        self.return_targets.insert(group, returns);
-        // `role="status"`, visually hidden, outside the busy Agent list.
+
+        let stage_width = content_width(width);
+        let controls_row =
+            self.render_parameter_controls(slot, stage_width, cloud, chats, window, cx);
+        let a = AgentTheme::new(&t);
+        let recent = self.recent_sessions(cx);
+        let has_recent = !recent.is_empty();
+        let recent_section = self.render_recent_sessions(slot, group, tab, &recent, cx);
+        let footer = self.render_footer(
+            slot,
+            group,
+            tab,
+            stage_width,
+            cloud,
+            terminals,
+            has_recent,
+            cx,
+        );
+
+        // Polite screen-reader availability region (visually silent).
         let availability = div()
-            .id(("launcher-availability", group))
+            .id(("launcher-availability", key_id))
             .role(Role::Status)
             .when_some(self.availability(), |d, message| d.aria_label(tr(message)))
             .test_support()
             .absolute()
             .size(px(1.))
             .overflow_hidden();
-        let heading = h_flex()
-            .absolute()
-            .top(px(-theme::control() / 2.))
-            .left(px(22.))
-            .h(px(theme::control()))
-            .px(px(6.))
-            .gap(px(4.))
-            .bg(t.auxiliary())
-            .child(
-                // `<h2 tabIndex={-1}>`: focusable, never a Tab stop.
+
+        // Editorial single-line left-aligned heading: quiet subtle framing verb
+        // paired with a soft, non-glaring matte project name on the same rail
+        // as the composer card and recent list.
+        let project_name = (!cloud)
+            .then(|| {
+                self.shown
+                    .root
+                    .as_ref()
+                    .and_then(|root| root.file_name().map(|n| n.to_string_lossy().into_owned()))
+                    .filter(|name| !name.is_empty())
+            })
+            .flatten();
+        let heading_label = project_name
+            .as_deref()
+            .map(|name| {
+                tf(
+                    "native.launcher.greetingInProject",
+                    &[("project", Arg::Text(bidi_isolate(name)))],
+                )
+            })
+            .unwrap_or_else(|| tr("native.launcher.greeting").to_string());
+        let quiet_ink = a.text_subtle;
+        let project_ink = theme::mix(a.text, a.text_muted, 0.28);
+        let heading_focus = self.heading_focus(slot, cx);
+        let mut header = h_flex()
+            .id(("launcher-heading", key_id))
+            .debug_selector(|| "launcher-heading".into())
+            .test_support()
+            .track_focus(&heading_focus)
+            .role(Role::Heading)
+            .aria_label(heading_label.clone())
+            .w_full()
+            .min_w_0()
+            .items_baseline()
+            .px(px(2.))
+            .mb(px(12.))
+            .text_size(px(15.))
+            .line_height(px(22.));
+        if let Some(name) = project_name {
+            let template = tr("native.launcher.greetingInProject");
+            if let Some((before, after)) = template.split_once("{project}") {
+                if !before.is_empty() {
+                    header = header.child(
+                        div()
+                            .flex_shrink_0()
+                            .text_color(quiet_ink)
+                            .child(before.to_owned()),
+                    );
+                }
+                header = header.child(
+                    div()
+                        .min_w_0()
+                        .truncate()
+                        .font_weight(FontWeight::MEDIUM)
+                        .text_color(project_ink)
+                        .child(bidi_isolate(&name)),
+                );
+                if !after.is_empty() {
+                    header = header.child(
+                        div()
+                            .flex_shrink_0()
+                            .text_color(quiet_ink)
+                            .child(after.to_owned()),
+                    );
+                }
+            } else {
+                header = header.child(
+                    div()
+                        .min_w_0()
+                        .truncate()
+                        .font_weight(FontWeight::MEDIUM)
+                        .text_color(project_ink)
+                        .child(heading_label),
+                );
+            }
+        } else {
+            header = header.child(
                 div()
-                    .id(("launcher-heading", group))
-                    .test_support()
-                    .track_focus(&heading_focus)
-                    .role(Role::Heading)
-                    .aria_label(title)
-                    .text_size(px(m.right.meta))
-                    .line_height(px(m.right.meta_line_height))
+                    .min_w_0()
+                    .truncate()
                     .font_weight(FontWeight::MEDIUM)
-                    .text_color(t.subtle)
-                    .whitespace_nowrap()
-                    .child(title),
-            )
-            .when(!cloud, |h| h.child(scan));
-        let history = div()
-            .absolute()
-            .top(px(-9.))
-            .right(px(22.))
-            .rounded(px(4.))
-            .bg(t.auxiliary())
-            // `box-shadow: 0 0 0 6px var(--po-surface-auxiliary)` masks the border.
-            .shadow(vec![BoxShadow {
-                inset: false,
-                color: t.auxiliary().into(),
-                offset: point(px(0.), px(0.)),
-                blur_radius: px(0.),
-                spread_radius: px(6.),
-            }])
-            .child(history);
-        let scroll = self.launcher_scroll.entry(group).or_default().clone();
+                    .text_color(project_ink)
+                    .child(heading_label),
+            );
+        }
+
+        // Quiet drop/attachment status notice (e.g. cross-workspace refusal).
+        let notice_row = self.notice(slot).map(|message| {
+            let selector = format!("launcher-notice:{message}");
+            h_flex()
+                .id(("launcher-notice", key_id))
+                .role(Role::Status)
+                .aria_label(message.to_owned())
+                .debug_selector(move || selector)
+                .test_support()
+                .w_full()
+                .min_w_0()
+                .px(px(4.))
+                .text_size(px(m.right.caption))
+                .line_height(px(m.right.caption_line_height))
+                .text_color(a.text_subtle)
+                .whitespace_normal()
+                .child(message.to_owned())
+        });
+
+        let scroll = self.page_scroll(slot, cx);
         div()
-            .id(("launcher", group))
+            .id(("launcher", key_id))
             .size_full()
             .overflow_y_scroll()
             .track_scroll(&scroll)
             .bg(t.auxiliary())
             .text_color(t.terminal_fg)
+            .on_drop(cx.listener(move |s, drag: &ResourceDrag, w, cx| {
+                s.drop_resources(slot, group, tab, drag, w, cx);
+            }))
+            .on_drop(cx.listener(move |s, paths: &ExternalPaths, w, cx| {
+                s.add_external_paths(slot, group, tab, paths.paths().to_vec(), w, cx);
+            }))
             .child(
-                // `place-items: safe center`: centred, but never above the top edge.
                 v_flex()
                     .min_h_full()
-                    .py(px(32.))
-                    .items_center()
-                    .justify_center()
+                    .w_full()
                     .child(
                         v_flex()
-                            .relative()
-                            .w(px(content_width(width)))
-                            .p(px(18.))
-                            .gap(px(8.))
-                            // The frame is its first child, not the box's own
-                            // border: GPUI paints a border after the children,
-                            // so the heading and the history button could not
-                            // mask it (`legend` over a `fieldset` border).
+                            .flex_1()
+                            .w_full()
+                            .px(px(16.))
+                            .items_center()
+                            // Optical upper-middle balance: avoids an empty
+                            // abyss at the top while shrinking cleanly in short
+                            // vertical split panes.
+                            .child(div().flex_1().min_h(px(28.)).max_h(px(124.)))
                             .child(
-                                div()
-                                    .absolute()
-                                    .top_0()
-                                    .left_0()
-                                    .size_full()
-                                    .border_1()
-                                    .border_color(t.border),
+                                v_flex()
+                                    .relative()
+                                    .w(px(stage_width))
+                                    .max_w_full()
+                                    .child(header)
+                                    .child(hero_card)
+                                    .children(controls_row)
+                                    .children(limit_row.map(|n| div().mt(px(8.)).child(n)))
+                                    .children(notice_row.map(|n| div().mt(px(8.)).child(n)))
+                                    .children(error_row.map(|e| div().mt(px(10.)).child(e)))
+                                    .children(discovery_row.map(|d| div().mt(px(10.)).child(d)))
+                                    .children(setup_view.map(|s| div().mt(px(12.)).child(s)))
+                                    .children(recent_section)
+                                    .child(availability),
                             )
-                            .child(heading)
-                            .child(history)
-                            .children(error)
-                            .children(limit)
-                            .child(entries)
-                            .child(availability),
-                    ),
+                            .child(div().flex_1().min_h(px(24.))),
+                    )
+                    .children(footer),
             )
             .child(crate::ui::scrollbar::vertical(
-                ("launcher-scrollbar", group),
+                ("launcher-scrollbar", key_id),
                 &scroll,
             ))
     }
@@ -564,9 +722,9 @@ impl WorkbenchLauncher {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn content_width_follows_the_container_query() {
-        assert_eq!(super::content_width(420.), 252.);
-        assert_eq!(super::content_width(200.), 200.);
-        assert_eq!(super::content_width(460.), 264.);
+    fn content_width_scales_cleanly_within_sidebar() {
+        assert_eq!(super::content_width(200.), 220.);
+        assert_eq!(super::content_width(340.), 308.);
+        assert_eq!(super::content_width(500.), 380.);
     }
 }

@@ -3,8 +3,12 @@
 //! project's controllers and History, and the routing every open chat
 //! follows. The hosted Agent's chats are the Cloud feature's.
 use super::item::{AgentChatItem, Release};
+use crate::agent::contract::dto::RuntimeInspection;
+use crate::agent::contract::protocol::RuntimeQuery;
 use crate::agent::host::agent_host::AgentHostHandle;
-use crate::features::desktop_agent::application::agent_client_port::AgentClientPort;
+use crate::features::desktop_agent::application::agent_client_port::{
+    AgentClient as _, AgentClientPort,
+};
 use crate::features::desktop_agent::application::agent_controller_registry::AgentControllerRegistry;
 use crate::features::desktop_agent::application::agent_session_controller::AgentSessionController;
 use crate::features::desktop_agent::application::conversation_history_controller::ConversationHistoryController;
@@ -305,6 +309,29 @@ impl AgentChats {
         self.panels.push((root.to_path_buf(), panel.downgrade()));
     }
 
+    /// Inspects `runtime_id` for `root` (capabilities, models, effort variants,
+    /// and modes) without creating a session or starting a turn.
+    pub fn inspect_runtime(
+        &mut self,
+        root: &Path,
+        runtime_id: &str,
+        cx: &mut App,
+    ) -> Result<LocalBoxFuture<'static, Result<RuntimeInspection, String>>, String> {
+        let agent = self.agent_window(cx)?;
+        let client = agent.client.clone();
+        let request = RuntimeQuery {
+            root_path: Some(root.to_string_lossy().into_owned()),
+            runtime_id: Some(runtime_id.to_owned()),
+            refresh: Some(false),
+        };
+        Ok(Box::pin(async move {
+            client
+                .discover_runtimes(request)
+                .await
+                .map_err(|error| error.message)
+        }))
+    }
+
     /// `prepareAgentChatWorkbenchItem(project, itemId, runtimeId)` or, with
     /// a session, `restoreAgentChatWorkbenchItem`.
     pub fn prepare(
@@ -329,6 +356,34 @@ impl AgentChats {
         cx: &mut App,
     ) -> Result<AgentChatItem, String> {
         self.prepare_with_prompt(root, runtime_id, None, Some(initial_prompt), window, cx)
+    }
+
+    /// Prepares a new runtime chat pre-seeded with prompt segments and staged
+    /// attachments (workspace paths, external files, pasted images) from the L1
+    /// launcher.
+    pub fn prepare_seeded_submission(
+        &mut self,
+        root: &Path,
+        runtime_id: &str,
+        submission: super::super::ui::panel::SeededSubmission,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Result<AgentChatItem, String> {
+        if submission.attachments.is_empty() {
+            return self.prepare_seeded(root, runtime_id, &submission.text, window, cx);
+        }
+        let registry = self.project_agents(root, cx)?.registry.clone();
+        let item = uuid::Uuid::new_v4().to_string();
+        let controller = registry.get(&item).map_err(|error| error.message)?;
+        controller.begin_initialize_for_runtime(runtime_id);
+        let panel = self.panel_for(root, controller, window, cx);
+        panel.update(cx, |p, cx| p.set_seeded_submission(submission, window, cx));
+        Ok(AgentChatItem::new(
+            panel,
+            Release::Session { registry, item },
+            root.to_path_buf(),
+            self.preferences.clone(),
+        ))
     }
 
     fn prepare_with_prompt(
@@ -427,6 +482,40 @@ impl AgentChats {
         let source: Rc<dyn ConversationHistorySource> =
             Rc::new(self.project_agents(root, cx)?.history.clone());
         Ok(cx.new(|cx| HistoryBrowser::new(source, discovery, window, cx)))
+    }
+
+    /// Cached recent sessions for `root` (never starts discovery on its own).
+    pub fn cached_recent_sessions(
+        &self,
+        root: &Path,
+        excluded: &[String],
+        limit: usize,
+    ) -> Vec<crate::agent::contract::dto::SessionMetadata> {
+        let Some(project) = self.projects.get(root) else {
+            return Vec::new();
+        };
+        project
+            .history
+            .snapshot()
+            .sessions
+            .into_iter()
+            .filter(|s| !excluded.contains(&s.id))
+            .take(limit)
+            .collect()
+    }
+
+    /// Activates and watches `root`'s conversation history when the user has
+    /// already granted `chatHistoryDiscoveryEnabled`.
+    pub fn watch_recent_history(
+        &mut self,
+        root: &Path,
+        wake: crate::wake::Wake,
+        cx: &mut App,
+    ) -> Option<Box<dyn FnOnce()>> {
+        let history = self.project_agents(root, cx).ok()?.history.clone();
+        let unwatch = history.watch(wake);
+        history.activate();
+        Some(unwatch)
     }
 
     /// Dev captures: every chat of `root` is prepared, or failed.

@@ -170,6 +170,14 @@ impl Homepage {
                     .filter(|(_, _, _, _, _, previews)| !previews.is_empty())
                     .map(|(path, _, _, _, _, previews)| (path.clone(), previews.clone()))
                     .collect();
+                let cached_local: HashMap<PathBuf, Vec<crate::features::cloud::CachedFilePreview>> =
+                    s.discovery
+                        .local_previews
+                        .iter()
+                        .map(|(path, items)| (path.clone(), previews::to_cached(items)))
+                        .collect();
+                crate::features::cloud::global_home_details(cx)
+                    .update(cx, |c, cx| c.record_local_previews(cached_local, cx));
                 let learned: Vec<(PathBuf, String)> = read
                     .iter()
                     .filter_map(|(path, _, _, _, identity, _)| {
@@ -256,14 +264,17 @@ impl Homepage {
         held
     }
 
-    /// `showHomepagePlace`: brings `place`'s group to the top once and marks it.
+    /// `showHomepagePlace`: activates `place`'s tab and remembers it while
+    /// spaces finish loading.
     pub(in crate::app) fn focus_place(&mut self, place: &str, cx: &mut Context<Self>) {
-        self.place_focus = Some((groups::GroupId::of_place(place), Instant::now(), None));
+        let id = groups::GroupId::of_place(place);
+        self.active_group = Some(id.clone());
+        self.place_focus = Some((id, Instant::now(), None));
+        self.refresh_cloud_home_details(false, cx);
         cx.notify();
     }
 
-    /// `useProjectGroupFocus`: scrolls to the requested group once available and
-    /// highlights it for 1.6s.
+    /// `useProjectGroupFocus`: activates the requested place once available.
     pub(in crate::app::home) fn settle_place_focus(
         &mut self,
         groups: &[groups::Group],
@@ -280,6 +291,7 @@ impl Homepage {
             }
             None => match groups.iter().position(|g| g.id == id) {
                 Some(index) => {
+                    self.active_group = Some(id.clone());
                     self.scroll.scroll_to_top_of_item(index);
                     self.place_focus = Some((id.clone(), asked, Some(Instant::now())));
                     cx.spawn(async move |this, cx| {
@@ -374,7 +386,7 @@ impl Homepage {
         cx: &App,
     ) -> Option<super::super::audience::ProjectAudience> {
         use super::super::audience::{
-            AudienceAction as A, CloudCopy, Devices, ProjectAudience, Team,
+            AudienceAction as A, CloudCopy, Devices, ProjectAudience, SpaceTarget, Team,
         };
         let items = self.visible_projects(cx);
         let item = items.iter().find(|i| i.id == id)?;
@@ -392,6 +404,23 @@ impl Homepage {
             open: Some(A::OpenCloud(l.id.clone())),
             ..Default::default()
         });
+        let move_targets: Vec<SpaceTarget> = if linked.is_none() && cloud {
+            spaces
+                .iter()
+                .filter(|s| s.can_create_projects)
+                .map(|space| SpaceTarget {
+                    id: space.id.clone(),
+                    name: crate::features::cloud::space_name(space),
+                    tone: crate::workspace::cloud::spaces::mark_tone(&space.id) as usize,
+                    action: A::CopyToTeam {
+                        path: path.clone(),
+                        space: space.id.clone(),
+                    },
+                })
+                .collect()
+        } else {
+            vec![]
+        };
         let first_space = spaces.iter().find(|s| s.can_create_projects);
         let devices = (self.local_share || (shared && item.host_folder.is_some())).then(|| {
             let folder = item.host_folder.clone().unwrap_or_default();
@@ -422,6 +451,7 @@ impl Homepage {
                 }),
         });
         Some(ProjectAudience {
+            spaces: move_targets,
             devices,
             devices_copy: None,
             team,

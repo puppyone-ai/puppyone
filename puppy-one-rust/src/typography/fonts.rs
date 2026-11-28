@@ -53,87 +53,75 @@ impl Entry {
 
 /// `BUILTIN_FONT_IDS`.
 pub mod ids {
-    pub const GEIST_SANS: &str = "builtin:geist-sans";
-    pub const GEIST_MONO: &str = "builtin:geist-mono";
     pub const SYSTEM_SANS: &str = "builtin:system-sans";
     pub const SYSTEM_SERIF: &str = "builtin:system-serif";
+    pub const SYSTEM_MONO: &str = "builtin:system-mono";
     pub const TERMINAL_SYSTEM_MONO: &str = "builtin:terminal-system-mono";
+    /// Retired with the bundled Geist faces: a stored preference naming one
+    /// reads as the system face of its role.
+    pub const GEIST_SANS: &str = "builtin:geist-sans";
+    pub const GEIST_MONO: &str = "builtin:geist-mono";
 }
 
-/// `BUILTIN_FONT_CATALOG`, in catalog order.
-pub const CATALOG: [Entry; 5] = [
-    Entry {
-        id: ids::GEIST_SANS,
-        label: "Geist",
-        description: "PuppyOne's balanced default reading font.",
-        family: &["Geist Sans"],
-        category: Category::Sans,
-        source: Source::Bundled,
-        roles: &[Role::Ui, Role::Content],
-    },
-    Entry {
-        id: ids::SYSTEM_SANS,
-        label: "System",
-        description: "Use the native sans-serif font from this device.",
-        family: &[
-            "ui-sans-serif",
-            "system-ui",
-            "-apple-system",
-            "BlinkMacSystemFont",
-            "Segoe UI",
-        ],
-        category: Category::Sans,
-        source: Source::System,
-        roles: &[Role::Ui, Role::Content],
-    },
-    Entry {
-        id: ids::SYSTEM_SERIF,
-        label: "Serif",
-        description: "A quiet system serif stack for long-form reading.",
-        family: &[
-            "ui-serif",
-            "New York",
-            "Iowan Old Style",
-            "Palatino Linotype",
-            "Palatino",
-            "Georgia",
-        ],
-        category: Category::Serif,
-        source: Source::System,
-        roles: &[Role::Content],
-    },
-    Entry {
-        id: ids::GEIST_MONO,
-        label: "Geist Mono",
-        description: "PuppyOne's metric-stable code font.",
-        family: &["Geist Mono"],
-        category: Category::Monospace,
-        source: Source::Bundled,
-        roles: &[Role::Code],
-    },
-    Entry {
-        id: ids::TERMINAL_SYSTEM_MONO,
-        label: "Terminal Mono",
-        description: "The metric-stable native terminal stack.",
-        family: &[
-            "SF Mono",
-            "SFMono-Regular",
-            "Menlo",
-            "Monaco",
-            "Consolas",
-            "Liberation Mono",
-        ],
-        category: Category::Monospace,
-        source: Source::System,
-        roles: &[Role::Terminal],
-    },
-];
+/// The built-in catalog, in catalog order. The families are the faces of
+/// `assets/typography/fonts.json` (`platform::fonts`).
+pub fn catalog() -> &'static [Entry; 4] {
+    static CATALOG: std::sync::LazyLock<[Entry; 4]> = std::sync::LazyLock::new(|| {
+        let faces = crate::platform::fonts::faces();
+        let source = |face: &crate::platform::fonts::Face| {
+            if face.files.is_empty() {
+                Source::System
+            } else {
+                Source::Bundled
+            }
+        };
+        [
+            Entry {
+                id: ids::SYSTEM_SANS,
+                label: "System",
+                description: "Use the native sans-serif font from this device.",
+                family: &faces.sans.stack,
+                category: Category::Sans,
+                source: source(&faces.sans),
+                roles: &[Role::Ui, Role::Content],
+            },
+            Entry {
+                id: ids::SYSTEM_SERIF,
+                label: "Serif",
+                description: "A quiet system serif stack for long-form reading.",
+                family: &faces.serif.stack,
+                category: Category::Serif,
+                source: source(&faces.serif),
+                roles: &[Role::Content],
+            },
+            Entry {
+                id: ids::SYSTEM_MONO,
+                label: "System Mono",
+                description: "Use the native monospaced font from this device.",
+                family: &faces.mono.stack,
+                category: Category::Monospace,
+                source: source(&faces.mono),
+                roles: &[Role::Code],
+            },
+            Entry {
+                id: ids::TERMINAL_SYSTEM_MONO,
+                label: "Terminal Mono",
+                description: "The metric-stable native terminal stack.",
+                family: &faces.terminal.stack,
+                category: Category::Monospace,
+                source: source(&faces.terminal),
+                roles: &[Role::Terminal],
+            },
+        ]
+    });
+    &CATALOG
+}
 
 /// `PRODUCT_FONT_ID_BY_ROLE`.
 fn product_font(role: Role) -> &'static str {
     match role {
-        Role::Ui | Role::Content => ids::GEIST_SANS,
-        Role::Code => ids::GEIST_MONO,
+        Role::Ui | Role::Content => ids::SYSTEM_SANS,
+        Role::Code => ids::SYSTEM_MONO,
         Role::Terminal => ids::TERMINAL_SYSTEM_MONO,
     }
 }
@@ -166,7 +154,7 @@ impl Selection {
     pub fn normalized(&self) -> Self {
         let id = |value: &str, default: &str| {
             let value = value.trim();
-            if valid_font_id(value) {
+            if valid_font_id(value) && !retired(value) {
                 value.to_owned()
             } else {
                 default.to_owned()
@@ -175,7 +163,9 @@ impl Selection {
         let defaults = Self::default();
         Self {
             content_font: match &self.content_font {
-                ContentFont::Explicit { font_id } if valid_font_id(font_id.trim()) => {
+                ContentFont::Explicit { font_id }
+                    if valid_font_id(font_id.trim()) && !retired(font_id.trim()) =>
+                {
                     ContentFont::Explicit {
                         font_id: font_id.trim().to_owned(),
                     }
@@ -191,7 +181,7 @@ impl Default for Selection {
     fn default() -> Self {
         Self {
             content_font: ContentFont::FollowTheme,
-            code_font_id: ids::GEIST_MONO.into(),
+            code_font_id: ids::SYSTEM_MONO.into(),
             terminal_font_id: ids::TERMINAL_SYSTEM_MONO.into(),
         }
     }
@@ -240,11 +230,11 @@ pub fn resolve(selection: &Selection) -> Resolved {
 
 /// `getFontCatalogEntries`.
 pub fn entries(role: Role) -> impl Iterator<Item = &'static Entry> {
-    CATALOG.iter().filter(move |e| e.serves(role))
+    catalog().iter().filter(move |e| e.serves(role))
 }
 
 fn find(id: &str, role: Role) -> Option<&'static Entry> {
-    CATALOG.iter().find(|e| e.id == id && e.serves(role))
+    catalog().iter().find(|e| e.id == id && e.serves(role))
 }
 
 /// `resolveFontForRole`: the request, else the product font, else the first
@@ -309,7 +299,7 @@ fn parse_content_font(parsed: &Value) -> ContentFont {
                     .and_then(Value::as_str)
                     .unwrap_or_default()
                     .trim();
-                if valid_font_id(font_id) {
+                if valid_font_id(font_id) && !retired(font_id) {
                     ContentFont::Explicit {
                         font_id: font_id.into(),
                     }
@@ -328,31 +318,33 @@ fn parse_content_font(parsed: &Value) -> ContentFont {
     if legacy.is_empty() || legacy == "theme" {
         return ContentFont::FollowTheme;
     }
-    let font_id = normalize_font_id(Some(&Value::from(legacy)), Role::Content);
-    let early = parsed.get("version").is_none() || version_in(parsed, &[1, 2]);
-    if early && font_id == ids::GEIST_SANS {
+    // Geist meant "the theme" before v3 and is retired since: both read as
+    // the theme's font.
+    if retired(legacy) {
         return ContentFont::FollowTheme;
     }
+    let font_id = normalize_font_id(Some(&Value::from(legacy)), Role::Content);
     ContentFont::Explicit { font_id }
 }
 
 /// `DEFAULT_FONT_ID_BY_ROLE`.
 fn default_font(role: Role) -> &'static str {
-    match role {
-        Role::Ui | Role::Content => ids::GEIST_SANS,
-        Role::Code => ids::GEIST_MONO,
-        Role::Terminal => ids::TERMINAL_SYSTEM_MONO,
-    }
+    product_font(role)
 }
 
 /// `normalizeFontId`: a syntactically valid id is kept even when the catalog
 /// does not know it (resolution falls back later, so an imported font that
-/// returns is honoured again).
+/// returns is honoured again); a retired built-in id is the role's default.
 fn normalize_font_id(value: Option<&Value>, role: Role) -> String {
     match value.and_then(Value::as_str).map(str::trim) {
-        Some(id) if valid_font_id(id) => id.into(),
+        Some(id) if valid_font_id(id) && !retired(id) => id.into(),
         _ => default_font(role).into(),
     }
+}
+
+/// The built-in ids of the bundled faces the app no longer ships.
+fn retired(id: &str) -> bool {
+    id == ids::GEIST_SANS || id == ids::GEIST_MONO
 }
 
 fn parse_scale(parsed: &Value) -> Scale {
@@ -501,19 +493,36 @@ mod tests {
     use core::prelude::v1::test;
 
     #[test]
-    fn the_product_defaults_are_geist_for_code_and_the_system_stack_for_terminals() {
+    fn the_product_defaults_are_the_platform_faces() {
         let r = resolve(&Selection::default());
-        assert_eq!(r.ui.id, ids::GEIST_SANS);
-        assert_eq!(r.content.id, ids::GEIST_SANS);
-        assert_eq!(r.code.family, ["Geist Mono"]);
+        assert_eq!(r.ui.id, ids::SYSTEM_SANS);
+        assert_eq!(r.content.id, ids::SYSTEM_SANS);
+        assert_eq!(r.code.id, ids::SYSTEM_MONO);
+        assert_eq!(r.code.family[0], "ui-monospace");
+        assert!(catalog().iter().all(|e| e.source == Source::System));
         assert_eq!(
             r.terminal.family[..3],
             ["SF Mono", "SFMono-Regular", "Menlo"]
         );
         assert_eq!(r.editor_content_override, None);
         assert_eq!(r.editor_content_source, ContentSource::Theme);
-        assert_eq!(entries(Role::Content).count(), 3);
+        assert_eq!(entries(Role::Content).count(), 2);
         assert_eq!(entries(Role::Terminal).count(), 1);
+    }
+
+    #[test]
+    fn the_catalog_families_and_bundled_files_come_from_fonts_json() {
+        let faces = crate::platform::fonts::faces();
+        let r = resolve(&Selection::default());
+        assert_eq!(r.ui.family, &faces.sans.stack[..]);
+        assert_eq!(r.code.family, &faces.mono.stack[..]);
+        assert_eq!(r.terminal.family, &faces.terminal.stack[..]);
+        for file in faces.files() {
+            assert!(
+                crate::assets::embedded(file).is_some(),
+                "{file} is not embedded: run python3 tools/generate-assets-rs.py"
+            );
+        }
     }
 
     #[test]
@@ -527,9 +536,9 @@ mod tests {
             terminal_font_id: "imported:gone".into(),
         };
         let r = resolve(&selection);
-        assert_eq!(r.code.id, ids::GEIST_MONO);
+        assert_eq!(r.code.id, ids::SYSTEM_MONO);
         assert_eq!(r.terminal.id, ids::TERMINAL_SYSTEM_MONO);
-        assert_eq!(r.editor_content_override.unwrap().id, ids::GEIST_SANS);
+        assert_eq!(r.editor_content_override.unwrap().id, ids::SYSTEM_SANS);
         assert_eq!(r.editor_content_source, ContentSource::Fallback);
         let serif = resolve(&Selection {
             content_font: ContentFont::Explicit {
@@ -593,14 +602,23 @@ mod tests {
         let (_, scale) =
             parse(r#"{"version":8,"scales":{"editor":"small","ui":"large"},"contentFont":{}}"#);
         assert_eq!(scale, Scale::Small);
-        // Versions 1–3: `contentFontId`, Geist meant "the theme" before v3.
+        // Versions 1–3: `contentFontId`, Geist meant "the theme" before v3;
+        // the retired Geist ids read as the system faces in every version.
         let (s, _) = parse(r#"{"version":2,"contentFontId":"builtin:geist-sans"}"#);
         assert_eq!(s.content_font, ContentFont::FollowTheme);
         let (s, _) = parse(r#"{"version":3,"contentFontId":"builtin:geist-sans"}"#);
+        assert_eq!(s.content_font, ContentFont::FollowTheme);
+        let (s, _) = parse(
+            r#"{"version":11,"contentFont":{"mode":"explicit","fontId":"builtin:geist-sans"},
+                "codeFontId":"builtin:geist-mono"}"#,
+        );
+        assert_eq!(s.content_font, ContentFont::FollowTheme);
+        assert_eq!(s.code_font_id, ids::SYSTEM_MONO);
+        let (s, _) = parse(r#"{"version":3,"contentFontId":"builtin:system-serif"}"#);
         assert_eq!(
             s.content_font,
             ContentFont::Explicit {
-                font_id: ids::GEIST_SANS.into()
+                font_id: ids::SYSTEM_SERIF.into()
             }
         );
         let (s, _) = parse(r#"{"contentFontId":"theme"}"#);
@@ -711,9 +729,8 @@ mod tests {
         assert_eq!(locale_stack("jav", Category::Sans)[0], "ui-sans-serif");
         let code = stack(resolve(&Selection::default()).code, "ja");
         assert_eq!(
-            code,
+            code[code.len() - 6..],
             [
-                "Geist Mono",
                 "Hiragino Sans",
                 "Yu Gothic",
                 "Noto Sans Mono CJK JP",
@@ -722,5 +739,6 @@ mod tests {
                 "Noto Color Emoji"
             ]
         );
+        assert_eq!(code[0], "ui-monospace");
     }
 }

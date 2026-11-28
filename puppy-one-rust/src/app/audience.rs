@@ -66,9 +66,19 @@ pub(in crate::app) struct Team {
     /// offered.
     pub on_copy: Option<AudienceAction>,
 }
+/// One destination Space offered under `Move to ▸`.
+#[derive(Clone, Debug, PartialEq)]
+pub(in crate::app) struct SpaceTarget {
+    pub id: String,
+    pub name: String,
+    pub tone: usize,
+    pub action: AudienceAction,
+}
 /// `ProjectAudience`.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(in crate::app) struct ProjectAudience {
+    /// Writable Cloud Spaces this folder can move to (`Move to ▸`).
+    pub spaces: Vec<SpaceTarget>,
     /// Absent where opening folders to my other computers is not available.
     pub devices: Option<Devices>,
     /// A copy of this folder in my own Cloud space.
@@ -78,6 +88,7 @@ pub(in crate::app) struct ProjectAudience {
 }
 impl ProjectAudience {
     /// `reachesOnlyThisComputer`.
+    #[cfg(test)]
     pub fn only_this_computer(&self) -> bool {
         !self.devices.as_ref().is_some_and(|d| d.on)
             && self.devices_copy.is_none()
@@ -85,7 +96,10 @@ impl ProjectAudience {
     }
     /// `hasProjectAudience`: there is something to say beyond this computer.
     pub fn any(&self) -> bool {
-        self.devices.is_some() || self.devices_copy.is_some() || self.team.is_some()
+        !self.spaces.is_empty()
+            || self.devices.is_some()
+            || self.devices_copy.is_some()
+            || self.team.is_some()
     }
 }
 
@@ -110,9 +124,12 @@ pub(in crate::app) fn other_computers(names: &[String], paused: bool) -> String 
     }
 }
 
-/// `ProjectAudienceRows`: the quiet label, then three rows with a tick and
-/// the lines a Cloud copy or my devices hang under their row. A row's action
-/// is the word at its end and the row itself is the control.
+/// Space-first actions in a project's `⋯` menu:
+/// - `Move to ▸` submenu listing every writable Cloud Space (with its colour
+///   dot) and, when enabled, My other computers.
+/// - For a folder that already has a Cloud copy, a direct `Cloud copy · Open`
+///   row (plus any unsent/problem status), without the legacy "Who can open
+///   it" section.
 pub(in crate::app) fn rows(
     menu: Menu,
     audience: &ProjectAudience,
@@ -120,16 +137,6 @@ pub(in crate::app) fn rows(
     t: crate::theme::Theme,
 ) -> Menu {
     let ty = crate::theme::ty();
-    let title = div()
-        .flex_shrink_0()
-        .px(px(crate::theme::metric::MENU_ITEM_PADDING_INLINE))
-        .pt(px(4.))
-        .pb(px(2.))
-        .text_color(t.subtle)
-        .text_size(px(ty.ui.meta))
-        .line_height(px(15.))
-        .font_weight(FontWeight::MEDIUM)
-        .child(tr("shell.projectAudience.title"));
     let action_word = move |word: String| {
         div()
             .flex()
@@ -137,25 +144,6 @@ pub(in crate::app) fn rows(
             .gap(px(3.))
             .text_size(px(ty.ui.meta))
             .child(word)
-    };
-    let tier = |label: &str, checked: bool, action: Option<(String, AudienceAction)>| {
-        let mut row = MenuItem::new(label.to_owned())
-            .icon_element(if checked {
-                Icon::new("check").small().stroke(1.85).into_any_element()
-            } else {
-                div().size(px(14.)).into_any_element()
-            })
-            .color(if checked { t.text } else { t.muted });
-        match action {
-            Some((word, action)) => {
-                let run = run.clone();
-                row = row
-                    .trailing(action_word(word))
-                    .on_click(move |w, cx| run(action.clone(), w, cx));
-            }
-            None => row = row.fact(true),
-        }
-        row
     };
     let line = |icon: Icon,
                 label: String,
@@ -211,63 +199,104 @@ pub(in crate::app) fn rows(
         }
         rows
     };
-    let mut items = vec![tier(
-        tr("shell.projectAudience.onlyThisComputer"),
-        audience.only_this_computer(),
-        None,
-    )];
-    if audience.devices.is_some() || audience.devices_copy.is_some() {
-        let devices = audience.devices.clone().unwrap_or_default();
-        let checked = devices.on || audience.devices_copy.is_some();
-        let action = if devices.on {
-            devices
-                .stop
-                .clone()
-                .map(|a| (tr("shell.projectAudience.stop").to_owned(), a))
-        } else {
-            devices
-                .turn_on
-                .clone()
-                .map(|a| (tr("shell.projectAudience.turnOn").to_owned(), a))
-        };
-        items.push(tier(tr("shell.projectAudience.devices"), checked, action));
-        if devices.on {
-            items.push(line(
-                Icon::product(ProductIcon::Local),
-                devices
-                    .detail
-                    .clone()
-                    .unwrap_or_else(|| tr("shell.projectAudience.devicesOn").to_owned()),
-                devices.settings.clone(),
-                devices.settings.as_ref().map(|_| {
-                    Icon::new("settings")
-                        .with_size(px(13.))
-                        .stroke(1.85)
-                        .into_any_element()
+
+    let mut items: Vec<MenuItem> = Vec::new();
+    let turn_on_devices = audience
+        .devices
+        .as_ref()
+        .filter(|d| !d.on)
+        .and_then(|d| d.turn_on.clone());
+
+    if !audience.spaces.is_empty() || turn_on_devices.is_some() {
+        let spaces = audience.spaces.clone();
+        let turn_on = turn_on_devices.clone();
+        let run_sub = run.clone();
+        let dark = t.dark;
+        items.push(
+            MenuItem::new(tr("home.project.moveTo"))
+                .id("project-move-to")
+                .icon("folder-input")
+                .submenu(move |_, _| {
+                    let mut sub = Menu::new("project-move-to-menu")
+                        .variant(crate::ui::components::MenuVariant::SidebarAction)
+                        .min_w(px(176.));
+                    let space_items: Vec<MenuItem> = spaces
+                        .iter()
+                        .map(|space| {
+                            let run = run_sub.clone();
+                            let action = space.action.clone();
+                            let dot = div()
+                                .flex_none()
+                                .size(px(7.))
+                                .rounded_full()
+                                .bg(crate::theme::space_dot(space.tone, dark))
+                                .into_any_element();
+                            MenuItem::new(space.name.clone())
+                                .id(SharedString::from(format!("move-to-space:{}", space.id)))
+                                .icon_element(dot)
+                                .on_click(move |w, cx| run(action.clone(), w, cx))
+                        })
+                        .collect();
+                    let has_spaces = !space_items.is_empty();
+                    if has_spaces {
+                        sub = sub.items(space_items);
+                    }
+                    if let Some(action) = turn_on.clone() {
+                        if has_spaces {
+                            sub = sub.separator();
+                        }
+                        let run = run_sub.clone();
+                        sub = sub.item(
+                            MenuItem::new(tr("shell.projectAudience.devices"))
+                                .id("move-to-devices")
+                                .icon_element(
+                                    Icon::product(ProductIcon::Local)
+                                        .with_size(px(14.))
+                                        .stroke(1.75)
+                                        .into_any_element(),
+                                )
+                                .on_click(move |w, cx| run(action.clone(), w, cx)),
+                        );
+                    }
+                    sub
                 }),
-            ));
-        }
-        if let Some(copy) = &audience.devices_copy {
-            items.extend(copy_lines(copy));
-        }
+        );
     }
-    if let Some(team) = &audience.team {
-        let action = team
-            .copy
-            .is_none()
-            .then(|| team.on_copy.clone())
-            .flatten()
-            .map(|a| (tr("shell.projectAudience.copy").to_owned(), a));
-        items.push(tier(
-            tr("shell.projectAudience.team"),
-            team.copy.is_some(),
+
+    if let Some(devices) = audience.devices.as_ref().filter(|d| d.on) {
+        let action = devices.settings.clone().or_else(|| devices.stop.clone());
+        let trailing = if devices.settings.is_some() {
+            Some(
+                Icon::new("settings")
+                    .with_size(px(13.))
+                    .stroke(1.85)
+                    .into_any_element(),
+            )
+        } else {
+            devices.stop.as_ref().map(|_| {
+                action_word(tr("shell.projectAudience.stop").to_owned()).into_any_element()
+            })
+        };
+        items.push(line(
+            Icon::product(ProductIcon::Local),
+            devices
+                .detail
+                .clone()
+                .unwrap_or_else(|| tr("shell.projectAudience.devicesOn").to_owned()),
             action,
+            trailing,
         ));
-        if let Some(copy) = &team.copy {
-            items.extend(copy_lines(copy));
-        }
     }
-    menu.child_element(title).list(2., items)
+    if let Some(copy) = &audience.devices_copy {
+        items.extend(copy_lines(copy));
+    }
+    if let Some(copy) = audience.team.as_ref().and_then(|team| team.copy.as_ref()) {
+        items.extend(copy_lines(copy));
+    }
+    if items.is_empty() {
+        return menu;
+    }
+    menu.list(2., items)
 }
 
 #[cfg(test)]

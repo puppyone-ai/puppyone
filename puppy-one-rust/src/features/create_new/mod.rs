@@ -5,3 +5,4 @@ mod native_create_entry;
 
 pub use create_entry_dialog::{CreateEntryDialog, CreateEvent};
 pub use create_entry_menu_registry::{Entry, MenuSettings, Placement};
+pub use native_create_entry::create_untitled;

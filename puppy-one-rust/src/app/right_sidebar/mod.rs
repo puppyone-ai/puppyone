@@ -115,17 +115,19 @@ impl RightSidebar {
             launcher::LauncherEvent::CloudPublished => cx.emit(SidebarEvent::CloudPublished),
         })
         .detach();
-        cx.subscribe(&workbench, |_, _, event, cx| {
-            cx.emit(match event {
-                WorkbenchEvent::OpenModelConnections => {
-                    SidebarEvent::OpenSettings(Page::ModelConnections)
-                }
-                WorkbenchEvent::OpenAccount => SidebarEvent::OpenSettings(Page::Account),
-                WorkbenchEvent::OpenAgentFile { root, path } => SidebarEvent::OpenAgentFile {
-                    root: root.clone(),
-                    path: path.clone(),
-                },
-            })
+        cx.subscribe(&workbench, |s, _, event, cx| match event {
+            WorkbenchEvent::OpenModelConnections => {
+                cx.emit(SidebarEvent::OpenSettings(Page::ModelConnections))
+            }
+            WorkbenchEvent::OpenAccount => cx.emit(SidebarEvent::OpenSettings(Page::Account)),
+            WorkbenchEvent::OpenAgentFile { root, path } => cx.emit(SidebarEvent::OpenAgentFile {
+                root: root.clone(),
+                path: path.clone(),
+            }),
+            WorkbenchEvent::ClosedLastTab => {
+                s.collapse(cx);
+                cx.emit(SidebarEvent::Closed);
+            }
         })
         .detach();
         // History and Back store the surface (`rightSidebarSurface`).
@@ -189,15 +191,24 @@ impl RightSidebar {
         };
         let shown = Shown::of(&preferences.read(cx).state);
         sidebar.show(&shown, cx);
+        if preferences.read(cx).loaded && surface == Surface::Agent {
+            let stored = preferences.read(cx).state.right_sidebar_surface;
+            sidebar.restore(stored, cx);
+        }
         sidebar.sync_workbench_visibility(cx);
         sidebar
     }
     /// `AuxiliaryPanelHost`'s `contentVisible`: the workbench presents its
-    /// items only while the open sidebar shows it.
+    /// items only while the open sidebar shows it, and ensures an empty
+    /// workbench starts with one real `New tab` page whenever revealed.
     fn sync_workbench_visibility(&self, cx: &mut App) {
         let visible = self.shows(Surface::Agent, cx);
-        self.workbench
-            .update(cx, |w, cx| w.set_content_visible(visible, cx));
+        self.workbench.update(cx, |w, cx| {
+            w.set_content_visible(visible, cx);
+            if visible {
+                w.ensure_open_tab(cx);
+            }
+        });
     }
     fn show(&mut self, shown: &Shown, cx: &mut Context<Self>) {
         let Shown {
@@ -247,6 +258,7 @@ impl RightSidebar {
         } else if let Some(target) = workspace.agent_target() {
             self.launcher.update(cx, |s, cx| s.show_hosted(target, cx));
         }
+        self.sync_workbench_visibility(cx);
     }
 
     /// Model connections changed: every Agent chat rereads them.
@@ -264,6 +276,7 @@ impl RightSidebar {
         self.restored = true;
         self.surface = Surface::Agent;
         self.launcher.update(cx, |l, cx| l.show_local(root, cx));
+        self.sync_workbench_visibility(cx);
         cx.notify();
     }
 
@@ -291,6 +304,25 @@ impl RightSidebar {
             .active_item_view(ItemKind::Chat)?
             .downcast::<AgentChatTabPanel>()
             .ok()
+    }
+
+    /// Opens the Agent workbench surface and launches a fresh local Agent chat
+    /// tab on `runtime_id` (used by the empty-project start view).
+    pub fn launch_local_agent(
+        &mut self,
+        runtime_id: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.surface = Surface::Agent;
+        self.store(cx);
+        self.set_open(true, cx);
+        if let Some((group, tab)) = self.workbench.update(cx, |w, cx| w.prepare_launch_slot(cx)) {
+            self.launcher.update(cx, |l, cx| {
+                l.launch_runtime_chat(group, tab, runtime_id, window, cx)
+            });
+        }
+        cx.notify();
     }
 
     /// Opens the Agent workbench surface and launches a seeded local Agent chat
@@ -323,7 +355,18 @@ impl RightSidebar {
         self.surface = Surface::Agent;
         self.store(cx);
         self.set_open(true, cx);
+        self.workbench.update(cx, |w, cx| {
+            w.set_content_visible(true, cx);
+            w.ensure_open_tab(cx);
+        });
         cx.notify();
+    }
+    /// Focuses the active workbench chat or launcher composer when visible.
+    pub fn focus_active(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.shows(Surface::Agent, cx) {
+            self.workbench
+                .update(cx, |w, cx| w.focus_active(window, cx));
+        }
     }
     /// The Changes entry (`useGitPresentation.toggle`): close Git when it
     /// shows (Changes or History), else reveal the Changes list.

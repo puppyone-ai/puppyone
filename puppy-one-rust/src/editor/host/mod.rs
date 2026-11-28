@@ -204,7 +204,7 @@ pub struct DocumentEditor {
     chrome: crate::editor::workbench::pane::PaneChrome,
     find: Option<Entity<crate::editor::workbench::find::FindBar>>,
     find_subscription: Option<Subscription>,
-    bounds: Option<Bounds<Pixels>>,
+    bounds: Rc<std::cell::Cell<Option<Bounds<Pixels>>>>,
     extensions: Option<ExtensionHost>,
     references: Option<crate::editor::navigation::ReferenceContext>,
     workspace: Option<Arc<crate::workspace::Workspace>>,
@@ -269,7 +269,7 @@ impl DocumentEditor {
             chrome: crate::editor::workbench::pane::PaneChrome::new(cx.focus_handle()),
             find: None,
             find_subscription: None,
-            bounds: None,
+            bounds: Rc::new(std::cell::Cell::new(None)),
             extensions: None,
             references: None,
             workspace: None,
@@ -1213,6 +1213,12 @@ impl DocumentEditor {
     pub fn set_chrome_inset(&mut self, top: f32, cx: &mut Context<Self>) {
         if self.chrome_inset != top {
             self.chrome_inset = top;
+            if let Some(bar) = &self.find {
+                bar.update(cx, |b, cx| {
+                    b.top_inset = top;
+                    cx.notify();
+                });
+            }
             let mut panicked = None;
             if let Some(surface) = &self.surface
                 && let Err(payload) =
@@ -1582,70 +1588,113 @@ impl Render for DocumentEditor {
         crate::web_host::frame_drawn(window);
         use crate::editor::workbench::pane;
         let weak = cx.entity().downgrade();
+        let bounds_cell = self.bounds.clone();
         let measure = canvas(
             move |bounds, _, cx| {
-                let _ = weak.update(cx, |this, cx| {
-                    if this.bounds != Some(bounds) {
-                        this.bounds = Some(bounds);
-                        cx.notify();
-                    }
-                });
+                if bounds_cell.get() != Some(bounds) {
+                    bounds_cell.set(Some(bounds));
+                    let _ = weak.update(cx, |this, cx| {
+                        // Only force a re-render when the pane menu is open and
+                        // needs repositioning; hover reveal and pane drag read
+                        // `self.bounds` live without a wasted Frame 2 repaint.
+                        if this.chrome.open {
+                            cx.notify();
+                        }
+                    });
+                }
             },
             |_, _, _, _| {},
         )
         .absolute()
         .size_full();
+        let banner = self.readonly_banner(cx);
+        let top_inset = if banner.is_some() {
+            0.
+        } else {
+            self.chrome_inset
+        };
         let label = self.session.as_ref().map(|s| s.name.clone());
-        let chrome = label.as_ref().zip(self.bounds).map(|(name, bounds)| {
+        let chrome = label.as_ref().map(|name| {
             let handle_label = crate::localization::tf(
                 "editor.panes.actionsFor",
                 &[("name", crate::localization::Arg::Text(name.clone()))],
             );
             let toggle = cx.entity().downgrade();
+            let current_bounds = self.bounds.get();
+            let live_bounds = self.bounds.clone();
             let handle = pane::handle(
                 self.dark,
                 self.chrome.revealed(),
+                top_inset,
                 name,
                 handle_label.into(),
                 self.pane_drag.clone().map(|mut drag| {
-                    drag.pane = Some(bounds);
+                    drag.pane = current_bounds;
+                    drag.live_bounds = Some(live_bounds);
                     drag
                 }),
                 move |window, cx| {
                     let _ = toggle.update(cx, |this, cx| this.toggle_pane_menu(window, cx));
                 },
             );
-            let (run, dismiss, keys) = (
-                cx.entity().downgrade(),
-                cx.entity().downgrade(),
-                cx.entity().downgrade(),
-            );
-            let menu = pane::menu(
-                &self.chrome,
-                &self.contribution(cx),
-                self.dark,
-                pane::MenuPlace {
-                    pane: bounds,
-                    viewport_height: window.viewport_size().height,
-                },
-                Rc::new(move |action, window, cx| {
-                    let _ = run.update(cx, |this, cx| this.run_pane_action(action, window, cx));
-                }),
-                Rc::new(move |restore, window, cx| {
-                    let _ =
-                        dismiss.update(cx, |this, cx| this.close_pane_menu(restore, window, cx));
-                }),
-                Rc::new(move |event: &KeyDownEvent, window, cx| {
-                    let _ = keys.update(cx, |this, cx| this.pane_menu_key(event, window, cx));
-                }),
-            );
+            let menu = current_bounds.and_then(|bounds| {
+                let (run, dismiss, keys) = (
+                    cx.entity().downgrade(),
+                    cx.entity().downgrade(),
+                    cx.entity().downgrade(),
+                );
+                pane::menu(
+                    &self.chrome,
+                    &self.contribution(cx),
+                    self.dark,
+                    pane::MenuPlace {
+                        pane: bounds,
+                        viewport_height: window.viewport_size().height,
+                    },
+                    Rc::new(move |action, window, cx| {
+                        let _ = run.update(cx, |this, cx| this.run_pane_action(action, window, cx));
+                    }),
+                    Rc::new(move |restore, window, cx| {
+                        let _ = dismiss
+                            .update(cx, |this, cx| this.close_pane_menu(restore, window, cx));
+                    }),
+                    Rc::new(move |event: &KeyDownEvent, window, cx| {
+                        let _ = keys.update(cx, |this, cx| this.pane_menu_key(event, window, cx));
+                    }),
+                )
+            });
             (handle, menu)
         });
         let (handle, menu) = chrome
             .filter(|_| !self.file_mode)
             .map_or((None, None), |(h, m)| (Some(h), m));
-        let banner = self.readonly_banner(cx);
-        let surface_el = self.isolated_surface_element(cx);
+        let banner = banner.map(|b| {
+            if self.chrome_inset > 0. {
+                div()
+                    .flex_none()
+                    .w_full()
+                    .pt(px(self.chrome_inset))
+                    .child(b)
+                    .into_any_element()
+            } else {
+                b
+            }
+        });
+        let surface_handles_inset = self
+            .surface
+            .as_ref()
+            .is_some_and(|s| s.supports_chrome_inset());
+        let surface_el = self.isolated_surface_element(cx).map(|el| {
+            if top_inset > 0. && !surface_handles_inset {
+                div()
+                    .size_full()
+                    .pt(px(top_inset))
+                    .child(el)
+                    .into_any_element()
+            } else {
+                el
+            }
+        });
         let reading = self.session.is_none().then(|| match &self.read_failure {
             Some(failure) => read_failure::card(
                 failure,
@@ -1687,6 +1736,7 @@ impl Render for DocumentEditor {
             .on_mouse_move(cx.listener(|s, e: &MouseMoveEvent, _, cx| {
                 let hot = s
                     .bounds
+                    .get()
                     .is_some_and(|b| pane::PaneChrome::reveal_zone(b, e.position));
                 if hot != s.chrome.hot {
                     s.chrome.hot = hot;

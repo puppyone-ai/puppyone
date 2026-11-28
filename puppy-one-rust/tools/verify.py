@@ -67,7 +67,6 @@ CHECKS = [
     ('excalidraw', ['node', 'tools/import-excalidraw.mjs', '--check'], 'light', ()),
     ('render-service', ['node', 'tools/import-render-service.mjs', '--check'], 'light', ()),
     ('document-defaults', ['node', 'tools/import-document-defaults.mjs', '--check'], 'light', ()),
-    ('document-fonts', ['python3', 'tools/import-document-fonts.py', '--check'], 'light', ()),
     ('app-preview', ['node', 'tools/import-app-preview.mjs', '--check'], 'light', ()),
     ('terminal-glyphs', ['node', 'tools/import-xterm-glyphs.mjs', '--check'], 'light', ()),
     ('ui-migration', ['python3', 'tools/audit-ui-migration.py'], 'light', ()),

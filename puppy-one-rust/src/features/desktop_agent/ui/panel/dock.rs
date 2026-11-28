@@ -30,9 +30,9 @@ impl AgentChatTabPanel {
         let mut dock = v_flex()
             .debug_selector(|| "agent-dock".into())
             .flex_shrink_0()
-            .pt(px(12.))
-            .px(px(12.))
-            .pb(px(12.))
+            .pt(px(8.))
+            .px(px(8.))
+            .pb(px(10.))
             .gap(px(8.));
         if view.model_connections {
             let compute = self.compute_view(
@@ -49,6 +49,7 @@ impl AgentChatTabPanel {
         if view.read_only {
             dock = dock.child(
                 div()
+                    .px(px(8.))
                     .text_size(px(m.right.caption))
                     .text_color(a.text_subtle)
                     .child(t("settings.modelConnections.readOnly")),

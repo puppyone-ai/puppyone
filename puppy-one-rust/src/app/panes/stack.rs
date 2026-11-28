@@ -95,51 +95,55 @@ pub(in crate::app) fn edges(
     let state = panes.read(cx);
     let editor = frames.layout.editor;
     // `.po-pane-edge-resize-handle` + `.po-pane-edge-chrome`: an 8px
-    // transparent lane whose only paint is the 1px divider — the Explorer's
-    // own last column, the right sidebar's first — plus the adjacent hover /
-    // active stroke (and ring while dragging). A focused edge is a tab stop
-    // that resizes with the arrow keys and shows its stroke.
+    // transparent lane whose only paint is the hairline divider — the
+    // Explorer's own last column, the right sidebar's first — plus the
+    // adjacent hover / active stroke (and ring while dragging). A focused
+    // edge is a tab stop that resizes with the arrow keys and shows its
+    // stroke.
     let sash = |side: Side| {
         // The frames' edges, also mid-motion: the main pane follows them.
-        let x = match side {
-            Side::Start => editor.x - 1.,
-            Side::End => editor.right(),
+        // The Explorer's hairline hugs the main pane like the right
+        // sidebar's does.
+        let (x, divider) = match side {
+            Side::Start => (editor.x - 1., 1. - theme::metric::SHELL_DIVIDER_WIDTH),
+            Side::End => (editor.right(), 0.),
         };
         let focus = state.focus(side).clone();
         let (on_drag, on_key) = (panes.downgrade(), panes.downgrade());
-        ResizeHandle::new(
-            match side {
-                Side::Start => "left-sash",
-                Side::End => "right-sash",
-            },
-            Axis::Horizontal,
-        )
-        .divider(t.sidebar_divider)
-        .stroke_at(1.)
-        .resizing(state.dragging() == Some(side))
-        .focused(focus.is_focused(window))
-        .focus_ring()
-        // A pane that is closing (or previewing closed) keeps its edge
-        // painted but cannot be grabbed (`onPointerDown` while collapsed).
-        .disabled(!state.pane(side).open)
-        .on_drag_start(move |e: &MouseDownEvent, _, cx| {
-            cx.stop_propagation();
-            let _ = on_drag.update(cx, |p, cx| p.begin_drag(side, e.position, cx));
-        })
-        .track_focus(&focus)
-        .on_key_down(move |e: &KeyDownEvent, _, cx| {
-            if let Some(intent) = intent(&e.keystroke.key) {
+        let sash_id = match side {
+            Side::Start => "left-sash",
+            Side::End => "right-sash",
+        };
+        ResizeHandle::new(sash_id, Axis::Horizontal)
+            .debug_selector(move || sash_id.into())
+            .divider(t.sidebar_divider)
+            .divider_at(divider)
+            .stroke_at(1.)
+            .resizing(state.dragging() == Some(side))
+            .focused(focus.is_focused(window))
+            .focus_ring()
+            // A pane that is closing (or previewing closed) keeps its edge
+            // painted but cannot be grabbed (`onPointerDown` while collapsed).
+            .disabled(!state.pane(side).open)
+            .on_drag_start(move |e: &MouseDownEvent, _, cx| {
                 cx.stop_propagation();
-                let shift = e.keystroke.modifiers.shift;
-                let _ = on_key.update(cx, |p, cx| p.resize_by_keyboard(side, intent, shift, cx));
-            }
-        })
-        .absolute()
-        .left(px(x))
-        .top(px(editor.y))
-        .w(px(theme::metric::PANE_SASH))
-        .h(px(editor.h))
-        .into_any_element()
+                let _ = on_drag.update(cx, |p, cx| p.begin_drag(side, e.position, cx));
+            })
+            .track_focus(&focus)
+            .on_key_down(move |e: &KeyDownEvent, _, cx| {
+                if let Some(intent) = intent(&e.keystroke.key) {
+                    cx.stop_propagation();
+                    let shift = e.keystroke.modifiers.shift;
+                    let _ =
+                        on_key.update(cx, |p, cx| p.resize_by_keyboard(side, intent, shift, cx));
+                }
+            })
+            .absolute()
+            .left(px(x))
+            .top(px(editor.y))
+            .w(px(theme::metric::PANE_SASH))
+            .h(px(editor.h))
+            .into_any_element()
     };
     let mut edges = vec![];
     // Each frame owns its edge while it is on screen; a closed right

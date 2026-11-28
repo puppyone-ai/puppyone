@@ -160,6 +160,21 @@ impl SetupSuggestions {
     }
 }
 
+/// Experimental Home page Space switching layout.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum HomeSpaceLayout {
+    /// Legacy vertical stack of all places and spaces.
+    Classic,
+    /// Scheme A (default): Arc-style horizontal swipeable Spaces with
+    /// restrained tint, bottom floating Space dock, and quiet `+` menu.
+    #[default]
+    Arc,
+    /// Scheme B: single-row pure-text editorial Tabs with quiet `+` and view
+    /// menus tucked at the end of the same row (no secondary toolbar).
+    Tabs,
+}
+
 /// `ExperimentalSettings` backed by native consumers (`project_switcher_rail`
 /// keeps its earlier top-level field for stored-preference compatibility).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -169,6 +184,17 @@ pub struct Experimental {
     pub host_devices: bool,
     pub always_show_onboarding_coachmarks: bool,
     pub editor_tabs_in_header: bool,
+    /// Native only: no Header bar in a project window. The place and the
+    /// project move to the bottom of the Explorer, the tools (Changes, the
+    /// Agent entry, …) above the document, on its background.
+    pub hidden_header: bool,
+    /// Native only: experimental Home Space switching style (Classic / Arc / Tabs).
+    pub home_space_layout: HomeSpaceLayout,
+    /// Native only: hide Grid/List layout and Sort controls on Home.
+    pub hide_home_view_controls: bool,
+    /// Native only: offer "Start with Agent" (detected Local Agents) when
+    /// creating a project. Off by default.
+    pub start_with_agent: bool,
     pub markdown_block_drag: bool,
     pub other_app_imports: bool,
     pub cloud_workspace: bool,
@@ -188,6 +214,10 @@ impl Default for Experimental {
             host_devices: crate::features::flags::HOST_DEVICES_BUILD,
             always_show_onboarding_coachmarks: false,
             editor_tabs_in_header: false,
+            hidden_header: true,
+            home_space_layout: HomeSpaceLayout::Arc,
+            hide_home_view_controls: true,
+            start_with_agent: false,
             markdown_block_drag: false,
             other_app_imports: false,
             cloud_workspace: false,

@@ -91,6 +91,11 @@ impl WorkbenchItem for CloudAgentItem {
             .update(cx, |c, cx| c.set_presentation(presented, window, cx));
     }
 
+    fn focus(&self, window: &mut Window, cx: &mut App) {
+        self.conversation
+            .update(cx, |c, cx| c.focus_composer(window, cx));
+    }
+
     fn watch(&self, cx: &mut Context<Workbench>) -> Subscription {
         let root = self.root.clone();
         cx.subscribe(&self.conversation, move |_, _, event, cx| match event {

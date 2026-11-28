@@ -183,7 +183,7 @@ impl<'s, 'r, 'a> Surface<'s, 'r, 'a> {
             .w(px(width))
             .flex()
             .flex_col();
-        base.text.apply(root.style());
+        base.text.apply_for(root.style(), self.render.language());
         root.children(children).into_any_element()
     }
 

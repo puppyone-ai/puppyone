@@ -485,7 +485,7 @@ impl RenderOnce for ValueRow {
                             .text_right()
                             .text_color(if self.success { t.success } else { t.text })
                             .when(monospace, |d| {
-                                d.font_family(theme::MONO)
+                                d.font_family(theme::mono())
                                     .text_size(px(theme::ty().ui.meta))
                                     .line_height(px(17.))
                             })

@@ -1,9 +1,9 @@
 //! `shell-cloud-screen-<state>-<mode>`: a Cloud project, signed in to a
 //! fixture account, whose Cloud Computer streams a desktop fixture over RFB.
-//! `row`: the screen folded into the sidebar card; `preview`: unfolded while
-//! Claude Code works there; `stage`: open over the main area; `close`: open,
-//! then closed (⌘W, or a file opened), so it goes back to the card while
-//! Claude Code works;
+//! `row`: the screen closed, its Computer button in the Header; `preview`:
+//! the button's live preview while Claude Code works there; `stage`: open
+//! over the main area; `close`: open, then closed (⌘W, or a file opened), so
+//! it fades back to the files while Claude Code works;
 //! `asleep`; `off` (its desktop stream turned off). The capture waits for
 //! the screen to settle where the state puts it.
 use crate::app::*;
@@ -278,7 +278,7 @@ impl Shell {
         crate::features::cloud::account::install_fixture(broker, browser, cx);
         self.open_cloud("project-a".into(), cx);
         // The project and its screen arrive on their own; open the screen
-        // once its picture has settled in the card, so it moves from there.
+        // (or its preview) once its picture has settled.
         cx.spawn(async move |this, cx| {
             let mut live_for = 0;
             loop {
@@ -287,6 +287,17 @@ impl Shell {
                     .await;
                 let Ok(done) = this.update(cx, |s, cx| {
                     let screen = s.cloud.read(cx).screen.clone();
+                    if state == "preview" {
+                        let ready = screen.read(cx).has_live_frame()
+                            && screen.read(cx).operator_for_lab().is_some();
+                        if ready {
+                            s.cloud.update(cx, |c, cx| {
+                                c.computer_peek = true;
+                                cx.notify();
+                            });
+                        }
+                        return ready;
+                    }
                     if state != "stage" && state != "close" {
                         return true;
                     }
@@ -331,7 +342,12 @@ impl Shell {
             "asleep" => screen.is_asleep_for_lab(),
             "off" => true,
             "stage" => screen.has_live_frame() && self.cloud.read(cx).screen_shown(cx),
-            "preview" | "close" => {
+            "preview" => {
+                screen.has_live_frame()
+                    && screen.operator_for_lab().is_some()
+                    && self.cloud.read(cx).computer_peek
+            }
+            "close" => {
                 screen.has_live_frame()
                     && screen.operator_for_lab().is_some()
                     && !self.cloud.read(cx).screen_shown(cx)

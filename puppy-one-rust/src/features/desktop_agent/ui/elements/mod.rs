@@ -13,10 +13,11 @@ use gpui_kit::component::Sizable as _;
 /// Opens a workspace path from a transcript row.
 pub type OpenFile = std::rc::Rc<dyn Fn(String, &mut Window, &mut App)>;
 
-/// `--agent-evidence-*` geometry.
+/// `--agent-evidence-*` geometry: `INSET` (6) + group `mx` (4) + `ROW_PADDING`
+/// (6) places every tool glyph flush on the sidebar's 16pt left edge.
 pub const EVIDENCE_ROW: f32 = 26.;
-pub const TOOL_ICON: f32 = 18.;
-pub const ROW_PADDING: f32 = 4.;
+pub const TOOL_ICON: f32 = 14.5;
+pub const ROW_PADDING: f32 = 6.;
 /// `--agent-evidence-rail-inline`: row padding + half the icon.
 pub const EVIDENCE_RAIL_INLINE: f32 = ROW_PADDING + TOOL_ICON / 2.;
 
@@ -44,7 +45,7 @@ pub fn context_divider(label: SharedString, a: &AgentTheme) -> AnyElement {
             div()
                 .text_size(px(theme::ty().left.meta))
                 .line_height(px(theme::ty().right.meta_line_height))
-                .font_weight(FontWeight(450.))
+                .font_weight(FontWeight::NORMAL)
                 .child(label),
         )
         .child(rule())
@@ -63,7 +64,7 @@ pub fn run_feedback(label: SharedString, busy: Option<SharedString>, a: &AgentTh
     h_flex()
         .min_h(px(theme::ty().right.meta_line_height))
         .gap(px(7.))
-        .px(px(12.))
+        .px(px(10.))
         .text_size(px(theme::ty().left.meta))
         .line_height(px(theme::ty().right.meta_line_height))
         .text_color(a.text_subtle)
@@ -77,6 +78,9 @@ pub fn mention_chip(a: &AgentTheme, label: String, resolving: bool) -> Div {
     let selector = format!("agent-mention:{label}");
     div()
         .debug_selector(move || selector)
+        .min_w_0()
+        .max_w_full()
+        .truncate()
         .flex_shrink_0()
         .mt(px(0.5))
         .px(px(4.))
@@ -87,8 +91,7 @@ pub fn mention_chip(a: &AgentTheme, label: String, resolving: bool) -> Div {
         .text_color(theme::mix(a.accent, a.text, 0.78))
         .text_size(px(14.))
         .line_height(px(18.))
-        .font_weight(FontWeight(450.))
-        .whitespace_nowrap()
+        .font_weight(FontWeight::NORMAL)
         .when(resolving, |d| d.opacity(0.68))
         .child(label)
 }

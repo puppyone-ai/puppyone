@@ -32,8 +32,6 @@ THIRD_PARTY_LICENSES = [
     (ROOT / 'README.md', 'README.md'),
     (ROOT / 'THIRD_PARTY.md', 'THIRD_PARTY.md'),
     (ROOT.parent / 'LICENSE', 'LICENSE'),
-    (ROOT / 'assets/OpenSans-OFL.txt', 'OpenSans-OFL.txt'),
-    (ROOT / 'assets/fonts/document/PT_Serif_OFL.txt', 'PTSerif-OFL.txt'),
     (ROOT / 'assets/agents/lobe-icons-license.txt', 'AGENT_ICONS_LICENSE.txt'),
 ]
 

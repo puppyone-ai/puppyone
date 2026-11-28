@@ -86,15 +86,27 @@ pub const PALETTE_TOKENS: [&str; 75] = [
 ];
 
 /// tokens.css semantic aliases feature CSS reads instead of primitives.
-pub(super) const SEMANTIC_ALIASES: [(&str, &str); 7] = [
+const SEMANTIC_ALIASES: [(&str, &str); 6] = [
     ("--po-panel", "var(--po-surface-panel)"),
     ("--po-panel-raised", "var(--po-surface-panel-raised)"),
     ("--po-overlay", "var(--po-surface-overlay)"),
     ("--po-inset", "var(--po-surface-inset)"),
     ("--po-chrome", "var(--po-surface-chrome)"),
-    ("--po-font-sans", "Geist, sans-serif"),
     ("--po-type-ui-micro", "11px"),
 ];
+
+/// [`SEMANTIC_ALIASES`] and `--po-font-sans`, the sans face of
+/// `assets/typography/fonts.json`.
+pub(super) fn semantic_aliases() -> impl Iterator<Item = (&'static str, String)> {
+    let sans = &crate::platform::fonts::faces().sans;
+    SEMANTIC_ALIASES
+        .iter()
+        .map(|(alias, value)| (*alias, (*value).to_owned()))
+        .chain(std::iter::once((
+            "--po-font-sans",
+            format!("{}, sans-serif", crate::platform::fonts::css(&sans.stack)),
+        )))
+}
 
 pub const NEUTRAL_CSS: &str = include_str!("../../../assets/themes/builtin/default-neutral.css");
 
@@ -143,10 +155,9 @@ pub(super) fn neutral() -> &'static (Declarations, Declarations) {
 fn resolve(vars: &HashMap<&str, &str>, name: &str, dark: bool) -> Option<String> {
     let lookup = |var: &str| {
         vars.get(var).map(|v| (*v).to_owned()).or_else(|| {
-            SEMANTIC_ALIASES
-                .iter()
+            semantic_aliases()
                 .find(|(alias, _)| *alias == var)
-                .map(|(_, v)| (*v).to_owned())
+                .map(|(_, v)| v)
         })
     };
     let reference = value::tokenize(&format!("var(--po-{name})"))?;

@@ -14,15 +14,18 @@ mod dev;
 pub use chrome::Popover;
 mod cloud_agents_ui;
 mod cloud_authority;
+mod cloud_computer_ui;
 mod cloud_publish;
 pub(crate) mod coachmarks;
 mod command;
 mod create_space;
 mod dialogs;
 mod editor_area;
+mod editor_start;
 mod editor_workbench;
 mod explorer;
 mod file_mode;
+mod file_sheet;
 mod header;
 mod home;
 mod host_sharing;
@@ -100,6 +103,18 @@ impl Shell {
         let fixture = cfg!(test)
             || std::env::var_os("PUPPYONE_FIXTURE").is_some()
             || std::env::var_os("PUPPYONE_SCREENSHOT").is_some();
+        let launch = windows::take_launch(cx);
+        let preferences = windows::shared_preferences(fixture, cx);
+        let plan = launch.plan(fixture);
+        Self::build(fixture, preferences, plan, window, cx)
+    }
+    fn build(
+        fixture: bool,
+        preferences: Entity<crate::features::settings::PreferencesStore>,
+        plan: windows::LaunchPlan,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let focus = cx.focus_handle();
         focus.focus(window, cx);
         let weak = cx.weak_entity();
@@ -113,9 +128,6 @@ impl Shell {
             s.restore_device(window, cx)
         })
         .detach();
-        // One preference owner for every window; per-window state stays here.
-        let launch = windows::take_launch(cx);
-        let preferences = windows::shared_preferences(fixture, cx);
         let explorer_session = cx.new(|cx| ExplorerSession::new(fixture, preferences.clone(), cx));
         let key = crate::features::agent_presence::owner(window);
         let docs = cx.new(|cx| session::DocumentSession::new(fixture, key.clone(), cx));
@@ -281,6 +293,7 @@ impl Shell {
         let workbench = s.sidebar.read(cx).workbench.clone();
         cx.observe_in(&workbench, window, |s, _, w, cx| s.gate_editors(w, cx))
             .detach();
+        s.wire_editor_start(cx);
         // The create form holds the window open while it writes; the
         // preferences drain before it closes.
         cx.observe(&s.dialogs, |s, _, cx| {
@@ -316,7 +329,6 @@ impl Shell {
             Ok("feedback") => s.open_modal(Modal::Task(Task::Feedback), cx),
             _ => {}
         }
-        let plan = launch.plan(fixture);
         if let Some(open) = plan.open_first {
             s.session
                 .project
@@ -350,31 +362,14 @@ impl Shell {
             }
         })
         .detach();
-        s.prefs.apply_initial(window, cx);
+        s.hydrate_initial_preferences(window, cx);
         s.constrain_window(window, cx);
         s.push_explorer_host(window, cx);
         // What the window shows from its first frame.
+        s.sync_editor_start(cx);
         s.sync_session_view(cx);
         s.sync_window_title(window, cx);
         s
-    }
-    /// The preferences changed: the appearance (the whole window renders
-    /// again) and the pane layout, when they did.
-    fn preferences_changed(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let (appearance, panes) = self.prefs.changed(window, cx);
-        if appearance {
-            self.gate_editors(window, cx);
-        }
-        if let Some(stored) = panes
-            && !self.file_mode()
-        {
-            self.panes.update(cx, |p, cx| p.restore(stored, cx));
-        }
-    }
-    /// The window appearance or an installed Sub Theme changed.
-    fn apply_appearance(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.prefs.apply(window, cx);
-        self.gate_editors(window, cx);
     }
     /// The window takes `owner`'s events (`on`) and draws again when it
     /// changes.
@@ -494,14 +489,20 @@ impl Shell {
     /// The window's gate over the editors changed.
     fn gate_editors(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let gate = self.editor_gate(cx);
-        self.editor.update(cx, |e, cx| e.set_gate(gate, window, cx));
+        let start = self.start_context(cx);
+        self.editor.update(cx, |e, cx| {
+            e.set_start_context(start, cx);
+            e.set_gate(gate, window, cx)
+        });
     }
     /// The editor area takes the runtime's messages under the window's gate.
     fn sync_editor(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let gate = self.editor_gate(cx);
+        let start = self.start_context(cx);
         let file_mode = self.file_mode();
         self.editor.update(cx, |e, cx| {
             e.set_file_mode(file_mode);
+            e.set_start_context(start, cx);
             e.set_gate(gate, window, cx);
             e.sync(window, cx)
         });
@@ -633,13 +634,19 @@ impl Render for Shell {
         }
         let size = window.viewport_size();
         let (w, h) = (f32::from(size.width), f32::from(size.height));
-        let file = self.file_mode();
+        let (t, file, home) = (cx.palette(), self.file_mode(), self.home_visible(cx));
         let rail = if file {
             0.
         } else {
             self.chrome.read(cx).rail_width()
         };
-        let panes = self.panes.read(cx).frames(w, h, rail, cx.reduce_motion());
+        let headerless =
+            !home && !file && self.prefs.store.read(cx).state.experimental.hidden_header;
+        let header_h = if headerless { 0. } else { theme::HEADER };
+        let panes =
+            self.panes
+                .read(cx)
+                .frames_with_header(w, h, rail, header_h, cx.reduce_motion());
         let html_chat_shown = file
             && self.file.as_ref().is_some_and(|f| f.read(cx).is_html())
             && (panes.end.is_some()
@@ -650,30 +657,25 @@ impl Render for Shell {
         } else {
             panes.layout
         };
-        let (t, home) = (cx.palette(), self.home_visible(cx));
         let plane = (!home && panes.start.is_some()).then(|| self.frame.layout.explorer_plane());
-        // The Cloud Computer's screen: its card atop the Explorer, the main
-        // area, or on its way between them.
-        let screen = (!home && !file && !self.opening(cx)).then(|| {
-            let (editor, animate) = (self.frame.layout.editor, !cfg!(test) && !cx.reduce_motion());
-            self.cloud
-                .read(cx)
-                .screen_layout(plane, editor, animate, cx)
+        let opening = !home && self.opening(cx);
+        let editor_body = chrome::seam::editor_body(self.frame.layout.editor, headerless);
+        let screen = (!home && !file && !opening).then(|| {
+            let animate = !cfg!(test) && !cx.reduce_motion();
+            self.cloud.read(cx).screen_layout(editor_body, animate, cx)
         });
         let crossing = screen.as_ref().is_some_and(|s| s.crossing());
         if panes.running || screen.as_ref().is_some_and(|s| s.moving()) {
             window.request_animation_frame();
         }
-        // Native web content draws above GPUI: a dialog or the Cloud screen
-        // (open, or on its way to or from the main area) hides it, and only
-        // surfaces painted in this frame stay visible. A menu, popover or
-        // tooltip is cut out of it instead, so the page around it stays
-        // (`ui::native_cover`).
-        let overlay =
-            !self.dialogs.read(cx).is_empty() || self.cloud.read(cx).screen_shown(cx) || crossing;
+        // Native web content draws above GPUI: dialogs or the Cloud screen hide it;
+        // popovers/menus/tooltips cut out via `ui::native_cover`.
+        let overlay = !self.dialogs.read(cx).is_empty()
+            || self.cloud.read(cx).screen_shown(cx)
+            || crossing
+            || self.session.docs.read(cx).loading_remote_pane();
         crate::web_host::set_overlay(window, overlay);
         crate::web_host::frame_drawn(window);
-        // A capture steps its scenario after each frame, then is taken.
         if !self.frame.captured && std::env::var_os("PUPPYONE_SCREENSHOT").is_some() {
             cx.defer_in(window, |s, w, cx| s.capture_tick(w, cx));
         }
@@ -696,51 +698,52 @@ impl Render for Shell {
                 .map(|f| f.into_any_element())
                 .unwrap_or_else(|| Empty.into_any_element())
         } else {
+            let bar = headerless
+                .then(|| chrome::seam::PaneChrome::new(&self.chrome, &self.panes, &panes, rail));
             let mut stack = PaneStack::new();
             if let Some(plane) = plane {
-                let card = screen
-                    .as_ref()
-                    .and_then(|screen| self.cloud.read(cx).screen_card(screen, cx));
                 let column = ExplorerColumn::new(self.explorer.view.clone())
-                    .companion(card)
+                    .header(bar.map(|b| b.sidebar_bar(plane, cx)))
                     .footer(self.footer(cx));
                 stack = stack.start(plane, column);
             }
             if !home && panes.end.is_some() {
-                // The 8px sash overlays the pane edge (`.po-pane-edge-resize-handle`);
-                // content starts at the divider like the product's.
-                stack = stack.end(self.frame.layout.auxiliary, self.sidebar.clone());
+                let sidebar = &self.sidebar;
+                let end = chrome::seam::end_column(bar, sidebar, opening, headerless, window, cx);
+                stack = stack.end(self.frame.layout.auxiliary, end);
             }
-            let main = if !home && self.cloud.read(cx).screen_shown(cx) {
+            let screen_shown = !home && self.cloud.read(cx).screen_shown(cx);
+            let main = if screen_shown {
                 self.cloud.read(cx).screen.clone().into_any_element()
             } else {
                 self.editor.clone().into_any_element()
             };
-            // Under the Homepage the editors keep their state but draw nothing and take no input.
+            let main = if let Some(b) = bar {
+                let front = (!screen_shown).then(|| self.editor.read(cx).front.clone());
+                b.main_pane(plane.is_none(), main, front, window, cx)
+            } else {
+                main
+            };
             let main = at(self.frame.layout.editor)
                 .when(home, |d| d.invisible())
                 .child(main);
             stack.main(main).into_any_element()
         });
-        // The live screen above the panes, under the Header and the edges;
-        // on its way to or from the main area, over the edges too.
         let live = screen
             .as_ref()
-            .and_then(|screen| self.cloud.read(cx).screen_live(screen, cx));
+            .and_then(|s| self.cloud.read(cx).screen_live(s, cx));
         let (live, flying) = if crossing { (None, live) } else { (live, None) };
         root = root.children(live);
         let weak = cx.weak_entity();
         root = on_shell_actions(root, move |command, window, cx| {
             let _ = weak.update(cx, |s, cx| s.command(command, window, cx));
         });
-        // The Homepage, with its intro's curtain under the Header.
         if home {
             root = root.child(self.home.clone());
         }
         if self.chrome.read(cx).rail_shown() && !home && !file {
-            root = root.child(self.chrome.read(cx).rail(h, cx));
+            root = root.child(self.chrome.read(cx).rail(h, headerless, cx));
         }
-        let opening = !home && self.opening(cx);
         if opening {
             let explorer = self
                 .panes
@@ -748,39 +751,35 @@ impl Render for Shell {
                 .explorer()
                 .open
                 .then_some(self.frame.layout.explorer);
+            let auxiliary = panes.end.is_some().then_some(self.frame.layout.auxiliary);
             root = root.children(self.session.project.read(cx).preparation(
                 w,
                 h,
                 explorer,
+                auxiliary,
                 self.frame.layout.editor,
                 cx,
             ));
         }
-        // A file window draws its own title bar.
-        if !file {
+        if !file && !headerless {
             root = root.child(at(self.frame.layout.header).child(self.chrome.clone()));
         }
-        if (!home && !opening && !file) || (file && !opening && html_chat_shown) {
+        if (!home && !file) || (file && !opening && html_chat_shown) {
             root = root.children(panes::edges(&self.panes, &panes, w, rail, window, cx));
         }
         root = root.children(flying);
-        // `FloatingNoticeStack`s over the workspace: its own notices and
-        // the editor's (save failure, held-back Cloud conflict).
         if !home && !opening {
-            let (editor, end) = (
-                self.frame.layout.editor,
-                w - self.frame.layout.editor.right(),
-            );
+            let end = w - self.frame.layout.editor.right();
             let folder = self.folder_notices(cx);
             let project = self.session.project.downgrade();
+            let proj_notices =
+                self.session
+                    .project
+                    .read(cx)
+                    .notices(editor_body, end, folder, project);
             root = root
-                .children(
-                    self.session
-                        .project
-                        .read(cx)
-                        .notices(editor, end, folder, project),
-                )
-                .children(self.editor.read(cx).notices(editor, end, cx))
+                .children(proj_notices)
+                .children(self.editor.read(cx).notices(editor_body, end, cx))
                 .children(explorer::clipboard_notice::stack(
                     &self.explorer.session,
                     w,

@@ -308,6 +308,25 @@ impl Tree {
         }
         find(&mut self.roots, path)
     }
+    /// Children of `path` when it is the root or an already loaded folder.
+    pub fn loaded_children(&self, path: &Path) -> Option<&[Node]> {
+        fn find<'a>(nodes: &'a [Node], path: &Path) -> Option<&'a [Node]> {
+            for n in nodes {
+                if n.path == path {
+                    return (n.folder && n.loaded).then_some(n.children.as_slice());
+                }
+                if let Some(found) = find(&n.children, path) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+        if path.as_os_str().is_empty() {
+            Some(self.roots.as_slice())
+        } else {
+            find(&self.roots, path)
+        }
+    }
     pub fn attach_children(&mut self, path: &Path, children: Vec<Node>) {
         if let Some(node) = self.find_mut(path).filter(|node| node.folder) {
             node.children = children;

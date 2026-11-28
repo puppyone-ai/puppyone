@@ -240,7 +240,10 @@ impl Shell {
                 self.panes.update(cx, |p, cx| p.toggle_explorer(cx));
             }
             Command::ToggleRightSidebar => {
-                self.sidebar.update(cx, |s, cx| s.toggle_agent(cx));
+                self.sidebar.update(cx, |s, cx| {
+                    s.toggle_agent(cx);
+                    s.focus_active(window, cx);
+                });
             }
             Command::Settings => self.show_settings(None, None, false, window, cx),
             Command::Feedback => {
@@ -290,6 +293,12 @@ impl Shell {
             Command::Escape if self.editor.read(cx).comparing_conflict => {
                 self.editor
                     .update(cx, |e, cx| e.close_conflict_comparison(cx));
+            }
+            // Escape closes the Header's Agents list.
+            Command::Escape if self.cloud.read(cx).agents_panel => {
+                self.cloud.update(cx, |c, cx| {
+                    c.close_agents_panel(cx);
+                });
             }
             // Escape cancels a Cloud opening; whatever showed stays.
             Command::Escape if self.files(cx).cloud_opening().is_some() => {

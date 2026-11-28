@@ -102,6 +102,9 @@ impl ViewerSurface for CsvSurface {
     fn set_chrome_inset(&self, top: f32, cx: &mut App) {
         self.editor.update(cx, |e, cx| e.set_chrome_inset(top, cx));
     }
+    fn supports_chrome_inset(&self) -> bool {
+        true
+    }
     fn scroll_state(&self, cx: &App) -> (f32, bool) {
         self.editor.read(cx).scroll_state(cx)
     }

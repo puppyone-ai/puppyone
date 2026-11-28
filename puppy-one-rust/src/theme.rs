@@ -78,6 +78,101 @@ pub fn space_mark(tone: usize, dark: bool) -> Rgba {
 pub fn space_mark_letter() -> Rgba {
     rgb(0xffffff)
 }
+/// White disc behind brand marks drawn for a light ground.
+pub fn brand_disc_surface() -> Rgba {
+    rgb(0xffffff)
+}
+/// Monochrome brand mark ink on [`brand_disc_surface`].
+pub fn brand_disc_ink() -> Rgba {
+    rgb(0x0d0d0d)
+}
+/// CSS `oklch(l c h / a)` converted to sRGB (clamped to the gamut).
+pub fn oklch(l: f32, c: f32, h: f32, a: f32) -> Rgba {
+    let hr = h.to_radians();
+    let (ca, cb) = (c * hr.cos(), c * hr.sin());
+    let l_ = l + 0.396_337_78 * ca + 0.215_803_76 * cb;
+    let m_ = l - 0.105_561_346 * ca - 0.063_854_17 * cb;
+    let s_ = l - 0.089_484_18 * ca - 1.291_485_5 * cb;
+    let (l3, m3, s3) = (l_ * l_ * l_, m_ * m_ * m_, s_ * s_ * s_);
+    let r = 4.076_741_7 * l3 - 3.307_711_6 * m3 + 0.230_969_94 * s3;
+    let g = -1.268_438 * l3 + 2.609_757_4 * m3 - 0.341_319_38 * s3;
+    let b = -0.004_196_086_3 * l3 - 0.703_418_6 * m3 + 1.707_614_7 * s3;
+    let encode = |x: f32| {
+        let x = x.clamp(0., 1.);
+        if x <= 0.003_130_8 {
+            12.92 * x
+        } else {
+            1.055 * x.powf(1. / 2.4) - 0.055
+        }
+    };
+    Rgba {
+        r: encode(r),
+        g: encode(g),
+        b: encode(b),
+        a,
+    }
+}
+/// The clean hue (degrees) and chroma scale behind each `.po-space-mark`
+/// tone: blue, violet, green, amber, rose, and a quiet slate.
+fn space_hue(tone: usize) -> (f32, f32) {
+    const HUES: [(f32, f32); 6] = [
+        (250., 1.),
+        (305., 1.),
+        (160., 1.),
+        (70., 1.),
+        (15., 1.),
+        (240., 0.45),
+    ];
+    HUES[tone % HUES.len()]
+}
+/// A Space's own dot: its hue, vivid enough to name it at 6px without shouting.
+pub fn space_dot(tone: usize, dark: bool) -> Rgba {
+    let (h, k) = space_hue(tone);
+    if dark {
+        oklch(0.70, 0.095 * k, h, 1.)
+    } else {
+        oklch(0.64, 0.105 * k, h, 1.)
+    }
+}
+/// Home's restrained unified Space tone: one quiet OKLCH hue for the whole
+/// surface — canvas, text, folders (derived from text and canvas), hover,
+/// dividers, menus and the selected pill — clean, airy and calm without
+/// overpowering the content.
+pub fn space_tint(base: Theme, tone: usize) -> Theme {
+    let (h, k) = space_hue(tone);
+    let ok = |l: f32, c: f32, a: f32| oklch(l, c * k, h, a);
+    let mut t = base;
+    if base.dark {
+        t.canvas = ok(0.212, 0.013, 1.);
+        t.panel = ok(0.236, 0.013, 1.);
+        t.panel_raised = ok(0.262, 0.013, 1.);
+        t.menu_bg = ok(0.258, 0.013, 1.);
+        t.text = ok(0.955, 0.004, 1.);
+        t.muted = ok(0.74, 0.010, 1.);
+        t.subtle = ok(0.58, 0.011, 1.);
+        t.hover = ok(0.92, 0.015, 0.055);
+        t.active = ok(0.92, 0.015, 0.085);
+        t.selected = ok(0.315, 0.024, 1.);
+        t.divider = ok(0.95, 0.010, 0.075);
+        t.border = ok(0.95, 0.010, 0.095);
+        t.border_subtle = ok(0.95, 0.010, 0.055);
+    } else {
+        t.canvas = ok(0.972, 0.015, 1.);
+        t.panel = ok(0.982, 0.011, 1.);
+        t.panel_raised = ok(0.994, 0.004, 1.);
+        t.menu_bg = ok(0.992, 0.006, 1.);
+        t.text = ok(0.24, 0.010, 1.);
+        t.muted = ok(0.47, 0.012, 1.);
+        t.subtle = ok(0.60, 0.012, 1.);
+        t.hover = ok(0.35, 0.020, 0.055);
+        t.active = ok(0.35, 0.020, 0.085);
+        t.selected = ok(0.925, 0.024, 1.);
+        t.divider = ok(0.32, 0.015, 0.08);
+        t.border = ok(0.32, 0.015, 0.10);
+        t.border_subtle = ok(0.32, 0.015, 0.06);
+    }
+    t
+}
 /// `color-mix(in srgb, c p%, transparent)`.
 pub fn fade(color: Rgba, weight: f32) -> Rgba {
     mix(color, rgba(0x00000000), weight)
@@ -289,20 +384,52 @@ pub mod metric {
     pub const DIALOG_RADIUS: f32 = 12.;
     /// `--po-pane-resizer-hit-size`: the hit lane of a pane edge or split.
     pub const PANE_SASH: f32 = 8.;
+    /// The window skeleton's lines (the Header's bottom, the pane edges, the
+    /// project rail's edge): one device pixel on a 2× display.
+    pub const SHELL_DIVIDER_WIDTH: f32 = 0.5;
+    /// Without the Header: how far the document scrolled up under the tools
+    /// fades into the window's top.
+    pub const DOCUMENT_TOP_FADE: f32 = 24.;
     pub const SWITCH_WIDTH: f32 = 34.;
     pub const SWITCH_HEIGHT: f32 = 20.;
     pub const SWITCH_THUMB: f32 = 14.;
 }
 
-/// `--po-font-mono` (Geist Mono) for machine output; static editor faces.
-/// CSS `line-height: normal` for Geist (ascender 1005 + descender 295 per
-/// 1000 units); GPUI's own default is 1.618.
+/// The product's CSS `line-height: normal` (1.3 em), which every interface
+/// layout is measured with; GPUI's own default is 1.618.
 pub const NORMAL_LINE_HEIGHT: f32 = 1.3;
-/// The interface sans with true oblique faces (the editor's Geist build),
-/// for the product's italic interface notes.
-pub const SANS_ITALIC: &str = "PuppyOne Geist 400";
-pub const MONO: &str = "PuppyOne Geist Mono 400";
-pub const MONO_MEDIUM: &str = "PuppyOne Geist Mono 500";
+/// The interface and body face: `sans` of `assets/typography/fonts.json`
+/// (the platform's own: SF Pro on macOS, Segoe UI on Windows).
+pub fn sans() -> &'static str {
+    crate::platform::fonts::faces().sans.family
+}
+/// The face of machine output and code: `mono` of `fonts.json` (SF Mono on
+/// macOS, Consolas on Windows).
+pub fn mono() -> &'static str {
+    crate::platform::fonts::faces().mono.family
+}
+/// The face of serif reading themes: `serif` of `fonts.json` (New York on
+/// macOS, Georgia on Windows).
+pub fn serif() -> &'static str {
+    crate::platform::fonts::faces().serif.family
+}
+/// Register the font files `assets/typography/fonts.json` bundles (none
+/// while every face is the platform's own), before any text is laid out.
+pub fn register_fonts(cx: &gpui::App) {
+    let files: Vec<_> = crate::platform::fonts::faces()
+        .files()
+        .map(|file| {
+            std::borrow::Cow::Borrowed(crate::assets::embedded(file).unwrap_or_else(|| {
+                panic!("{file} is not embedded: run python3 tools/generate-assets-rs.py")
+            }))
+        })
+        .collect();
+    if !files.is_empty() {
+        cx.text_system()
+            .add_fonts(files)
+            .expect("load the fonts fonts.json bundles");
+    }
+}
 pub const HEADER: f32 = 40.0;
 pub const FONT: f32 = 14.0;
 
@@ -323,11 +450,13 @@ pub fn sync_kit(dark: bool, window: Option<&mut gpui::Window>, cx: &mut gpui::Ap
         KitTheme::change(mode, window, cx);
     }
     if KitTheme::global(cx).background != palette.canvas.into()
+        || KitTheme::global(cx).mono_font_family.as_ref() != mono()
         || KitTheme::global(cx).popover != palette.menu_bg.into()
         || KitTheme::global(cx).font_size != gpui::px(font_size(FONT))
     {
         KitTheme::update(cx, |theme| {
-            theme.font_family = "Geist".into();
+            theme.font_family = sans().into();
+            theme.mono_font_family = mono().into();
             theme.font_size = gpui::px(font_size(FONT));
             theme.background = palette.canvas.into();
             theme.foreground = palette.text.into();
@@ -497,6 +626,16 @@ pub fn elevation_low(t: &Theme) -> gpui::BoxShadow {
         blur_radius: gpui::px(4.),
         spread_radius: gpui::px(-2.),
     }
+}
+/// Floating launcher popover shadow for dark and light themes.
+pub fn popover_elevation(dark: bool) -> Vec<gpui::BoxShadow> {
+    vec![gpui::BoxShadow {
+        color: alpha(rgb(0x000000), if dark { 0.65 } else { 0.22 }).into(),
+        offset: gpui::point(gpui::px(0.), gpui::px(14.)),
+        blur_radius: gpui::px(32.),
+        spread_radius: gpui::px(-10.),
+        inset: false,
+    }]
 }
 /// Chromium's checked native checkbox: (fill, check). The fill is the
 /// element's `accent-color`, else Chromium's default blue for the scheme;
@@ -1010,6 +1149,31 @@ pub mod pane {
 mod tests {
     use super::*;
     use core::prelude::v1::test;
+    /// OKLCH lands where CSS puts it, and each Space's tint keeps one hue:
+    /// a light, clearly coloured canvas that differs between Spaces.
+    #[test]
+    fn oklch_and_space_tints_are_clean_and_distinct() {
+        let close = |a: f32, b: f32| (a - b).abs() < 0.01;
+        let white = oklch(1., 0., 0., 1.);
+        assert!(close(white.r, 1.) && close(white.g, 1.) && close(white.b, 1.));
+        let black = oklch(0., 0., 0., 1.);
+        assert!(close(black.r, 0.) && close(black.g, 0.) && close(black.b, 0.));
+        let neutral = oklch(0.985, 0., 0., 1.);
+        assert!(close(neutral.r, neutral.g) && close(neutral.g, neutral.b));
+        for dark in [false, true] {
+            let base = Theme::new(dark);
+            let amber = space_tint(base, 3);
+            let violet = space_tint(base, 1);
+            assert_ne!(amber.canvas, violet.canvas);
+            assert_ne!(amber.canvas, base.canvas);
+            // Amber is warm (red over blue); violet leans blue.
+            assert!(amber.canvas.r > amber.canvas.b);
+            assert!(violet.canvas.b > violet.canvas.g);
+            // Text keeps its contrast against the tinted canvas.
+            let lum = |c: Rgba| 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+            assert!((lum(amber.text) - lum(amber.canvas)).abs() > 0.6);
+        }
+    }
     #[test]
     fn every_file_icon_binding_uses_the_active_palette_and_inherited_ink() {
         for (pack, _) in pack_choices() {

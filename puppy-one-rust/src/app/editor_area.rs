@@ -10,6 +10,7 @@
 //! menu commands go back to the window ([`EditorEvent`]).
 use super::{
     Command,
+    editor_start::StartContext,
     editor_workbench::{EditorDrop, EditorResize},
     explorer::ExplorerSession,
     session::DocumentSession,
@@ -46,6 +47,18 @@ pub(super) enum EditorEvent {
     Command(Command),
     /// The runtime was asked for something: the window pumps it now.
     Pump,
+    /// Start view tile: open the create-entry naming dialog at project root.
+    StartCreate(crate::features::create_new::Entry),
+    /// Start view drop box: import dropped OS files into project root.
+    DropExternal(Vec<std::path::PathBuf>),
+    /// Start view local Agent chip: open right sidebar chat on `runtime_id`.
+    LaunchLocalAgent(String),
+    /// Cloud start view: copy a new invite message (`Copy message`).
+    CopyInvite,
+    /// Cloud start view: let an Agent asking to join in, or turn it away.
+    AnswerAgent { request: String, allow: bool },
+    /// Quiet no-open-file list: open a recently viewed project file.
+    OpenFile(std::path::PathBuf),
 }
 
 /// Pending external Finder file drop outside the active local workspace (`WB-21`).
@@ -69,6 +82,8 @@ pub(super) struct EditorArea {
     /// A file window: one document, no workspace around it.
     pub(super) file_mode: bool,
     pub(super) gate: EditorGate,
+    /// Context for the empty-project start view (`editor_start.rs`).
+    pub(super) start: StartContext,
     /// The front document's host (the active slot's, once it has one).
     pub front: Entity<DocumentEditor>,
     /// Every slot's host, by slot id.
@@ -161,7 +176,12 @@ impl EditorArea {
         if let Some(presence) = crate::features::agent_presence::store(cx) {
             cx.observe(&presence, |_, _, cx| cx.notify()).detach();
         }
-        cx.observe(&preferences, |_, _, cx| cx.notify()).detach();
+        cx.observe(&explorer, |_, _, cx| cx.notify()).detach();
+        cx.observe(&preferences, |s, _, cx| {
+            s.sync_chrome_inset(cx);
+            cx.notify();
+        })
+        .detach();
         let mut hosts = BTreeMap::new();
         hosts.insert(0, front.clone());
         Self {
@@ -173,6 +193,7 @@ impl EditorArea {
             weak: cx.weak_entity(),
             file_mode: false,
             gate: EditorGate::default(),
+            start: StartContext::default(),
             front,
             hosts,
             resize: None,
@@ -190,6 +211,66 @@ impl EditorArea {
     /// A file window's editors have no workspace around them.
     pub fn set_file_mode(&mut self, file_mode: bool) {
         self.file_mode = file_mode;
+    }
+    pub fn set_start_context(&mut self, start: StartContext, cx: &mut Context<Self>) {
+        if self.start != start {
+            self.start = start;
+            cx.notify();
+        }
+    }
+    /// Floating header height over top-row documents when the project window
+    /// runs without a Header.
+    pub(super) fn chrome_inset(&self, cx: &App) -> f32 {
+        if !self.file_mode && self.preferences.read(cx).state.experimental.hidden_header {
+            crate::theme::HEADER
+        } else {
+            0.
+        }
+    }
+    /// Updates `chrome_inset` on every open host: top-row panes clear the
+    /// floating 40px header while bottom panes in a vertical split stay at 0.
+    fn sync_chrome_inset(&mut self, cx: &mut Context<Self>) {
+        use crate::editor::workbench::layout::{Direction, Node};
+        fn top_editors<'a>(node: &'a Node, out: &mut Vec<&'a str>) {
+            match node {
+                Node::Pane { editor, .. } => {
+                    if let Some(key) = editor.as_deref() {
+                        out.push(key);
+                    }
+                }
+                Node::Split {
+                    direction,
+                    first,
+                    second,
+                    ..
+                } => {
+                    top_editors(first, out);
+                    if *direction == Direction::Horizontal {
+                        top_editors(second, out);
+                    }
+                }
+            }
+        }
+        let inset = self.chrome_inset(cx);
+        let top_slots: Option<Vec<u64>> = (inset > 0.).then(|| {
+            let docs = self.docs.read(cx);
+            let Some(state) = docs.state() else {
+                return vec![0];
+            };
+            let mut keys = Vec::new();
+            top_editors(&state.layout.root, &mut keys);
+            keys.into_iter()
+                .filter_map(|k| docs.slot_for_key(k))
+                .collect()
+        });
+        let hosts: Vec<_> = self.hosts.iter().map(|(s, e)| (*s, e.clone())).collect();
+        for (slot, editor) in hosts {
+            let host_inset = match &top_slots {
+                Some(top) if top.contains(&slot) => inset,
+                _ => 0.,
+            };
+            editor.update(cx, |s, cx| s.set_chrome_inset(host_inset, cx));
+        }
     }
     /// What the window holds over the editors changed.
     pub fn set_gate(&mut self, gate: EditorGate, window: &mut Window, cx: &mut Context<Self>) {
@@ -483,6 +564,7 @@ impl EditorArea {
                 owner,
                 slot,
                 pane: None,
+                live_bounds: None,
             });
             editor
         });
@@ -532,6 +614,7 @@ impl EditorArea {
     /// Holds each editor behind the gate: a dialog, the Homepage, a slot
     /// out of sight, or a document still on its way.
     fn apply_gate(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.sync_chrome_inset(cx);
         let visible = self.docs.read(cx).visible_slots();
         let read_only = self.read_only(cx);
         let gate = self.gate;
@@ -593,6 +676,25 @@ impl Render for EditorArea {
             canvas = canvas.child(self.editor_node(&root, whole, window, cx));
         } else if self.docs.read(cx).opened().is_some() {
             canvas = canvas.child(div().absolute().size_full().child(self.front.clone()));
+        } else if self.docs.read(cx).loading_active_pane().is_some() {
+            canvas = canvas.child(
+                div()
+                    .id("editor-area-loading")
+                    .debug_selector(|| "editor-area-loading".into())
+                    .role(Role::Status)
+                    .aria_label(crate::localization::t("editor.loadingFile"))
+                    .absolute()
+                    .inset_0()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(
+                        crate::ui::loading::LoadingMark::new("editor-area-loading-mark")
+                            .area()
+                            .size(crate::ui::loading::LoaderSize::Md)
+                            .tone(crate::ui::loading::Tone::Neutral),
+                    ),
+            );
         }
         // A split resize follows the pointer wherever it goes.
         if self.resize.is_some() {

@@ -5,7 +5,9 @@
 //! by preview priority (`html` → `md` → `csv` → `other`) and collated by name,
 //! so a project folder on Home shows a sheet printed for each kind inside it.
 use super::projects::collate;
-use crate::workspace::cloud::services::TreeEntry;
+use crate::{
+    features::cloud::CachedFilePreview, model::Node, workspace::cloud::services::TreeEntry,
+};
 use std::path::Path;
 
 pub const MAX_PROJECT_PREVIEWS: usize = 3;
@@ -19,6 +21,24 @@ pub enum PreviewKind {
 }
 
 impl PreviewKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Html => "html",
+            Self::Md => "md",
+            Self::Csv => "csv",
+            Self::Other => "other",
+        }
+    }
+
+    pub fn from_cached(kind: &str) -> Self {
+        match kind {
+            "html" => Self::Html,
+            "md" => Self::Md,
+            "csv" => Self::Csv,
+            _ => Self::Other,
+        }
+    }
+
     pub fn from_name_and_type(name: &str, entry_type: Option<&str>) -> Self {
         let lower = name.to_ascii_lowercase();
         if entry_type == Some("html") || lower.ends_with(".html") || lower.ends_with(".htm") {
@@ -106,6 +126,40 @@ pub fn select_cloud_previews(entries: &[TreeEntry]) -> Vec<ProjectAssetPreview> 
         })
         .collect();
     finish_previews(items)
+}
+
+/// Selects up to three top-level file previews from an already-loaded Explorer
+/// root node list (used for zero-cost write-through to the Home SWR cache).
+pub fn select_node_previews(nodes: &[Node]) -> Vec<ProjectAssetPreview> {
+    let items = nodes
+        .iter()
+        .filter(|n| !n.folder && !n.name.is_empty() && !n.name.starts_with('.'))
+        .map(|n| ProjectAssetPreview {
+            name: n.name.clone(),
+            kind: PreviewKind::from_name_and_type(&n.name, None),
+        })
+        .collect();
+    finish_previews(items)
+}
+
+pub fn to_cached(items: &[ProjectAssetPreview]) -> Vec<CachedFilePreview> {
+    items
+        .iter()
+        .map(|item| CachedFilePreview {
+            name: item.name.clone(),
+            kind: item.kind.as_str().to_owned(),
+        })
+        .collect()
+}
+
+pub fn from_cached(items: &[CachedFilePreview]) -> Vec<ProjectAssetPreview> {
+    items
+        .iter()
+        .map(|item| ProjectAssetPreview {
+            name: item.name.clone(),
+            kind: PreviewKind::from_cached(&item.kind),
+        })
+        .collect()
 }
 
 #[cfg(test)]

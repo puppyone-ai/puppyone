@@ -108,15 +108,27 @@ impl Layout {
     /// `left` / `right` are the preferred widths of the open panes (`0` when
     /// closed); the product pane policy resolves what they get.
     pub(in crate::app) fn new(w: f32, h: f32, left: f32, right: f32, rail: f32) -> Self {
+        Self::with_header(w, h, left, right, rail, HEADER)
+    }
+    /// Same as [`Layout::new`], with an explicit Header height (`0.` when the
+    /// window has no Header and the panes run from the top edge).
+    pub(in crate::app) fn with_header(
+        w: f32,
+        h: f32,
+        left: f32,
+        right: f32,
+        rail: f32,
+        header_h: f32,
+    ) -> Self {
         let (left, right, layout) = resolve_pane_widths(w - rail, left, right);
         let main = layout - left - right;
         let footer = footer();
         Self {
-            header: Rect::new(0., 0., w, HEADER),
-            explorer: Rect::new(rail, HEADER, left, h - HEADER - footer),
+            header: Rect::new(0., 0., w, header_h),
+            explorer: Rect::new(rail, header_h, left, h - header_h - footer),
             footer: Rect::new(rail, h - footer, left, footer),
-            editor: Rect::new(rail + left, HEADER, main, h - HEADER),
-            auxiliary: Rect::new(rail + left + main, HEADER, right, h - HEADER),
+            editor: Rect::new(rail + left, header_h, main, h - header_h),
+            auxiliary: Rect::new(rail + left + main, header_h, right, h - header_h),
         }
     }
     /// The Explorer column's plane: the Explorer over its footer.
@@ -267,5 +279,17 @@ mod tests {
     #[test]
     fn collapsed_panels_consume_no_space() {
         assert_eq!(Layout::new(875., 701., 0., 0., 0.).editor.w, 875.);
+    }
+    #[test]
+    fn headerless_panes_span_from_the_window_top() {
+        let l = Layout::with_header(1280., 800., 320., 400., 0., 0.);
+        assert_eq!(l.header.h, 0.);
+        assert_eq!(l.explorer.y, 0.);
+        assert_eq!(l.editor.y, 0.);
+        assert_eq!(l.auxiliary.y, 0.);
+        assert_eq!(l.explorer_plane().y, 0.);
+        assert_eq!(l.explorer_plane().h, 800.);
+        assert_eq!(l.editor.h, 800.);
+        assert_eq!(l.auxiliary.h, 800.);
     }
 }

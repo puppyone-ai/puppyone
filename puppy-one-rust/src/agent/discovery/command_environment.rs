@@ -1,13 +1,18 @@
 //! `platform/common/command-environment.mjs`: one fresh, private user
 //! command environment per scan. No completed environment cache.
 use super::bounded_process_probe::{ProbeOptions, ProbeRunner, default_probe_runner};
+use super::executable_discovery_port::ReadEnvironment;
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::discovery::windows::command_environment::read_windows_command_environment;
-use crate::agent::tasks::CancelSignal;
+use crate::agent::tasks::{CancelSignal, SharedTask, shared};
+use crate::clock;
 use crate::platform::paths::flavor::{posix_basename, posix_is_absolute};
+use futures_util::future::LocalBoxFuture;
 use regex::Regex;
+use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::sync::LazyLock;
 
 #[cfg(test)]
@@ -21,6 +26,196 @@ pub type EnvMap = BTreeMap<String, String>;
 pub mod policy {
     pub const TIMEOUT_MS: u64 = 4_000;
     pub const MAX_OUTPUT_BYTES: usize = 256 * 1024;
+    pub const CACHE_TTL_MS: i64 = 5 * 60_000;
+}
+
+/// Process-local single-flight cache for complete login-shell environment
+/// snapshots (ADR-024). Incomplete / failed snapshots are never cached so
+/// transient shell errors retry immediately; explicit `invalidate()` fences
+/// any stale in-flight read from writing back into the new generation.
+#[derive(Clone)]
+pub struct CachedCommandEnvironment {
+    inner: Rc<CachedEnvInner>,
+}
+
+struct CachedEnvInner {
+    loader: ReadEnvironment,
+    now: Rc<dyn Fn() -> i64>,
+    ttl_ms: i64,
+    state: RefCell<CachedEnvState>,
+}
+
+#[derive(Default)]
+struct CachedEnvState {
+    generation: u64,
+    next_flight: u64,
+    cached: Option<CachedEnvEntry>,
+    in_flight: Option<(u64, u64, SharedTask<AgentResult<EnvironmentSnapshot>>)>,
+}
+
+#[derive(Clone)]
+struct CachedEnvEntry {
+    generation: u64,
+    expires_at: i64,
+    snapshot: EnvironmentSnapshot,
+}
+
+impl CachedCommandEnvironment {
+    pub fn new(
+        loader: Option<ReadEnvironment>,
+        now: Option<Rc<dyn Fn() -> i64>>,
+        ttl_ms: Option<i64>,
+    ) -> Self {
+        let loader = loader.unwrap_or_else(|| {
+            Rc::new(|env, homedir, platform, signal| {
+                Box::pin(read_user_command_environment(ReadEnvironmentOptions {
+                    env,
+                    platform,
+                    homedir,
+                    signal,
+                    run_probe: None,
+                    timeout_ms: None,
+                }))
+            })
+        });
+        Self {
+            inner: Rc::new(CachedEnvInner {
+                loader,
+                now: now.unwrap_or_else(|| Rc::new(clock::now_ms)),
+                ttl_ms: ttl_ms.unwrap_or(policy::CACHE_TTL_MS).max(1),
+                state: RefCell::default(),
+            }),
+        }
+    }
+
+    /// Invalidates cached environment snapshots and fences any in-flight shell
+    /// read so a manual refresh always observes updated shell profiles.
+    pub fn invalidate(&self) -> u64 {
+        let mut state = self.inner.state.borrow_mut();
+        state.generation += 1;
+        state.cached = None;
+        state.in_flight = None;
+        state.generation
+    }
+
+    /// Reads the cached environment or starts/joins one single-flight probe.
+    pub fn read(
+        &self,
+        env: EnvMap,
+        homedir: PathBuf,
+        platform: String,
+        signal: Option<CancelSignal>,
+    ) -> LocalBoxFuture<'static, AgentResult<EnvironmentSnapshot>> {
+        let inner = self.inner.clone();
+        Box::pin(async move {
+            if let Some(signal) = signal.as_ref() {
+                signal.check()?;
+            }
+            enum Next {
+                Cached(EnvironmentSnapshot),
+                Join(SharedTask<AgentResult<EnvironmentSnapshot>>),
+                Lead(u64, u64, SharedTask<AgentResult<EnvironmentSnapshot>>),
+            }
+            let next = {
+                let mut state = inner.state.borrow_mut();
+                let generation = state.generation;
+                let fresh = state
+                    .cached
+                    .as_ref()
+                    .filter(|entry| {
+                        entry.generation == generation && entry.expires_at > (inner.now)()
+                    })
+                    .map(|entry| entry.snapshot.clone());
+                let joined = state
+                    .in_flight
+                    .as_ref()
+                    .filter(|(flight_gen, _, _)| *flight_gen == generation)
+                    .map(|(_, _, task)| task.clone());
+                match (fresh, joined) {
+                    (Some(snapshot), _) => Next::Cached(snapshot),
+                    (None, Some(task)) => Next::Join(task),
+                    (None, None) => {
+                        state.next_flight += 1;
+                        let id = state.next_flight;
+                        let loader = inner.loader.clone();
+                        // Do not bind a single caller's CancelSignal to the
+                        // shared flight so cancelling one caller does not
+                        // poison sibling waiters; each caller still checks its
+                        // own signal before/after awaiting.
+                        let task =
+                            shared(async move { loader(env, homedir, platform, None).await });
+                        state.in_flight = Some((generation, id, task.clone()));
+                        Next::Lead(generation, id, task)
+                    }
+                }
+            };
+            let (request_generation, id, task) = match next {
+                Next::Cached(snapshot) => return Ok(snapshot),
+                Next::Join(task) => {
+                    let result = match signal.as_ref() {
+                        Some(sig) => tokio::select! {
+                            biased;
+                            _ = sig.cancelled() => {
+                                sig.check()?;
+                                unreachable!()
+                            }
+                            res = task => res,
+                        },
+                        None => task.await,
+                    };
+                    if let Some(sig) = signal.as_ref() {
+                        sig.check()?;
+                    }
+                    return result;
+                }
+                Next::Lead(generation, id, task) => (generation, id, task),
+            };
+            let result = match signal.as_ref() {
+                Some(sig) => tokio::select! {
+                    biased;
+                    _ = sig.cancelled() => {
+                        sig.check()?;
+                        unreachable!()
+                    }
+                    res = task => res,
+                },
+                None => task.await,
+            };
+            {
+                let mut state = inner.state.borrow_mut();
+                if state
+                    .in_flight
+                    .as_ref()
+                    .is_some_and(|(entry_gen, flight, _)| {
+                        *entry_gen == request_generation && *flight == id
+                    })
+                {
+                    state.in_flight = None;
+                }
+            }
+            let snapshot = result?;
+            if let Some(sig) = signal.as_ref() {
+                sig.check()?;
+            }
+            if snapshot.complete {
+                let mut state = inner.state.borrow_mut();
+                if state.generation == request_generation {
+                    state.cached = Some(CachedEnvEntry {
+                        generation: request_generation,
+                        expires_at: (inner.now)() + inner.ttl_ms,
+                        snapshot: snapshot.clone(),
+                    });
+                }
+            }
+            Ok(snapshot)
+        })
+    }
+
+    /// Exposes this cache as an `ExecutableDiscoveryPort` `ReadEnvironment`.
+    pub fn as_read_environment(&self) -> ReadEnvironment {
+        let cache = self.clone();
+        Rc::new(move |env, homedir, platform, signal| cache.read(env, homedir, platform, signal))
+    }
 }
 
 static ENVIRONMENT_KEY: LazyLock<Regex> =

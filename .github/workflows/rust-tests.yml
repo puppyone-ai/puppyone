@@ -29,6 +29,8 @@ jobs:
     name: Rust desktop acceptance (macOS)
     runs-on: macos-15
     timeout-minutes: ${{ inputs.full && 240 || 150 }}
+    env:
+      CARGO_INCREMENTAL: "0"
     defaults:
       run:
         working-directory: rust/puppy-one-rust
@@ -48,17 +50,51 @@ jobs:
         with:
           # The Node.js whose ICU recorded the Rust Intl oracles (fixtures/ui/number-format-oracle.json).
           node-version: 22.22.3
+          cache: npm
+          cache-dependency-path: rust/package-lock.json
+      - name: Cache Cargo registry, tools, and workspace target
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            ~/.cargo/bin/cargo-llvm-cov
+            rust/puppy-one-rust/target
+            rust/puppy-one-rust/tools/source-index/target
+          key: macos-arm64-rust-acceptance-v1-${{ hashFiles('rust/puppy-one-rust/Cargo.lock', 'rust/puppy-one-rust/tools/source-index/Cargo.lock') }}-${{ github.sha }}
+          restore-keys: |
+            macos-arm64-rust-acceptance-v1-${{ hashFiles('rust/puppy-one-rust/Cargo.lock', 'rust/puppy-one-rust/tools/source-index/Cargo.lock') }}-
+            macos-arm64-rust-acceptance-v1-
+      - name: Cache pinned TS reference dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            puppyone-qubits/node_modules
+            puppyone-baseline-5e87974ef/node_modules
+          key: macos-arm64-ts-ref-npm-v1-${{ hashFiles('puppyone-qubits/package-lock.json', 'puppyone-baseline-5e87974ef/package-lock.json') }}
+      - name: Cache collected TS reference test cases
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: rust/puppy-one-rust/artifacts/test-parity/typescript-cases.json
+          key: macos-arm64-ts-parity-cases-v1-${{ hashFiles('rust/puppy-one-rust/fixtures/test-parity-reference.json', 'rust/puppy-one-rust/tools/collect-test-cases.mjs') }}
       - name: Install reviewed toolchain and TS reference dependencies
         run: |
           rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy --component llvm-tools-preview
           rustup override set 1.97.1
           # The repository's own TS sources feed the HTML editor bundle and the release tooling.
           npm ci --prefix ..
-          npm ci --prefix ../../puppyone-qubits
-          npm ci --prefix ../../puppyone-baseline-5e87974ef
+          if [ ! -d ../../puppyone-qubits/node_modules ]; then
+            npm ci --prefix ../../puppyone-qubits
+          fi
+          if [ ! -d ../../puppyone-baseline-5e87974ef/node_modules ]; then
+            npm ci --prefix ../../puppyone-baseline-5e87974ef
+          fi
           cargo fetch --locked
           cargo fetch --locked --manifest-path tools/source-index/Cargo.toml
-          cargo install cargo-llvm-cov --version 0.9.1 --locked
+          if ! cargo llvm-cov --version 2>/dev/null | grep -q '0.9.1'; then
+            cargo install cargo-llvm-cov --version 0.9.1 --locked
+          fi
           python3 -m venv "$RUNNER_TEMP/rust-verification-python"
           "$RUNNER_TEMP/rust-verification-python/bin/python" -m pip install -r tools/requirements-verification.txt
           echo "$RUNNER_TEMP/rust-verification-python/bin" >> "$GITHUB_PATH"

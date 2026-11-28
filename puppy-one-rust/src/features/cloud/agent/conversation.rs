@@ -287,6 +287,11 @@ impl CloudAgentConversation {
         &self.chat
     }
 
+    /// Focuses the hosted chat composer's prompt input.
+    pub fn focus_composer(&self, window: &mut Window, cx: &mut App) {
+        self.composer.update(cx, |c, cx| c.focus(window, cx));
+    }
+
     /// What the tab shows (`CloudAgentWorkbench.update(id)`).
     pub fn presentation(&self) -> Option<&AgentChatTabPresentation> {
         self.last_presentation.as_ref()
@@ -392,9 +397,9 @@ impl CloudAgentConversation {
     fn render_dock(&self, view: &AgentChatViewModel, cx: &App) -> Div {
         let mut dock = v_flex()
             .flex_shrink_0()
-            .pt(px(12.))
-            .px(px(12.))
-            .pb(px(12.))
+            .pt(px(8.))
+            .px(px(8.))
+            .pb(px(10.))
             .gap(px(8.));
         if view.approval.is_some() || view.question.is_some() {
             dock = dock.child(self.docks.clone());

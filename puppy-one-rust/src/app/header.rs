@@ -33,10 +33,16 @@ pub(super) struct TitleBar {
     leading: Vec<AnyElement>,
     actions: Vec<AnyElement>,
     tabs: Option<AnyElement>,
+    transparent: bool,
 }
 impl TitleBar {
     pub fn new() -> Self {
         Self::default()
+    }
+    /// No bar of its own: no fill and no rule, the page shows through.
+    pub fn transparent(mut self, transparent: bool) -> Self {
+        self.transparent = transparent;
+        self
     }
     pub fn tabs(mut self, tabs: impl IntoElement) -> Self {
         self.tabs = Some(tabs.into_any_element());
@@ -57,12 +63,7 @@ impl TitleBar {
     /// `.desktop-titlebar-action-divider` (1×18, 3px margins) between two
     /// actions.
     pub fn divider(self, cx: &App) -> Self {
-        let line = div()
-            .w(px(1.))
-            .h(px(18.))
-            .mx(px(3.))
-            .bg(cx.palette().shell_divider);
-        self.action(line)
+        self.action(action_divider(cx))
     }
 }
 impl RenderOnce for TitleBar {
@@ -71,10 +72,23 @@ impl RenderOnce for TitleBar {
             self.leading,
             self.tabs,
             self.actions,
+            self.transparent,
             window,
             cx,
         )
     }
+}
+
+/// `.desktop-titlebar-action-divider` (1×18, 3px margins) between two
+/// toolbar actions.
+pub(super) fn action_divider(cx: &App) -> AnyElement {
+    div()
+        .flex_none()
+        .w(px(1.))
+        .h(px(18.))
+        .mx(px(3.))
+        .bg(cx.palette().shell_divider)
+        .into_any_element()
 }
 
 /// `GitTitlebarStatus` projected from the native Git snapshot.

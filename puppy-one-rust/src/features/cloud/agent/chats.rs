@@ -97,12 +97,29 @@ impl HostedChats {
         window: &mut Window,
         cx: &mut App,
     ) -> Result<CloudAgentItem, String> {
+        self.chat_with_prompt(root, key, session, None, window, cx)
+    }
+
+    /// Creates a hosted chat tab and optionally submits an initial prompt right
+    /// away (used by the L1 composer-first launcher).
+    pub fn chat_with_prompt(
+        &mut self,
+        root: &Path,
+        key: &str,
+        session: Option<Session>,
+        initial_prompt: Option<String>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> Result<CloudAgentItem, String> {
         let hub = self
             .hosted
             .clone()
             .ok_or_else(|| String::from("The hosted Agent is not open."))?;
         let (wake, changes) = Wake::channel();
         let chat = CloudAgentController::new(hub, key, session, wake)?;
+        if let Some(prompt) = initial_prompt.filter(|p| !p.trim().is_empty()) {
+            chat.submit(prompt);
+        }
         let conversation = cx.new(|cx| CloudAgentConversation::new(chat, changes, window, cx));
         Ok(CloudAgentItem::new(conversation, root.to_path_buf()))
     }
@@ -115,6 +132,31 @@ impl HostedChats {
             .sessions
             .into_iter()
             .find(|s| s.id == id)
+    }
+
+    /// Cached hosted recent sessions (pure memory/disk read, no network calls).
+    pub fn cached_recent_sessions(
+        &self,
+        excluded: &[String],
+        limit: usize,
+    ) -> Vec<crate::agent::contract::dto::SessionMetadata> {
+        let Some(hub) = self.hosted.as_ref() else {
+            return Vec::new();
+        };
+        hub.history()
+            .sessions
+            .into_iter()
+            .filter(|s| !excluded.contains(&s.id))
+            .take(limit)
+            .map(|s| crate::agent::contract::dto::SessionMetadata {
+                id: s.id,
+                title: s.title.unwrap_or_else(|| LABEL.into()),
+                updated_at: s.updated_at,
+                updated_at_known: Some(true),
+                runtime_id: Some(super::conversation::HOSTED_RUNTIME_ID.into()),
+                ..Default::default()
+            })
+            .collect()
     }
 
     /// `CloudAgentHistory`: the hosted target's locators, which need no

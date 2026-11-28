@@ -7,7 +7,7 @@ use crate::{
     editor::{
         markdown::{MarkdownExtension, features::task},
         text::selection::Selection,
-        view::{EditorView, bind_keys, extension::config_transaction, style},
+        view::{EditorView, bind_keys, extension::config_transaction},
     },
     typography::Scale,
 };
@@ -602,7 +602,6 @@ fn panicking_features_fall_back_to_visible_source_and_log_once(cx: &mut TestAppC
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
         }
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
         bind_keys(cx);
     });
     let text = concat!(

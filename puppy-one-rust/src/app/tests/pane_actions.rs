@@ -175,6 +175,44 @@ fn panes_after(view: &Entity<Shell>, cx: &mut VisualTestContext) -> Vec<String> 
     panes(view, cx).into_iter().map(|(pane, _)| pane).collect()
 }
 
+/// Whether the empty pane `pane` offers its close button.
+fn offers_close(cx: &mut VisualTestContext, pane: &str) -> bool {
+    let selector: &'static str = Box::leak(format!("close-empty:{pane}").into_boxed_str());
+    cx.debug_bounds(selector).is_some()
+}
+
+#[gpui::test]
+fn only_an_empty_pane_in_a_split_offers_to_close(cx: &mut TestAppContext) {
+    let temp = tempfile::tempdir().unwrap();
+    std::fs::write(temp.path().join("a.md"), "# A\n").unwrap();
+    let (view, cx) = setup(cx);
+    begin(&view, cx, Intent::OpenFolder(temp.path().into()));
+    settle(&view, cx, &|s, cx| s.files(cx).state().is_some());
+    // The last pane is the editor area itself: nothing to close.
+    let only = panes(&view, cx)[0].0.clone();
+    focus_pane(&view, cx, &only);
+    assert!(!offers_close(cx, &only), "a lone empty pane offers no ×");
+    begin(&view, cx, Intent::OpenFile("a.md".into()));
+    settle(&view, cx, &|s, cx| s.files(cx).opened().is_some());
+    view.update(cx, |s, cx| {
+        s.session.docs.update(cx, |d, _| {
+            d.state_mut().unwrap().split(Direction::Horizontal)
+        })
+    });
+    settle(&view, cx, &|s, cx| {
+        s.files(cx)
+            .state()
+            .is_some_and(|state| state.layout.root.panes().len() == 2)
+    });
+    let empty = view.read_with(cx, |s, cx| {
+        s.files(cx).state().unwrap().layout.active.clone()
+    });
+    assert!(
+        offers_close(cx, &empty),
+        "an empty pane beside another closes"
+    );
+}
+
 #[gpui::test]
 fn escape_dismisses_the_pane_menu_and_leaves_both_panes(cx: &mut TestAppContext) {
     let temp = tempfile::tempdir().unwrap();

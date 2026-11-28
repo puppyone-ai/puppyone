@@ -446,11 +446,8 @@ fn native_metadata_roundtrip_restores_order_mru_panes_and_ratio_after_provider_a
         ..Default::default()
     };
     open_root(&mut restored, root.path());
-    wait(&mut restored, |r| {
-        r.state().unwrap().catalog.editors.len() == 2
-    });
+    wait(&mut restored, |r| r.visible_slots().len() == 2);
     assert_eq!(restored.state(), Some(&expected));
-    assert_eq!(restored.visible_slots().len(), 2);
     assert!(
         restored
             .hosts
@@ -483,10 +480,335 @@ fn restored_folders_missing_paths_and_foreign_ids_never_become_editor_references
         ..Default::default()
     };
     open_root(&mut r, root.path());
-    wait(&mut r, |r| r.hosts.values().all(|h| h.restore.is_none()));
-    assert_eq!(r.state().unwrap().catalog.editors.len(), 1);
-    assert_eq!(r.state().unwrap().catalog.editors[0].label, "a.md");
+    // Paths outside the project and foreign ids never become tabs.
+    let labels = |r: &Runtime| -> Vec<String> {
+        r.state()
+            .unwrap()
+            .catalog
+            .editors
+            .iter()
+            .map(|e| e.label.clone())
+            .collect()
+    };
+    assert_eq!(labels(&r), ["a.md", "folder.md", "missing.md"]);
+    // A folder or a missing file closes its tab quietly once it is shown.
+    for name in ["folder.md", "missing.md"] {
+        let key = resource_key(&ws.resource_id(std::path::Path::new(name)).unwrap());
+        r.activate(&key);
+        wait(&mut r, |r| !labels(r).iter().any(|l| l == name));
+    }
+    wait(&mut r, |r| r.opened().is_some());
+    assert_eq!(labels(&r), ["a.md"]);
     assert!(r.error.is_none());
+}
+#[test]
+fn saved_tabs_show_at_once_and_only_a_shown_tab_reads_its_file() {
+    let profile = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    for name in ["a.md", "b.md", "c.md"] {
+        std::fs::write(root.path().join(name), name).unwrap();
+    }
+    let storage = || Some(Storage::at(profile.path().into()));
+    let mut r = Runtime {
+        storage: storage(),
+        ..Default::default()
+    };
+    open_root(&mut r, root.path());
+    for name in ["a.md", "b.md", "c.md"] {
+        open(&mut r, name);
+    }
+    r.persist_metadata(&Wake::default(), true);
+    wait(&mut r, |r| r.metadata_inflight == 0);
+    drop(r);
+
+    let mut r = Runtime {
+        storage: storage(),
+        ..Default::default()
+    };
+    open_root(&mut r, root.path());
+    let host = r.hosts.values().next().unwrap();
+    assert_eq!(host.state.catalog.editors.len(), 3, "all tabs show at once");
+    assert_eq!(
+        host.state.layout.active_editor(),
+        host.state.catalog.active.as_deref()
+    );
+    // Only the shown tab reads its file; the others wait hibernated.
+    wait(&mut r, |r| {
+        r.opened()
+            .is_some_and(|(_, p)| p == std::path::Path::new("c.md"))
+    });
+    let host = r.hosts.values().next().unwrap();
+    assert_eq!(host.slots.len(), 1);
+    assert_eq!(host.hibernated.len(), 2);
+    assert!(host.hibernated.values().all(|h| h.restored));
+}
+#[cfg(unix)]
+#[test]
+fn a_restored_tab_whose_file_cannot_be_read_says_why_in_its_pane() {
+    use std::os::unix::fs::PermissionsExt;
+    let profile = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    let file = root.path().join("locked.md");
+    std::fs::write(&file, "locked").unwrap();
+    let storage = || Some(Storage::at(profile.path().into()));
+    let mut r = Runtime {
+        storage: storage(),
+        ..Default::default()
+    };
+    open_root(&mut r, root.path());
+    open(&mut r, "locked.md");
+    r.persist_metadata(&Wake::default(), true);
+    wait(&mut r, |r| r.metadata_inflight == 0);
+    drop(r);
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o000)).unwrap();
+
+    let mut r = Runtime {
+        storage: storage(),
+        ..Default::default()
+    };
+    open_root(&mut r, root.path());
+    let key = r.state().unwrap().catalog.editors[0].id.clone();
+    wait(&mut r, |r| {
+        r.slot_for_key(&key)
+            .is_some_and(|slot| r.read_failure(slot).is_some())
+    });
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o644)).unwrap();
+    assert!(r.error.is_none(), "no window dialog");
+    assert_eq!(r.state().unwrap().catalog.editors.len(), 1, "the tab stays");
+    let slot = r.slot_for_key(&key).unwrap();
+    r.retry_read(slot, &Wake::default());
+    wait(&mut r, |r| r.opened().is_some());
+}
+#[test]
+fn pressing_a_pane_or_opening_a_file_while_saved_tabs_load_keeps_them() {
+    let profile = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    for name in ["a.md", "b.md", "c.md"] {
+        std::fs::write(root.path().join(name), name).unwrap();
+    }
+    let storage = || Some(Storage::at(profile.path().into()));
+    let mut r = Runtime {
+        storage: storage(),
+        ..Default::default()
+    };
+    open_root(&mut r, root.path());
+    open(&mut r, "a.md");
+    open(&mut r, "b.md");
+    r.persist_metadata(&Wake::default(), true);
+    wait(&mut r, |r| r.metadata_inflight == 0);
+    drop(r);
+
+    let mut r = Runtime {
+        storage: storage(),
+        ..Default::default()
+    };
+    open_root(&mut r, root.path());
+    // The saved tabs are in while the shown one may still be reading:
+    // pressing its pane and opening another file are ordinary edits.
+    let pane = r.state().unwrap().layout.active.clone();
+    r.focus(&pane);
+    let _ = r.state_mut();
+    open(&mut r, "c.md");
+    let labels: Vec<_> = r
+        .state()
+        .unwrap()
+        .catalog
+        .editors
+        .iter()
+        .map(|e| e.label.clone())
+        .collect();
+    assert_eq!(labels, ["a.md", "b.md", "c.md"]);
+    r.persist_metadata(&Wake::default(), true);
+    wait(&mut r, |r| r.metadata_inflight == 0);
+    let key = r.active.clone().unwrap();
+    let saved: serde_json::Value = serde_json::from_slice(
+        &std::fs::read(
+            profile
+                .path()
+                .join(format!("{}.json", blake3::hash(key.as_bytes()).to_hex())),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(saved["group"]["editors"].as_array().unwrap().len(), 3);
+}
+#[test]
+fn a_file_opened_before_the_saved_layout_arrives_keeps_its_pane_and_the_saved_tabs_join_it() {
+    let root = tempfile::tempdir().unwrap();
+    for name in ["a.md", "b.md", "c.md"] {
+        std::fs::write(root.path().join(name), name).unwrap();
+    }
+    let mut r = Runtime::default();
+    open_root(&mut r, root.path());
+    open(&mut r, "c.md");
+    let ws = r.workspace.clone().unwrap();
+    let id = |name: &str| resource_key(&ws.resource_id(std::path::Path::new(name)).unwrap());
+    let editors =
+        ["a.md", "b.md", "c.md"].map(|name| serde_json::json!({"id": id(name), "resource": name}));
+    let saved = serde_json::json!({
+        "version": 1,
+        "group": {
+            "editors": editors,
+            "activeEditorId": id("a.md"),
+        },
+        "layout": {"root": {"kind": "pane", "id": "editor-pane-1", "editorId": id("a.md")}},
+    });
+    let key = r.active.clone().unwrap();
+    assert!(r.hosts.get_mut(&key).unwrap().restore(&saved));
+    let state = r.state().unwrap();
+    let ids: Vec<_> = state.catalog.editors.iter().map(|e| e.id.clone()).collect();
+    assert_eq!(ids, [id("c.md"), id("a.md"), id("b.md")]);
+    assert_eq!(state.layout.active_editor(), Some(id("c.md").as_str()));
+    assert_eq!(r.hosts[&key].hibernated.len(), 2);
+}
+#[test]
+fn entering_a_project_with_no_saved_tab_opens_its_readme_else_its_first_file() {
+    let starting = |files: &[&str], folders: &[&str]| {
+        let root = tempfile::tempdir().unwrap();
+        for name in files {
+            std::fs::write(root.path().join(name), *name).unwrap();
+        }
+        for name in folders {
+            std::fs::create_dir(root.path().join(name)).unwrap();
+        }
+        let mut r = Runtime {
+            starting_file: true,
+            ..Default::default()
+        };
+        open_root(&mut r, root.path());
+        let wake = Wake::default();
+        for _ in 0..3 {
+            r.poll(&wake);
+        }
+        if r.hosts.values().all(|h| h.slots.is_empty()) {
+            return None;
+        }
+        wait(&mut r, |r| r.opened().is_some());
+        Some(r.opened().unwrap().1.to_string_lossy().into_owned())
+    };
+    assert_eq!(
+        starting(&["b.md", "Readme.md", "a.txt", ".env"], &["docs"]).as_deref(),
+        Some("Readme.md")
+    );
+    assert_eq!(
+        starting(&["b.md", "a.md", ".a"], &["aaa"]).as_deref(),
+        Some("a.md"),
+        "the first file the Explorer lists, folders and hidden files aside"
+    );
+    assert_eq!(starting(&[".env"], &["docs"]), None);
+    assert_eq!(starting(&[], &[]), None);
+}
+#[test]
+fn a_starting_file_opens_once_on_entry_and_never_over_saved_tabs() {
+    let profile = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    for name in ["README.md", "b.md"] {
+        std::fs::write(root.path().join(name), name).unwrap();
+    }
+    let runtime = || Runtime {
+        storage: Some(Storage::at(profile.path().into())),
+        starting_file: true,
+        ..Default::default()
+    };
+    let mut r = runtime();
+    open_root(&mut r, root.path());
+    wait(&mut r, |r| {
+        r.opened()
+            .is_some_and(|(_, p)| p == std::path::Path::new("README.md"))
+    });
+    // Closing every tab leaves the editor empty: entry is past.
+    r.begin(Intent::CloseFile, &Wake::default());
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !r.state().unwrap().catalog.editors.is_empty() {
+        assert!(Instant::now() < deadline, "README did not close");
+        r.poll(&Wake::default());
+        snapshots(&mut r, str::to_owned);
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    for _ in 0..3 {
+        r.poll(&Wake::default());
+    }
+    assert!(r.hosts.values().all(|h| h.slots.is_empty()));
+    open(&mut r, "b.md");
+    r.persist_metadata(&Wake::default(), true);
+    wait(&mut r, |r| r.metadata_inflight == 0);
+    drop(r);
+
+    let mut r = runtime();
+    open_root(&mut r, root.path());
+    wait(&mut r, |r| r.opened().is_some());
+    let labels: Vec<_> = r
+        .state()
+        .unwrap()
+        .catalog
+        .editors
+        .iter()
+        .map(|e| e.label.clone())
+        .collect();
+    assert_eq!(labels, ["b.md"], "the saved tab, not the README");
+}
+
+#[test]
+fn starting_file_falls_back_to_most_recent_existing_file_when_root_has_only_folders() {
+    let profile = tempfile::tempdir().unwrap();
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir(root.path().join("notes")).unwrap();
+    std::fs::write(root.path().join("notes/first.md"), "first").unwrap();
+    std::fs::write(root.path().join("notes/second.md"), "second").unwrap();
+    let runtime = || Runtime {
+        storage: Some(Storage::at(profile.path().into())),
+        starting_file: true,
+        ..Default::default()
+    };
+    let mut r = runtime();
+    open_root(&mut r, root.path());
+    for _ in 0..3 {
+        r.poll(&Wake::default());
+    }
+    assert!(r.opened().is_none(), "no root files and no recent files");
+
+    open(&mut r, "notes/first.md");
+    open(&mut r, "notes/second.md");
+    assert_eq!(
+        r.recent_files(),
+        vec![
+            PathBuf::from("notes/second.md"),
+            PathBuf::from("notes/first.md")
+        ]
+    );
+    // Close every tab so the saved layout has no open tabs, only recentFiles.
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !r.state().unwrap().catalog.editors.is_empty() {
+        assert!(Instant::now() < deadline, "tabs did not close");
+        r.begin(Intent::CloseFile, &Wake::default());
+        for _ in 0..4 {
+            r.poll(&Wake::default());
+            snapshots(&mut r, str::to_owned);
+        }
+        std::thread::sleep(Duration::from_millis(2));
+    }
+    r.persist_metadata(&Wake::default(), true);
+    wait(&mut r, |r| r.metadata_inflight == 0);
+    drop(r);
+
+    // Reopening with no open tabs falls back to the most recent file.
+    let mut r = runtime();
+    open_root(&mut r, root.path());
+    wait(&mut r, |r| {
+        r.opened()
+            .is_some_and(|(_, p)| p == std::path::Path::new("notes/second.md"))
+    });
+    drop(r);
+
+    // Removing the newest recent file falls back to the next existing one.
+    std::fs::remove_file(root.path().join("notes/second.md")).unwrap();
+    let mut r = runtime();
+    open_root(&mut r, root.path());
+    wait(&mut r, |r| {
+        r.opened()
+            .is_some_and(|(_, p)| p == std::path::Path::new("notes/first.md"))
+    });
+    assert_eq!(r.recent_files(), vec![PathBuf::from("notes/first.md")]);
 }
 #[test]
 fn resize_cancel_targets_its_original_workspace_not_a_reused_split_id() {
@@ -808,7 +1130,7 @@ fn standalone_file_runtime_neither_restores_nor_overwrites_its_parent_project_la
     let restored_project_slots = file
         .hosts
         .values()
-        .any(|h| !h.slots.is_empty() || h.restore.is_some());
+        .any(|h| !h.slots.is_empty() || !h.hibernated.is_empty());
     open(&mut file, "a.md");
     for intent in [
         Intent::OpenSingleFile(root.path().join("b.md")),
@@ -1078,9 +1400,7 @@ fn wb31_view_state_persists_across_restart_and_clamps_to_shrunk_document() {
         ..Default::default()
     };
     open_root(&mut restored, root.path());
-    wait(&mut restored, |r| {
-        r.state().is_some_and(|s| s.catalog.editors.len() == 2)
-    });
+    wait(&mut restored, |r| r.slot_for_key(&a_key).is_some());
     let restored_a_slot = restored.slot_for_key(&a_key).expect("a.md restored");
     let restored_vs = restored
         .take_pending_view_restore(restored_a_slot)

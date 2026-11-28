@@ -57,7 +57,7 @@ fn text_evidence(id: &str, text: &str, a: &AgentTheme) -> AnyElement {
                 .id(SharedString::from(format!("{id}-text")))
                 .max_h(px(260.))
                 .overflow_scroll()
-                .font_family(theme::MONO)
+                .font_family(theme::mono())
                 .text_size(px(mono_size()))
                 .line_height(px(mono_size() * 1.5))
                 .text_color(a.text_muted)
@@ -107,7 +107,7 @@ fn search_results(
         .min_w_0()
         .max_h(px(260.))
         .overflow_y_scroll()
-        .font_family(theme::MONO)
+        .font_family(theme::mono())
         .text_size(px(mono_size()))
         .line_height(px(line_height));
     if results.lines.is_empty() {
@@ -144,7 +144,7 @@ fn search_results(
         list = list.child(
             div()
                 .p(px(5.))
-                .font_family("Geist")
+                .font_family(crate::theme::sans())
                 .text_size(px(theme::ty().left.meta))
                 .text_color(a.text_subtle)
                 .child(tf(
@@ -215,7 +215,8 @@ fn evidence_node(
                     .flex()
                     .items_center()
                     .justify_center()
-                    .font_family(theme::MONO_MEDIUM)
+                    .font_family(theme::mono())
+                    .font_weight(FontWeight::MEDIUM)
                     .text_size(px(mono_size()))
                     .text_color(marker_color)
                     .child(marker),
@@ -244,7 +245,7 @@ pub fn evidence_tree(
         .min_w_0()
         .py(px(2.))
         .pl(px(EVIDENCE_RAIL_INLINE))
-        .font_family(theme::MONO)
+        .font_family(theme::mono())
         .text_size(px(mono_size()))
         .line_height(px(mono_size() * 1.5))
         .children(nodes.iter().enumerate().map(|(index, node)| {

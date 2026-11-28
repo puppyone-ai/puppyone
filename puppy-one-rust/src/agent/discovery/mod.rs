@@ -6,4 +6,5 @@ pub mod bounded_process_probe;
 pub mod command_environment;
 pub mod discovery_io_budget;
 pub mod executable_discovery_port;
+pub mod executable_fingerprint_cache;
 pub mod windows;

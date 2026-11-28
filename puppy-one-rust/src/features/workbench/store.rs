@@ -76,10 +76,32 @@ impl Workbench {
         let p = self.project_mut()?;
         // Explicit work takes precedence over an older asynchronous restore.
         p.loading = false;
+        p.ensure_tab_on_load = false;
         let id = p.layout.add(group);
         p.content.insert(id, Content::Launcher);
         cx.notify();
         Some(id)
+    }
+
+    /// Ensures the active project has at least one tab (a fresh `New tab`
+    /// launcher) when the right sidebar opens on an empty workbench, keeping
+    /// the "1 tab = 1 page" invariant. If saved state is still loading, defers
+    /// creation until restore finishes so persisted tabs are never overwritten.
+    pub fn ensure_open_tab(&mut self, cx: &mut Context<Self>) {
+        let Some(p) = self.project_mut() else {
+            return;
+        };
+        if p.loading {
+            p.ensure_tab_on_load = true;
+            return;
+        }
+        p.ensure_tab_on_load = false;
+        if p.layout.groups.values().all(|g| g.tabs.is_empty()) {
+            let group = p.layout.active_group;
+            let id = p.layout.add(group);
+            p.content.insert(id, Content::Launcher);
+            cx.notify();
+        }
     }
 
     /// `item` fills the launcher `tab` (or a new tab of `group`), which
@@ -155,6 +177,19 @@ impl Workbench {
     #[cfg(test)]
     pub fn tab_count(&self) -> usize {
         self.project().map_or(0, |p| p.content.len())
+    }
+
+    /// The shown project's active tab in its active group (tests).
+    #[cfg(test)]
+    pub fn active_tab(&self) -> Option<Id> {
+        let p = self.project()?;
+        p.layout.groups.get(&p.layout.active_group)?.active
+    }
+
+    /// Closes `id` through the normal non-forced close path (tests).
+    #[cfg(test)]
+    pub fn close_for_test(&mut self, id: Id, cx: &mut Context<Self>) {
+        self.close(id, false, cx);
     }
 
     /// The tab whose creation failure is reported.
@@ -331,6 +366,15 @@ impl Workbench {
                             },
                             Ok(None) => {}
                             Err(e) => project.storage_error = Some(e),
+                        }
+                        if std::mem::take(&mut project.ensure_tab_on_load)
+                            && self.root.as_deref() == Some(root.as_path())
+                            && self.content_visible
+                            && project.layout.groups.values().all(|g| g.tabs.is_empty())
+                        {
+                            let group = project.layout.active_group;
+                            let id = project.layout.add(group);
+                            project.content.insert(id, Content::Launcher);
                         }
                     }
                 }
@@ -540,12 +584,27 @@ impl Workbench {
         .detach();
     }
 
-    /// `removeItem`: the tab leaves `root`'s layout.
+    /// `removeItem`: the tab leaves `root`'s layout. Collapses any secondary
+    /// split group emptied by the close, and emits [`WorkbenchEvent::ClosedLastTab`]
+    /// when the active project has no tabs left.
     pub(super) fn remove_tab(&mut self, root: &std::path::Path, id: Id, cx: &mut Context<Self>) {
+        let mut closed_last = false;
         if let Some(p) = self.projects.get_mut(root) {
+            let group = p
+                .layout
+                .groups
+                .iter()
+                .find(|(_, g)| g.tabs.contains(&id))
+                .map(|(gid, _)| *gid);
             p.layout.remove(id);
             p.content.remove(&id);
             p.preparing.remove(id);
+            if let Some(gid) = group {
+                p.layout.remove_empty_group(gid);
+            }
+            p.ensure_tab_on_load = false;
+            closed_last = self.root.as_deref() == Some(root)
+                && p.layout.groups.values().all(|g| g.tabs.is_empty());
         }
         if let Some(host) = self.host.clone() {
             cx.defer(move |cx| host.tab_removed(id, cx));
@@ -562,6 +621,9 @@ impl Workbench {
             self.confirm = None;
         }
         self.close_blocked = false;
+        if closed_last {
+            cx.emit(WorkbenchEvent::ClosedLastTab);
+        }
         cx.notify();
     }
 

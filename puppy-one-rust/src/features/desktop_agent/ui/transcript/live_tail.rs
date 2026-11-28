@@ -3,7 +3,7 @@
 use super::super::agent_history_presentation::agent_history_notice;
 use super::super::agent_theme::AgentTheme;
 use super::super::elements::run_feedback;
-use super::view::{CONTENT_MAX, TranscriptInput, TranscriptView};
+use super::view::{CONTENT_INSET, CONTENT_MAX, TranscriptInput, TranscriptView};
 use crate::agent::contract::dto::{AgentProjection, ConnectionStatus, Part, Turn};
 use crate::features::desktop_agent::application::agent_controller_state::AgentSubmissionStage;
 use crate::features::desktop_agent::domain::agent_activity_presentation::{
@@ -225,10 +225,10 @@ impl TranscriptView {
         Some(
             div()
                 .w_full()
-                .max_w(px(CONTENT_MAX))
+                .max_w(px(CONTENT_MAX + 2. * CONTENT_INSET))
                 .mx_auto()
                 .mb(px(12.))
-                .px(px(12.))
+                .px(px(CONTENT_INSET))
                 .py(px(3.))
                 .text_color(a.text_subtle)
                 .text_size(px(m.right.caption))
@@ -295,7 +295,7 @@ impl TranscriptView {
                 .unwrap_or_else(|| format!("{fallback}{attempt}"));
             column = column.child(
                 h_flex()
-                    .px(px(12.))
+                    .px(px(CONTENT_INSET))
                     .gap(px(6.))
                     .text_size(px(m.left.meta))
                     .text_color(a.text_subtle)
@@ -338,7 +338,7 @@ impl TranscriptView {
                                 d.child(
                                     div()
                                         .mt(px(4.))
-                                        .px(px(12.))
+                                        .px(px(CONTENT_INSET))
                                         .text_size(px(m.left.meta))
                                         .line_height(px(m.left.meta * 1.5))
                                         .italic()

@@ -25,6 +25,11 @@ def sha256_bytes(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def pack_version(sdk_version: str, outputs: dict) -> str:
+    key = f"{outputs['excalidraw.js']}:{outputs['excalidraw.css']}".encode('utf-8')
+    return f'{sdk_version}-b{sha256_bytes(key)[:12]}'
+
+
 def add_tar_bytes(tar: tarfile.TarFile, arcname: str, data: bytes) -> None:
     info = tarfile.TarInfo(name=arcname)
     info.size = len(data)
@@ -44,7 +49,7 @@ def main() -> None:
 
     receipt = json.loads((ROOT / 'assets/web/excalidraw.json').read_text())
     font_manifest = json.loads((ROOT / 'assets/web/excalidraw-fonts.json').read_text())
-    version = font_manifest['version']
+    version = pack_version(font_manifest['version'], receipt['outputs'])
     fonts = font_manifest['fonts']
 
     with tempfile.TemporaryDirectory(prefix='po-excalidraw-pack-') as tmp:

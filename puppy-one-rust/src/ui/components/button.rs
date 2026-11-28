@@ -388,6 +388,7 @@ pub struct Button {
     variant: ButtonVariant,
     size: Size,
     label: Option<SharedString>,
+    label_offset_y: Option<Pixels>,
     accessible: Option<SharedString>,
     leading: Option<AnyElement>,
     icon: Option<Icon>,
@@ -411,6 +412,7 @@ impl Button {
             variant: ButtonVariant::default(),
             size: Size::Medium,
             label: None,
+            label_offset_y: None,
             accessible: None,
             leading: None,
             icon: None,
@@ -429,6 +431,12 @@ impl Button {
     }
     pub fn label(mut self, label: impl Into<SharedString>) -> Self {
         self.label = Some(label.into());
+        self
+    }
+    /// Optical vertical nudge for the label text inside the button without
+    /// moving the button's hover box or adjacent icons.
+    pub fn label_offset_y(mut self, offset: Pixels) -> Self {
+        self.label_offset_y = (offset != px(0.)).then_some(offset);
         self
     }
     /// Leading custom element (e.g. a brand mark or inline spinner).
@@ -689,7 +697,13 @@ impl RenderOnce for Button {
             .children(self.leading)
             .children(icon)
             .when_some(label, |b, label| {
-                b.child(div().min_w_0().truncate().child(label))
+                b.child(
+                    div()
+                        .min_w_0()
+                        .truncate()
+                        .when_some(self.label_offset_y, |d, dy| d.relative().top(dy))
+                        .child(label),
+                )
             })
             .children(self.trailing)
             .children(hint)

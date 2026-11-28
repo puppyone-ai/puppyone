@@ -81,7 +81,9 @@ impl Surface<'_, '_, '_> {
                     .pb(px(c.padding.bottom))
                     .pl(px(c.padding.left))
                     .mb(px(block_gap));
-                inherit.text.apply(panel.style());
+                inherit
+                    .text
+                    .apply_for(panel.style(), self.render.language());
                 return panel.child(SharedString::from(text)).into_any_element();
             }
             "ul" | "ol" => {
@@ -105,7 +107,7 @@ impl Surface<'_, '_, '_> {
             "dl" => d = d.mb(px(block_gap)),
             _ => {}
         }
-        inherit.text.apply(d.style());
+        inherit.text.apply_for(d.style(), self.render.language());
         d.style().text.text_align = Some(inherit.align);
         let children = self.flow(&e.children, &inherit, width, depth);
         d.children(children).into_any_element()
@@ -177,7 +179,7 @@ impl Surface<'_, '_, '_> {
                 .flex()
                 .items_center()
                 .justify_center();
-            marker_text.apply(marker_box.style());
+            marker_text.apply_for(marker_box.style(), self.render.language());
             let mut body: Vec<AnyElement> = Vec::new();
             let mut inline = Vec::new();
             for node in &item.children {
@@ -362,7 +364,9 @@ impl Surface<'_, '_, '_> {
                     Some("bottom") => td.justify_end(),
                     _ => td.justify_start(),
                 };
-                cell_inherit.text.apply(td.style());
+                cell_inherit
+                    .text
+                    .apply_for(td.style(), self.render.language());
                 td.style().text.text_align = Some(cell_inherit.align);
                 let content = self.flow(
                     &cell.children,

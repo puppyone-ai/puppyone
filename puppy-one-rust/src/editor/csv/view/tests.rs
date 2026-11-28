@@ -4,10 +4,7 @@
 use super::{
     CsvEditor, CsvEvent, Hit, MenuEvent, expand::Expansion, handles::Axis, menu::MenuKind,
 };
-use crate::{
-    editor::view::{bind_keys, style},
-    typography::Scale,
-};
+use crate::{editor::view::bind_keys, typography::Scale};
 use gpui::{
     AppContext as _, Entity, EntityInputHandler, TestAppContext, VisualTestContext, point, px, size,
 };
@@ -25,7 +22,6 @@ fn setup<'a>(
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
         }
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
         bind_keys(cx);
         super::bind_keys(cx);
     });
@@ -983,7 +979,6 @@ fn large_csv_parses_in_background_while_showing_readonly_preview_and_respects_re
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
         }
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
         bind_keys(cx);
         super::bind_keys(cx);
     });
@@ -1073,7 +1068,6 @@ fn setup_doc<'a>(
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
         }
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
         bind_keys(cx);
         super::bind_keys(cx);
     });

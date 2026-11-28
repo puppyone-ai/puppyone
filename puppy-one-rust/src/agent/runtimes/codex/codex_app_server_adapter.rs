@@ -20,8 +20,10 @@ use super::codex_native_values::{
     require_string,
 };
 use super::codex_reference_input::{CODEX_NATIVE_IMAGE_MIME_TYPES, build_codex_turn_input};
+use super::codex_standby::{CodexStandbyPool, DEFAULT_FAST_MODEL_LIST_TIMEOUT_MS};
 use crate::agent::agent_error::{AgentError, AgentResult};
 use crate::agent::agent_events::redact_secret_text;
+use crate::agent::application::agent_input_policy::requires_runtime_setup;
 use crate::agent::contract::js::{self, Obj};
 use crate::agent::runtime::agent_history_read_result::agent_history_read_result;
 use crate::agent::runtime::agent_runtime_port::{
@@ -120,6 +122,10 @@ pub struct CodexAdapterOptions {
     pub on_event: Rc<dyn Fn(Value)>,
     pub on_exit: Rc<dyn Fn(Value)>,
     pub on_session_persisted: Option<Rc<dyn Fn(Value)>>,
+    /// Optional per-workspace single-slot standby handover pool + model cache (ADR-024).
+    pub standby: Option<CodexStandbyPool>,
+    /// Override for the fast `model/list` wait when a cached model catalog exists.
+    pub fast_model_list_timeout_ms: Option<u64>,
 }
 
 /// One `turn/start` awaiting its native correlation.
@@ -140,8 +146,12 @@ pub struct Inner {
     connection_factory: ConnectionFactory,
     on_event: Rc<dyn Fn(Value)>,
     on_exit: Rc<dyn Fn(Value)>,
+    standby: Option<CodexStandbyPool>,
+    fast_model_list_timeout_ms: u64,
     persistence_reporter: NativePersistenceReporter,
     connection: RefCell<Option<Rc<dyn RpcConnection>>>,
+    listener_id: Cell<Option<u64>>,
+    park_on_dispose: Cell<bool>,
     pub(super) thread_id: RefCell<Option<String>>,
     active_turn_id: RefCell<Option<String>>,
     terminal_turn_ids: RefCell<Vec<String>>,
@@ -320,8 +330,14 @@ impl CodexAppServerAdapter {
                     .unwrap_or_else(jsonl_rpc_connection_factory),
                 on_event: options.on_event,
                 on_exit: options.on_exit,
+                standby: options.standby,
+                fast_model_list_timeout_ms: options
+                    .fast_model_list_timeout_ms
+                    .unwrap_or(DEFAULT_FAST_MODEL_LIST_TIMEOUT_MS),
                 persistence_reporter: reporter,
                 connection: RefCell::default(),
+                listener_id: Cell::new(None),
+                park_on_dispose: Cell::new(false),
                 thread_id: RefCell::default(),
                 active_turn_id: RefCell::default(),
                 terminal_turn_ids: RefCell::default(),
@@ -359,32 +375,50 @@ impl CodexAppServerAdapter {
 
     /// `adapter.connect()`.
     pub async fn connect(&self) -> AgentResult<()> {
+        self.connect_with(true).await
+    }
+
+    async fn connect_with(&self, allow_standby: bool) -> AgentResult<()> {
         let inner = &self.0;
         if inner.connection.borrow().is_some() {
             return Ok(());
         }
-        let env = inner
-            .environment
-            .as_ref()
-            .and_then(Value::as_object)
-            .map(|map| {
-                map.iter()
-                    .filter_map(|(key, value)| {
-                        value.as_str().map(|value| (key.clone(), value.to_string()))
-                    })
-                    .collect()
-            });
-        let connection = (inner.connection_factory)(ConnectionOptions {
-            executable_path: PathBuf::from(&inner.executable_path),
-            args: vec!["app-server".into(), "--listen".into(), "stdio://".into()],
-            cwd: PathBuf::from(&inner.workspace_root),
-            env,
-            spawner: inner.spawner.clone(),
-            ..Default::default()
-        })?;
+        let claimed = if allow_standby {
+            inner
+                .standby
+                .as_ref()
+                .and_then(|pool| pool.claim(&inner.executable_path, &inner.workspace_root))
+        } else {
+            None
+        };
+        let (connection, already_initialized) = match claimed {
+            Some(connection) => (connection, true),
+            None => {
+                let env = inner
+                    .environment
+                    .as_ref()
+                    .and_then(Value::as_object)
+                    .map(|map| {
+                        map.iter()
+                            .filter_map(|(key, value)| {
+                                value.as_str().map(|value| (key.clone(), value.to_string()))
+                            })
+                            .collect()
+                    });
+                let connection = (inner.connection_factory)(ConnectionOptions {
+                    executable_path: PathBuf::from(&inner.executable_path),
+                    args: vec!["app-server".into(), "--listen".into(), "stdio://".into()],
+                    cwd: PathBuf::from(&inner.workspace_root),
+                    env,
+                    spawner: inner.spawner.clone(),
+                    ..Default::default()
+                })?;
+                (connection, false)
+            }
+        };
         *inner.connection.borrow_mut() = Some(connection.clone());
         let weak = Rc::downgrade(inner);
-        connection.on(Rc::new(move |event| {
+        let listener_id = connection.on(Rc::new(move |event| {
             let Some(inner) = weak.upgrade() else { return };
             match event {
                 ConnectionEvent::Notification(message) => inner.handle_notification(&message),
@@ -399,6 +433,10 @@ impl CodexAppServerAdapter {
                 }
             }
         }));
+        inner.listener_id.set(Some(listener_id));
+        if already_initialized {
+            return Ok(());
+        }
         let initialized = connection
             .request(
                 "initialize",
@@ -427,22 +465,62 @@ impl CodexAppServerAdapter {
         Ok(())
     }
 
-    async fn inspect_inner(&self) -> AgentResult<Value> {
-        self.connect().await?;
-        let connection = self.0.require_connection()?;
-        let (account_result, model_result) = futures_util::future::join(
-            connection.request(
-                "account/read",
-                json!({ "refreshToken": false }),
-                RequestOptions::default(),
-            ),
-            connection.request(
-                "model/list",
-                json!({ "includeHidden": false, "limit": 100 }),
-                RequestOptions::default(),
-            ),
-        )
-        .await;
+    async fn inspect_on_connected(&self) -> AgentResult<Value> {
+        enum ModelFetch {
+            Live(AgentResult<Value>),
+            CachedFallback(Vec<Value>),
+        }
+
+        let inner = &self.0;
+        let connection = inner.require_connection()?;
+        let cached_models = inner.standby.as_ref().and_then(|pool| pool.cached_models());
+        let fast_timeout_ms = inner.fast_model_list_timeout_ms;
+        let account_fut = connection.request(
+            "account/read",
+            json!({ "refreshToken": false }),
+            RequestOptions::default(),
+        );
+        let model_fut = connection.request(
+            "model/list",
+            json!({ "includeHidden": false, "limit": 100 }),
+            RequestOptions::default(),
+        );
+        let standby_for_bg = inner.standby.clone();
+        let weak_inner = Rc::downgrade(inner);
+        let model_stage = async move {
+            if let Some(cached) = cached_models
+                && fast_timeout_ms > 0
+            {
+                let mut rpc = model_fut;
+                tokio::select! {
+                    biased;
+                    result = &mut rpc => ModelFetch::Live(result),
+                    _ = tokio::time::sleep(std::time::Duration::from_millis(fast_timeout_ms)) => {
+                        spawn_local(async move {
+                            if let Ok(value) = rpc.await {
+                                let fresh = normalize_models(&value);
+                                if !fresh.is_empty() {
+                                    if let Some(standby) = standby_for_bg {
+                                        standby.store_models(&fresh);
+                                    }
+                                    if let Some(inner) = weak_inner.upgrade() {
+                                        *inner.model_profiles.borrow_mut() = fresh
+                                            .iter()
+                                            .map(|model| (js::to_js_string(model.get("model")), model.clone()))
+                                            .collect();
+                                    }
+                                }
+                            }
+                        });
+                        ModelFetch::CachedFallback(cached)
+                    }
+                }
+            } else {
+                ModelFetch::Live(model_fut.await)
+            }
+        };
+        let (account_result, model_fetch) =
+            futures_util::future::join(account_fut, model_stage).await;
         let reason = |error: &AgentError| {
             if error.message.is_empty() {
                 "Error".to_string()
@@ -450,7 +528,29 @@ impl CodexAppServerAdapter {
                 error.message.clone()
             }
         };
-        if let (Err(account_error), Err(model_error)) = (&account_result, &model_result) {
+        let (models, model_error): (Vec<Value>, Option<AgentError>) = match model_fetch {
+            ModelFetch::Live(Ok(value)) => {
+                let normalized = normalize_models(&value);
+                if let Some(standby) = inner.standby.as_ref()
+                    && !normalized.is_empty()
+                {
+                    standby.store_models(&normalized);
+                }
+                (normalized, None)
+            }
+            ModelFetch::Live(Err(error)) => (Vec::new(), Some(error)),
+            ModelFetch::CachedFallback(cached) => {
+                if connection.closed() {
+                    (
+                        Vec::new(),
+                        Some(AgentError::new("The Codex app-server connection closed.")),
+                    )
+                } else {
+                    (cached, None)
+                }
+            }
+        };
+        if let (Err(account_error), Some(model_error)) = (&account_result, &model_error) {
             let message = [&account_error.message, &model_error.message]
                 .into_iter()
                 .find(|m| !m.is_empty())
@@ -466,11 +566,7 @@ impl CodexAppServerAdapter {
                 "error": redact_secret_text(&reason(error)),
             }),
         };
-        let models = match &model_result {
-            Ok(value) => normalize_models(value),
-            Err(_) => Vec::new(),
-        };
-        *self.0.model_profiles.borrow_mut() = models
+        *inner.model_profiles.borrow_mut() = models
             .iter()
             .map(|model| (js::to_js_string(model.get("model")), model.clone()))
             .collect();
@@ -478,7 +574,7 @@ impl CodexAppServerAdapter {
         if account_result.is_err() {
             warnings.push(account["error"].clone());
         }
-        if let Err(error) = &model_result {
+        if let Some(error) = &model_error {
             warnings.push(Value::from(redact_secret_text(&reason(error))));
         }
         warnings.retain(js::truthy);
@@ -503,6 +599,65 @@ impl CodexAppServerAdapter {
         }))
     }
 
+    async fn inspect_inner(&self) -> AgentResult<Value> {
+        self.connect_with(true).await?;
+        let inspection = self.inspect_on_connected().await?;
+        if self.0.thread_id.borrow().is_none()
+            && self.0.standby.is_some()
+            && !requires_runtime_setup(&inspection["account"])
+        {
+            self.0.park_on_dispose.set(true);
+        }
+        Ok(inspection)
+    }
+
+    async fn bootstrap_session_inner(&self, request: Value) -> AgentResult<Value> {
+        self.0.park_on_dispose.set(false);
+        self.connect_with(true).await?;
+        let inspection = self.inspect_on_connected().await?;
+        if requires_runtime_setup(&inspection["account"]) {
+            return Ok(json!({ "inspection": inspection, "providerSession": Value::Null }));
+        }
+        let models = inspection["models"].as_array();
+        if models.is_none_or(Vec::is_empty) {
+            return Ok(json!({ "inspection": inspection, "providerSession": Value::Null }));
+        }
+        let requested_model = request
+            .get("model")
+            .and_then(Value::as_str)
+            .filter(|m| !m.is_empty());
+        if let Some(model) = requested_model
+            && !models.is_some_and(|list| list.iter().any(|entry| entry["model"] == model))
+        {
+            return Ok(json!({ "inspection": inspection, "providerSession": Value::Null }));
+        }
+        let kind = request
+            .get("kind")
+            .and_then(Value::as_str)
+            .unwrap_or("create");
+        let provider_session = match kind {
+            "create" => {
+                let mut selection = request.clone();
+                js::delete(&mut selection, "kind");
+                js::delete(&mut selection, "threadId");
+                self.create_session_inner(selection).await?
+            }
+            "resume" => {
+                let mut resume_request = request.clone();
+                js::delete(&mut resume_request, "kind");
+                self.resume_session_inner(resume_request).await?
+            }
+            _ => {
+                return Err(AgentError::new("Codex session bootstrap kind is invalid.")
+                    .with_name("TypeError"));
+            }
+        };
+        Ok(json!({
+            "inspection": inspection,
+            "providerSession": provider_session,
+        }))
+    }
+
     /// `adapter.discoverSessions({ cursor, limit, signal })`.
     pub async fn discover_sessions(
         &self,
@@ -510,10 +665,11 @@ impl CodexAppServerAdapter {
         limit: Option<Value>,
         signal: Option<CancelSignal>,
     ) -> AgentResult<Value> {
+        self.0.park_on_dispose.set(false);
         if let Some(signal) = signal.as_ref() {
             signal.check()?;
         }
-        self.connect().await?;
+        self.connect_with(false).await?;
         let request = self.0.history_request()?;
         discover_codex_history(
             &*request,
@@ -526,7 +682,8 @@ impl CodexAppServerAdapter {
     }
 
     async fn create_session_inner(&self, selection: Value) -> AgentResult<Value> {
-        self.connect().await?;
+        self.0.park_on_dispose.set(false);
+        self.connect_with(true).await?;
         let model = selection.get("model").filter(|m| js::truthy(m)).cloned();
         let effort = selection.get("effort").cloned().unwrap_or(Value::Null);
         self.0.session_lifecycle_type.set(Some("session.started"));
@@ -561,7 +718,8 @@ impl CodexAppServerAdapter {
     }
 
     async fn resume_session_inner(&self, request: Value) -> AgentResult<Value> {
-        self.connect().await?;
+        self.0.park_on_dispose.set(false);
+        self.connect_with(true).await?;
         let model = request.get("model").filter(|m| js::truthy(m)).cloned();
         let effort = request.get("effort").cloned().unwrap_or(Value::Null);
         self.0.session_lifecycle_type.set(Some("session.resumed"));
@@ -885,6 +1043,26 @@ impl CodexAppServerAdapter {
         }
         codex_clear_pending_approvals(inner, "cancel", true);
         codex_clear_pending_questions(inner, true);
+        if inner.park_on_dispose.replace(false)
+            && inner.thread_id.borrow().is_none()
+            && let Some(standby) = inner.standby.as_ref()
+            && let Some(connection) = connection.as_ref()
+            && !connection.closed()
+        {
+            if let Some(id) = inner.listener_id.take() {
+                connection.off(id);
+            }
+            *inner.connection.borrow_mut() = None;
+            if standby.park(
+                &inner.executable_path,
+                &inner.workspace_root,
+                connection.clone(),
+            ) {
+                return Ok(());
+            }
+            connection.wait_for_exit().await?;
+            return Ok(());
+        }
         if let Some(connection) = connection {
             connection.dispose(reason, true);
             connection.wait_for_exit().await?;
@@ -915,7 +1093,8 @@ impl AgentRuntimeAdapter for CodexAppServerAdapter {
     fn implements(&self, name: &str) -> bool {
         matches!(
             name,
-            "steerTurn"
+            "bootstrapSession"
+                | "steerTurn"
                 | "resolveApproval"
                 | "resolveQuestion"
                 | "forkSession"
@@ -923,6 +1102,9 @@ impl AgentRuntimeAdapter for CodexAppServerAdapter {
                 | "referenceMentionDelivery"
                 | "getSessionHistoryPort"
         )
+    }
+    fn bootstrap_session(&self, request: Value) -> AdapterFuture<'_, Value> {
+        Box::pin(self.bootstrap_session_inner(request))
     }
     fn steer_turn(&self, request: Value) -> AdapterFuture<'_, Value> {
         Box::pin(self.steer_turn_inner(request))

@@ -113,7 +113,7 @@ v0.4.4 收尾（`f677bd014`）：
 仍未完成（第六轮后，历史记录；服务页、Billing、Scope、Share 及 C-8–C-16 已于 2026-11-04 完成，见 §0.6）：Cloud Agent、服务管理页、Billing、Scope、历史图、Share 缩略图、真实后端验收；从应用拖到外部、WebView Pane 的 Finder 拖放；Context Map、App 预览；右侧栏（G-1–G-8、G-11–G-13）与设置（S-3–S-5、S-7、S-9、S-12–S-15、S-18–S-20、S-22）的剩余项；全部新界面的像素流程。
 
 - [x] 第七轮（`3529435f`..`25b1b59f`，7 个提交）：
-  - 字体：`typography::fonts`（`fontCatalog.ts` 的目录、角色回退、id 规范化；`locales.css` 的按语言字体栈）与 `ui::fonts`（按 Chromium 的方式解析字体栈）；界面 Geist、代码 Geist Mono、终端 Terminal Mono（S-15）。存储格式 `puppyone.desktop.typography` 的解析归 PL-3。
+  - 字体：`typography::fonts`（`fontCatalog.ts` 的目录、角色回退、id 规范化；`locales.css` 的按语言字体栈）与 `ui::fonts`（按 Chromium 的方式解析字体栈）；界面与正文用系统字体（SF Pro）、代码用系统等宽字体（SF Mono）、终端 Terminal Mono（S-15）；原生应用不内嵌字体（2026-11-25）。存储格式 `puppyone.desktop.typography` 的解析归 PL-3。
   - 终端：xterm WebGL 单元格（W 前进宽度、Blink 取整字框 ×1.24、设备像素网格）、会话内边距与 FitAddon、6000 行、450/700、光标闪烁与失焦描边、`isCursorInitialized`、产品 xterm 自定义字形（`tools/import-xterm-glyphs.mjs` + verify 漂移检查）、链接、滚动条、系统行、顶部提示；工作台像素用例 `terminal`（产品 xterm + 离线 PTY 桥，`fixtures/terminal-session.ansi`）95.3%；标签按文件夹命名、溢出详情、32/8 上限；48 个终端源文件全部登记（G-9）。
   - 滚动条：`theme::product_scrollbar` + `ui::scrollbar`，gpui-base 补丁“悬停视口显示”（`PUPPYONE_PATCH.md`）（S-3）。
   - Git：仓库子目录作为项目时与 TS 一致地管理整个仓库，操作只作用于文件夹内（G-13 / D-5）。
@@ -316,7 +316,7 @@ v0.4.4 收尾（`f677bd014`）：
 - [x] P2-9 Git 右侧栏（`GitChangesSidebar` / `WorkingFileDetail` / `GitFileDiffSurface` / `GitHistoryTimeline` / `GitCommitDetail`，`src/features/source_control/`）：
   - 点开改动在侧栏内打开文件 diff：顶部返回 + Open file / Stage（Unstage）/ Discard（`ButtonVariant::GitAction`），已删除文件不能打开；未跟踪文件也可丢弃（删除文件，同 `discardWorkspaceGitPaths`）
   - Diff Registry（`diff/mod.rs`）：按格式选择渲染器，顺序同产品（docx 修订视图见 GT-5，`diff/docx_redline.rs`）。统一文本 diff：行号 / `+-` / 等宽、增删底色、hunk 分隔、长行换行、截断提示；二进制摘要：格式名、前后大小、打开当前文件。卡片头：文件名（重命名 `old → new`）、状态徽标、`+n −m`。变高虚拟列表渲染
-  - 结构化 diff（`platform/git_diff.rs`）移植 `parseGitPatch`（每文件 900 行 / 总 4000 行上限）、未跟踪文件全部视为新增、二进制前后大小；Changes 列表的重命名显示 `old -> new`，状态字母按 Geist 度量对齐基线
+  - 结构化 diff（`platform/git_diff.rs`）移植 `parseGitPatch`（每文件 900 行 / 总 4000 行上限）、未跟踪文件全部视为新增、二进制前后大小；Changes 列表的重命名显示 `old -> new`，状态字母按产品行高度量对齐基线
   - History（`history.rs`、`platform/git_history.rs`）：按本地日期分组（今天 / 昨天 / 月日，8 种语言），可折叠；每条提交显示增删总数与最多 4 个文件预览（新增 `+`、删除 `−`、`+N files`）。提交详情：标题 + HEAD、可复制 ID、`N files changed +a -d`，下方为该提交的文件 diff（History 用页面密度：13px、42px 行号列）
   - 实测（1280×800 深色，`/tmp` 专用 Git fixture，右侧栏区域，容差 8）：Changes 列表 99.4%、代码 diff 96.0%（浅色 95.8%；剩余为 Chromium / CoreText 字形抗锯齿）、二进制 99.3%、新文件 99.5%、删除 99.5%、重命名 99.6%、History 99.4%、提交详情 99.4%
   - 已知差异：Discard 与 Abort 前用系统确认框（产品为 `window.confirm`），Pull / Push 与产品一样不确认；Git 失败是产品的错误对话框（GT-3）；没有远程时显示备份到 Cloud 卡片（GT-4）。分区之间的拖动 / 键盘调整大小未移植；待拉取改动审阅（`IncomingChangesRegion`）只在 Reach 实验下出现，不在范围
@@ -364,7 +364,7 @@ python3 tools/audit-ui-migration.py
 像素对齐手段（均不改 Kit）：
 - 块几何由宿主按产品 CSS 精确计算并绝对定位（GPUI 会把盒子和行高取整到像素，逐块累计会漂移）；行数用 GPUI `shape_text` 以与 Kit 相同的 run 预测，Kit 实际行数不同则下一帧校正。
 - 每个 Kit 文字叶子按 Chromium 的规则放置，使首行基线落在同一设备像素（Chromium：上下 metrics 取整到设备像素、上半 leading 向下取整；GPUI：整数行高、按实际 metrics 居中、基线取整）。
-- 字体：`tools/import-editor-fonts.py` 生成 Geist 各字重静态实例与合成斜体；450 / 500 族的 Bold 槽放 Geist 600（Kit 粗体 = 产品 strong 600）；“PuppyOne Geist Mono Inline” 为 875 units/em，Kit 行内代码按 0.875 缩放后正好是产品的满字号 Geist Mono（只在编辑器构建段落时替换 Kit 主题等宽字体，不影响 Agent 等其他 Kit 文本）。
+- 字体：编辑器用系统字体（`theme::SANS` / `SERIF` / `MONO`），字重取最近的静态字重（`face_weight`，平局取轻），正文 400；Kit 粗体经 `vendor/gpui-base` 补丁画成产品 strong 600，行内代码保持满字号（`with_inline_code_scale(1.)`）。
 - 字体平滑：产品全局 `-webkit-font-smoothing: antialiased`；进程启动时把本应用的 `AppleFontSmoothing` 设为 0，GPUI 不再加粗浅色字形（`platform/text_rendering.rs`）。
 
 ### 7.2 验收（`tools/compare-native-geometry.py` + 截图像素对比）

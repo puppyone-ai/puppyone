@@ -1,10 +1,11 @@
-//! `CloudWorkspaceHeaderTools`' Agents: `CloudWorkspaceAgentPeople` (whoever
-//! is live, each its own button, then the Agents at rest as one stack, or an
-//! empty seat while nobody is here), the card an Agent's mark shows under
-//! the pointer (`CloudWorkspaceAgentCard`), the persistent card of an Agent
-//! asking to join (`CloudWorkspaceAgentRequestCard`) and the Agents dialog
-//! (`dialog`). The mark is the same everywhere (`AgentAvatarMark`), so an
-//! Agent looks like itself in the Header, its card and the dialog.
+//! `CloudWorkspaceHeaderTools`' Agents: one quiet entry in the Header
+//! (`CloudWorkspaceAgentsTool`) that only speaks up when it matters — who
+//! is working now, or that an Agent asks to join — and the list it opens
+//! (`CloudWorkspaceAgentsPanel`): who works now, everyone with access, how
+//! they got in and for how long, removal, and the way to invite the next
+//! one. The persistent card of an Agent asking to join
+//! (`CloudWorkspaceAgentRequestCard`) hangs under the same entry, and the
+//! invite itself stays in the Agents dialog (`dialog`, `invite`).
 use super::window_cloud::WindowCloud;
 use super::*;
 use crate::features::cloud::{CloudAgents, Opener, agent_status};
@@ -12,46 +13,35 @@ use crate::features::source_control::{relative_time, short_date};
 use crate::localization::{t as tr, tf};
 use crate::ui::{
     agent_brands, agent_creature,
-    components::{Button, ButtonVariant, Icon, SurfaceFrame},
+    components::{Button, ButtonVariant, Icon, SurfaceFrame, tooltip},
+    moments::paint,
 };
 use crate::workspace::cloud::agents::{Admission, AgentRequest, WorkspaceAgent};
 use gpui_kit::{
     base::{Disableable as _, Positioner, h_flex, v_flex},
     component::Sizable as _,
 };
-use std::{
-    cell::{Cell, RefCell},
-    collections::HashMap,
-    rc::Rc,
-    time::Duration,
-};
+use std::{cell::Cell, rc::Rc, time::Duration};
 mod dialog;
 mod invite;
 mod paste_art;
 
-/// Enough faces to recognize the room; the rest are a count.
-const VISIBLE_AGENT_LIMIT: usize = 3;
-/// Long enough that passing over the Header shows nothing; the card then
-/// follows the pointer at once.
-const CARD_DELAY: Duration = Duration::from_millis(350);
 const CARD_WIDTH: f32 = 288.;
 /// The mark in a card, larger than in the Header, as a face on a card is.
 const CARD_MARK: f32 = 56.;
+/// The list under the Header's Agents entry.
+const PANEL_WIDTH: f32 = 324.;
+/// An Agent's avatar mark in the list.
+const ROW_MARK: f32 = 32.;
+/// Miniature Agent logo stack inside the Header's Agents entry — echoes
+/// Homepage `SpaceAgents` (`18px` rounded-`5px` tiles) at titlebar scale.
+const HEADER_STACK_MAX: usize = 3;
+const HEADER_TILE: f32 = 18.;
+const HEADER_TILE_RADIUS: f32 = 5.;
+const HEADER_TILE_OVERLAP: f32 = 6.;
 
-/// The Header's Agents anchor: the request card hangs under it.
+/// The Header's Agents anchor: the list and the request card hang under it.
 pub(super) type AgentsAnchor = Rc<Cell<Bounds<Pixels>>>;
-
-/// Where each Header face is, for the card under the one pointed at, and
-/// which card shows.
-#[derive(Default)]
-pub(super) struct AgentCards {
-    pub(super) faces: Rc<RefCell<HashMap<String, Bounds<Pixels>>>>,
-    /// The face whose card shows.
-    pub(super) shown: Option<String>,
-    /// The face under the pointer, its card shown or on its way.
-    hovered: Option<String>,
-    timer: Option<gpui::Task<()>>,
-}
 
 /// How an Agent's mark is drawn where it stands.
 #[derive(Clone, Copy, PartialEq)]
@@ -102,33 +92,42 @@ pub(super) fn agent_mark(name: &str, avatar: Option<&str>, look: Look, t: Theme)
                 .flex_none()
                 .into_any_element()
         }
-        Some(brand) if agent_brands::tile(brand) => agent_brands::artwork(brand, t.dark, size)
-            .rounded_full()
-            .when(!active && header, |i| i.grayscale(true))
-            .when(!active, |i| i.opacity(0.7))
-            .into_any_element(),
+        Some(brand) if agent_brands::tile(brand) => {
+            let inner = if !waiting && !header {
+                (size - 2.).max(0.)
+            } else {
+                size
+            };
+            agent_brands::artwork(brand, t.dark, inner)
+                .rounded_full()
+                .when(!active && header, |i| i.grayscale(true).opacity(0.7))
+                .when(!active && !header, |i| i.opacity(0.92))
+                .into_any_element()
+        }
         Some(brand) => match agent_brands::monochrome(brand) {
             Some(path) => svg()
                 .path(path)
-                .size(px(size * 0.62))
+                .size(px(size * 0.56))
                 .text_color(ink)
-                .when(!active, |s| s.opacity(0.7))
+                .when(!active && header, |s| s.opacity(0.7))
+                .when(!active && !header, |s| s.opacity(0.88))
                 .into_any_element(),
-            None => agent_brands::artwork(brand, t.dark, size * 0.62 * brand.scale)
-                .when(!active && header, |i| i.grayscale(true))
-                .when(!active, |i| i.opacity(0.7))
+            None => agent_brands::artwork(brand, t.dark, size * 0.56 * brand.scale)
+                .when(!active && header, |i| i.grayscale(true).opacity(0.7))
+                .when(!active && !header, |i| i.opacity(0.92))
                 .into_any_element(),
         },
     };
     let creature = brand.is_none();
-    let fill = if waiting || creature {
+    let tile = brand.is_some_and(agent_brands::tile);
+    let fill = if waiting || creature || tile {
         None
     } else if active {
         Some(theme::mix(t.panel_raised, ground, 0.92))
     } else if header {
         Some(theme::mix(ink, ground, 0.14))
     } else {
-        Some(ground)
+        Some(theme::mix(t.text, ground, 0.055))
     };
     // The lamp and the request dot carry a ring of the surface they sit on.
     let dot = |color: Rgba, inset: f32| {
@@ -157,7 +156,7 @@ pub(super) fn agent_mark(name: &str, avatar: Option<&str>, look: Look, t: Theme)
                 .border_color(theme::alpha(ink, 0.55))
         })
         .when(!waiting && !creature && !header, |d| {
-            d.border_1().border_color(theme::alpha(ink, 0.30))
+            d.border_1().border_color(theme::alpha(t.text, 0.12))
         })
         .text_color(ink)
         .child(drawing)
@@ -260,515 +259,1001 @@ fn hop(mark: Div, name: &str) -> AnyElement {
         .into_any_element()
 }
 
-/// A Header mark: an Agent at work, or one asking to join.
-struct Live {
-    id: String,
-    name: String,
-    avatar: Option<String>,
-    active: bool,
-    waiting: bool,
-    status: Option<String>,
+/// What the Header's Agents entry says.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Presence {
+    /// Nobody works: a quiet icon like History's.
+    Quiet,
+    /// Somebody works: their name, or how many work.
+    Working(String),
+    /// An Agent asks to join and this person may answer.
+    Asking,
 }
-/// What the Header shows of who is here: who is live (requests, then
-/// whoever is at work), the first three on their own, and everyone else as
-/// one stack.
-fn people(agents: &[WorkspaceAgent], requests: &[AgentRequest]) -> (Vec<Live>, Vec<Live>) {
-    let now = crate::clock::now_ms() / 1000;
-    let mark = |a: &WorkspaceAgent| Live {
-        id: a.agent.id.clone(),
-        name: a.agent.name.clone(),
-        avatar: a.agent.avatar.clone(),
-        active: a.active,
-        waiting: false,
-        status: agent_status(a, now),
-    };
-    let mut live: Vec<Live> = requests
-        .iter()
-        .map(|r| Live {
-            id: r.id.clone(),
-            name: r.name.clone(),
-            avatar: r.avatar.clone(),
-            active: false,
-            waiting: true,
-            status: Some(tr("cloud.share.agent.request.status").to_string()),
-        })
-        .chain(agents.iter().filter(|a| a.active).map(mark))
-        .collect();
-    let mut resting = live.split_off(live.len().min(VISIBLE_AGENT_LIMIT));
-    resting.extend(agents.iter().filter(|a| !a.active).map(mark));
-    (live, resting)
+fn presence(agents: &[WorkspaceAgent], requests: &[AgentRequest], manageable: bool) -> Presence {
+    if manageable && !requests.is_empty() {
+        return Presence::Asking;
+    }
+    let mut working = agents.iter().filter(|a| a.active);
+    match (working.next(), working.count()) {
+        (None, _) => Presence::Quiet,
+        (Some(one), 0) => Presence::Working(one.agent.name.clone()),
+        (Some(_), more) => {
+            Presence::Working(tf("native.agents.working", &[("count", (more + 1).into())]))
+        }
+    }
 }
 
-/// A live mark's name: the Agent, then what it is doing.
-fn mark_label(mark: &Live) -> String {
-    [Some(mark.name.clone()), mark.status.clone()]
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>()
-        .join(" · ")
-}
-/// The stack is named by all of them, as a sentence would (`formatList`).
-fn stack_label(resting: &[Live]) -> String {
-    crate::localization::and_list(&resting.iter().map(|r| r.name.clone()).collect::<Vec<_>>())
-}
-
-/// What an Agent's card says: when it last worked, then who it is, how it
-/// got in and how long it may stay. A request says only that it asks.
-struct CardFace {
+/// Concise scannable copy for one Agent row: its name, live status or relative
+/// recency, and the single distinguishing access line (`Ends Dec 24`,
+/// `Since Oct 30`, or `Via link · Ends Dec 24`).
+struct RowFace {
     name: String,
-    avatar: Option<String>,
     live: bool,
     when: String,
-    facts: Vec<String>,
+    detail: Option<String>,
 }
-fn card_face(agents: &CloudAgents, id: &str, now: i64) -> Option<CardFace> {
-    if let Some(agent) = agents.agents.iter().find(|a| a.agent.id == id) {
-        let joined = tr(match agent.agent.admission {
-            Admission::SignIn => "cloud.share.agent.detail.approved",
-            Admission::Link => "cloud.share.agent.detail.joinedByLink",
-        })
-        .to_string();
-        let stay = match agent.agent.expires_at.as_deref().and_then(short_date) {
-            Some(date) => tf("cloud.share.agent.detail.ends", &[("date", date.into())]),
-            None => tf(
-                "cloud.share.agent.detail.since",
-                &[(
-                    "date",
-                    short_date(&agent.agent.connected_at)
-                        .unwrap_or_default()
-                        .into(),
-                )],
-            ),
-        };
-        return Some(CardFace {
-            name: agent.agent.name.clone(),
-            avatar: agent.agent.avatar.clone(),
-            live: agent.active,
-            when: agent_status(agent, now).unwrap_or_default(),
-            facts: vec![joined, stay],
-        });
+fn row_face(agent: &WorkspaceAgent, now: i64) -> RowFace {
+    let when = if agent.active {
+        tr("native.agents.active").to_string()
+    } else if !agent.activity_known {
+        String::new()
+    } else {
+        match &agent.last_active_at {
+            Some(at) => relative_time(at, now).unwrap_or_default(),
+            None => tr("cloud.share.agent.status.none").to_string(),
+        }
+    };
+    let stay = match agent.agent.expires_at.as_deref().and_then(short_date) {
+        Some(date) => Some(tf("native.agents.ends", &[("date", date.into())])),
+        None => short_date(&agent.agent.connected_at)
+            .map(|date| tf("native.agents.since", &[("date", date.into())])),
+    };
+    let mut parts = Vec::with_capacity(2);
+    if agent.agent.admission == Admission::Link {
+        parts.push(tr("native.agents.viaLink").to_string());
     }
-    let request = agents.requests.iter().find(|r| r.id == id)?;
-    Some(CardFace {
-        name: request.name.clone(),
-        avatar: request.avatar.clone(),
-        live: false,
-        when: format!(
-            "{} · {}",
-            tr("cloud.share.agent.request.status"),
-            relative_time(&request.requested_at, now).unwrap_or_default()
-        ),
-        facts: vec![],
-    })
+    if let Some(stay) = stay {
+        parts.push(stay);
+    }
+    RowFace {
+        name: agent.agent.name.clone(),
+        live: agent.active,
+        when,
+        detail: (!parts.is_empty()).then(|| parts.join(" · ")),
+    }
 }
 
-/// `.desktop-titlebar-cloud-agent`: a mark is its button's own circle,
-/// named for assistive technology. It shows no tooltip: resting on a face
-/// shows its card, which says more (`disableTooltipHints`).
-fn mark_button(id: SharedString, label: String, t: Theme) -> Stateful<Div> {
-    div()
-        .id(id.clone())
-        .debug_selector(move || id.to_string())
-        .role(Role::Button)
-        .aria_label(label)
-        .h(px(theme::control_compact()))
-        .min_w(px(theme::control_compact()))
+/// One miniature `18×18` squircle Agent logo for the Header stack: its real
+/// brand artwork (tile or monochrome/icon) or its deterministic creature —
+/// never a generic robot or person silhouette. A `quiet` logo (an Agent at
+/// rest) is drawn in greyscale on a ground that sinks into the Header, so a
+/// stack of idle Agents reads as a soft watermark rather than bright stickers.
+fn header_agent_tile(
+    name: &str,
+    avatar: Option<&str>,
+    active: bool,
+    waiting: bool,
+    quiet: bool,
+    ring_ground: Rgba,
+    t: Theme,
+) -> Div {
+    let brand = agent_brand(name, avatar);
+    let tile = div()
+        .relative()
+        .size(px(HEADER_TILE))
         .flex_none()
         .flex()
         .items_center()
-        .rounded_full()
-        .text_color(t.muted)
-        .cursor(theme::clickable_cursor())
+        .justify_center()
+        .rounded(px(HEADER_TILE_RADIUS))
+        .shadow(vec![paint::ring(ring_ground, px(1.5))]);
+    if waiting {
+        return tile
+            .bg(t.header)
+            .border_1()
+            .border_dashed()
+            .border_color(theme::alpha(t.text, 0.45))
+            .child(compact_agent_face(name, avatar, 12., 3., t.header, t));
+    }
+    let ground = if quiet {
+        theme::mix(t.text, t.header, 0.06)
+    } else {
+        t.panel_raised
+    };
+    let edge = theme::alpha(t.text, if quiet { 0.08 } else { 0.12 });
+    match brand {
+        Some(brand) if agent_brands::tile(brand) => tile
+            .child(
+                agent_brands::artwork(brand, t.dark, HEADER_TILE)
+                    .rounded(px(HEADER_TILE_RADIUS))
+                    .when(quiet, |i| i.grayscale(true)),
+            )
+            .child(
+                div()
+                    .absolute()
+                    .inset_0()
+                    .rounded(px(HEADER_TILE_RADIUS))
+                    .border_1()
+                    .border_color(theme::alpha(t.text, if quiet { 0.10 } else { 0.14 })),
+            ),
+        Some(brand) => {
+            let mark: AnyElement = match agent_brands::monochrome(brand) {
+                Some(path) => svg()
+                    .path(path)
+                    .size(px(12.))
+                    .text_color(if quiet { t.muted } else { t.text })
+                    .into_any_element(),
+                None => agent_brands::artwork(brand, t.dark, (12. * brand.scale).min(14.))
+                    .when(quiet, |i| i.grayscale(true))
+                    .into_any_element(),
+            };
+            tile.bg(ground).border_1().border_color(edge).child(mark)
+        }
+        None => tile.bg(ground).border_1().border_color(edge).child(
+            img(agent_creature::image(name, active, ground))
+                .size(px(15.))
+                .flex_none()
+                .when(quiet, |i| i.grayscale(true)),
+        ),
+    }
 }
-/// Records where a face is, for the card under it: laid over the whole
-/// face, not after what it holds.
-fn measured(faces: &Rc<RefCell<HashMap<String, Bounds<Pixels>>>>, id: &str) -> impl IntoElement {
-    let (faces, id) = (faces.clone(), id.to_owned());
-    canvas(
-        move |bounds, _, _| {
-            faces.borrow_mut().insert(id, bounds);
-        },
-        |_, _, _, _| {},
-    )
-    .absolute()
-    .top_0()
-    .left_0()
-    .size_full()
+
+/// Ordered faces for the Header's miniature logo stack: working Agents first,
+/// then most recently active, capped at [`HEADER_STACK_MAX`].
+fn header_stack_agents(agents: &[WorkspaceAgent]) -> Vec<&WorkspaceAgent> {
+    let mut ordered: Vec<&WorkspaceAgent> = agents.iter().collect();
+    ordered.sort_by(|a, b| {
+        b.active
+            .cmp(&a.active)
+            .then_with(|| b.last_active_at.cmp(&a.last_active_at))
+    });
+    ordered
+}
+
+/// Compact overlapping stack of up to 3 real Agent squircle logos. Frontmost
+/// logo renders on top at the left; trailing logos tuck smoothly behind with a
+/// subtle depth fade and a `1.5px` cutout ring. With `quiet`, every Agent not
+/// at work (or asking) is drawn in greyscale.
+fn header_agent_stack(
+    faces: &[(&str, Option<&str>, bool, bool)],
+    quiet: bool,
+    ring_ground: Rgba,
+    t: Theme,
+) -> Div {
+    let shown = faces.len().min(HEADER_STACK_MAX);
+    let more = faces.len().saturating_sub(HEADER_STACK_MAX);
+    let step = HEADER_TILE - HEADER_TILE_OVERLAP;
+    let width = HEADER_TILE + shown.saturating_sub(1) as f32 * step;
+    let depth = [1.0_f32, 0.90, 0.78];
+    let tiles = (0..shown).rev().map(|idx| {
+        let (name, avatar, active, waiting) = faces[idx];
+        let resting = quiet && !active && !waiting;
+        header_agent_tile(name, avatar, active, waiting, resting, ring_ground, t)
+            .absolute()
+            .top_0()
+            .left(px(idx as f32 * step))
+            .opacity(depth[idx.min(depth.len() - 1)])
+    });
+    h_flex()
+        .flex_none()
+        .items_center()
+        .child(
+            div()
+                .relative()
+                .flex_none()
+                .w(px(width))
+                .h(px(HEADER_TILE))
+                .children(tiles),
+        )
+        .when(more > 0, |d| {
+            d.child(
+                div()
+                    .ml(px(5.))
+                    .text_size(px(theme::ty().ui.micro))
+                    .line_height(px(14.))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(t.subtle)
+                    .child(format!("+{more}")),
+            )
+        })
+}
+
+/// Empty-project Header slot: a quiet `18×18` dashed squircle with `+`, ready
+/// to turn into the first Agent's logo once invited.
+fn header_empty_slot(group: &str, t: Theme) -> Div {
+    div()
+        .size(px(HEADER_TILE))
+        .flex_none()
+        .flex()
+        .items_center()
+        .justify_center()
+        .rounded(px(HEADER_TILE_RADIUS))
+        .border_1()
+        .border_dashed()
+        .border_color(theme::alpha(t.muted, 0.55))
+        .text_color(t.muted)
+        .group_hover(SharedString::from(group.to_owned()), |d| {
+            d.border_color(theme::alpha(t.text, 0.65))
+                .text_color(t.text)
+        })
+        .child(
+            Icon::new("plus")
+                .with_size(px(10.))
+                .stroke(2.2)
+                .group_hover_color(SharedString::from(group.to_owned()), t.text),
+        )
 }
 
 impl WindowCloud {
-    /// `CloudWorkspaceHeaderTools`' Agents anchor: who is live, the stack of
-    /// the ones at rest and, while nobody is here, the empty seat; the
-    /// card of the face pointed at and an unanswered request's card.
-    /// Nothing when the account may not manage the list and nobody is in it.
+    /// Opens the two-step invite flow directly (used by the project menu's
+    /// Agents strip `+ Invite` action).
+    pub(in crate::app) fn press_agents_invite(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.press_agents(Opener::Invite, window, cx);
+    }
+
+    /// The project menu's Agents section: a quiet `Agents` heading over a
+    /// horizontal row of the Agents in this project (up to 6 real avatars,
+    /// active first, plus a compact `+` circle to invite), or `No agents yet`
+    /// with a compact `+ Invite` button while the project has none.
+    pub(in crate::app) fn project_menu_agents_section(
+        &self,
+        on_open: impl Fn(&mut Window, &mut App) + 'static,
+        on_invite: impl Fn(&mut Window, &mut App) + 'static,
+        cx: &App,
+    ) -> Option<AnyElement> {
+        let agents = self.agents.read(cx);
+        if agents.agents.is_empty() && !agents.manageable {
+            return None;
+        }
+        let t = cx.palette();
+        let ty = theme::ty().ui;
+        let ordered = header_stack_agents(&agents.agents);
+        let count = ordered.len();
+        let on_open = Rc::new(on_open);
+        let on_invite = Rc::new(on_invite);
+        let heading = h_flex()
+            .items_center()
+            .justify_between()
+            .child(
+                div()
+                    .text_size(px(ty.micro))
+                    .line_height(px(14.))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(t.subtle)
+                    .child(tr("cloud.share.agent.title")),
+            )
+            .when(count > 0, |d| {
+                d.child(
+                    div()
+                        .text_size(px(ty.micro))
+                        .line_height(px(14.))
+                        .font_weight(FontWeight::MEDIUM)
+                        .text_color(t.subtle)
+                        .child(count.to_string()),
+                )
+            });
+        let body: AnyElement = if count == 0 {
+            let invite = on_invite.clone();
+            h_flex()
+                .items_center()
+                .justify_between()
+                .gap(px(8.))
+                .child(
+                    div()
+                        .min_w_0()
+                        .truncate()
+                        .text_size(px(ty.caption))
+                        .line_height(px(16.))
+                        .text_color(t.subtle)
+                        .child(tr("native.agents.empty")),
+                )
+                .when(agents.manageable, |d| {
+                    d.child(
+                        div()
+                            .id("project-menu-agents-invite")
+                            .debug_selector(|| "project-menu-agents-invite".into())
+                            .flex_none()
+                            .h(px(22.))
+                            .px(px(7.))
+                            .flex()
+                            .items_center()
+                            .gap(px(4.))
+                            .rounded(px(5.))
+                            .bg(theme::alpha(t.text, 0.06))
+                            .border_1()
+                            .border_color(theme::alpha(t.text, 0.08))
+                            .text_size(px(ty.micro))
+                            .line_height(px(14.))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(t.muted)
+                            .cursor(theme::clickable_cursor())
+                            .hover(|d| d.bg(theme::alpha(t.text, 0.12)).text_color(t.text))
+                            .child(Icon::new("plus").with_size(px(10.5)).stroke(2.2))
+                            .child(tr("native.agents.invite"))
+                            .on_click(move |_, window, cx| invite(window, cx)),
+                    )
+                })
+                .into_any_element()
+        } else {
+            const MAX_ROW: usize = 6;
+            const MARK_SIZE: f32 = 24.;
+            let shown = ordered.len().min(MAX_ROW);
+            let extra = ordered.len().saturating_sub(MAX_ROW);
+            let avatars = ordered.into_iter().take(shown).enumerate().map(|(i, a)| {
+                let open = on_open.clone();
+                let tip = if a.active {
+                    format!("{} · {}", a.agent.name, tr("native.agents.active"))
+                } else {
+                    a.agent.name.clone()
+                };
+                div()
+                    .id(("project-menu-agent", i))
+                    .debug_selector({
+                        let id = a.agent.id.clone();
+                        move || format!("project-menu-agent:{id}")
+                    })
+                    .flex_none()
+                    .rounded_full()
+                    .cursor(theme::clickable_cursor())
+                    .tooltip(tooltip(tip))
+                    .child(agent_mark(
+                        &a.agent.name,
+                        a.agent.avatar.as_deref(),
+                        Look {
+                            size: MARK_SIZE,
+                            ground: t.header,
+                            active: a.active,
+                            waiting: false,
+                            header: false,
+                        },
+                        t,
+                    ))
+                    .on_click(move |_, window, cx| open(window, cx))
+            });
+            h_flex()
+                .items_center()
+                .gap(px(6.))
+                .children(avatars)
+                .when(extra > 0, |d| {
+                    let open = on_open.clone();
+                    d.child(
+                        div()
+                            .id("project-menu-agents-more")
+                            .h(px(MARK_SIZE))
+                            .px(px(6.))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .rounded_full()
+                            .bg(theme::alpha(t.text, 0.06))
+                            .text_size(px(ty.micro))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(t.subtle)
+                            .cursor(theme::clickable_cursor())
+                            .hover(|d| d.bg(theme::alpha(t.text, 0.12)).text_color(t.text))
+                            .child(format!("+{extra}"))
+                            .on_click(move |_, window, cx| open(window, cx)),
+                    )
+                })
+                .when(agents.manageable, |d| {
+                    let invite = on_invite.clone();
+                    d.child(
+                        div()
+                            .id("project-menu-agents-invite")
+                            .debug_selector(|| "project-menu-agents-invite".into())
+                            .size(px(MARK_SIZE))
+                            .flex_none()
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .rounded_full()
+                            .border_1()
+                            .border_dashed()
+                            .border_color(theme::alpha(t.muted, 0.45))
+                            .text_color(t.muted)
+                            .cursor(theme::clickable_cursor())
+                            .hover(|d| {
+                                d.border_color(theme::alpha(t.text, 0.65))
+                                    .bg(t.hover)
+                                    .text_color(t.text)
+                            })
+                            .tooltip(tooltip(tr("native.agentInvite.title")))
+                            .child(Icon::new("plus").with_size(px(11.)).stroke(2.2))
+                            .on_click(move |_, window, cx| invite(window, cx)),
+                    )
+                })
+                .into_any_element()
+        };
+        Some(
+            v_flex()
+                .id("project-menu-agents")
+                .debug_selector(|| "project-menu-agents".into())
+                .px(px(8.))
+                .py(px(6.))
+                .gap(px(7.))
+                .child(heading)
+                .child(body)
+                .into_any_element(),
+        )
+    }
+
+    /// `CloudWorkspaceAgentsTool`: the Header's one Agents entry, built from
+    /// the real Agent logos themselves (never a generic robot or people icon).
+    /// Quiet miniature stack while nobody works; active logo(s) + green dot +
+    /// name while working; waiting logo + accent dot when an Agent asks to
+    /// join; quiet dashed `+` squircle when no Agent is here yet.
     pub(super) fn agents_control(&self, cx: &App) -> Option<AnyElement> {
         let agents = self.agents.read(cx);
         let listed = !agents.agents.is_empty() || !agents.requests.is_empty();
-        // Until it is known whether this person may invite, the seat holds
+        // Until it is known whether this person may invite, the entry holds
         // its place: a Project on its way in for the signed-in account, or
         // one being asked about. With nothing to ask about there is none.
         let checking = agents.checking()
             || (self.session().opening && crate::features::cloud::account::has_account(cx));
-        let seat = !listed && (agents.manageable || checking);
-        if !listed && !seat {
+        if !listed && !agents.manageable && !checking {
             return None;
         }
         let t = cx.palette();
-        let size = theme::control_compact();
-        let ground = t.header;
-        let (live, resting) = people(&agents.agents, &agents.requests);
-        let faces = self.agent_cards.faces.clone();
-        let hover = |id: String| {
-            let host = self.weak.clone();
-            move |hovered: &bool, _: &mut Window, cx: &mut App| {
-                let id = id.clone();
-                let _ = host.update(cx, |s, cx| s.hover_agent(hovered.then_some(id), cx));
+        let ty = theme::ty().header;
+        let label = tr("cloud.share.agent.title");
+        let disabled = checking && !listed;
+        let press = self.listener(|s, _: &ClickEvent, window, cx| s.press_agents_entry(window, cx));
+        let entry: AnyElement = match presence(&agents.agents, &agents.requests, agents.manageable)
+        {
+            Presence::Working(who) => {
+                let active_faces: Vec<(&str, Option<&str>, bool, bool)> = agents
+                    .agents
+                    .iter()
+                    .filter(|a| a.active)
+                    .map(|a| {
+                        (
+                            a.agent.name.as_str(),
+                            a.agent.avatar.as_deref(),
+                            true,
+                            false,
+                        )
+                    })
+                    .collect();
+                let ring_ground = if self.agents_panel {
+                    t.active
+                } else {
+                    theme::mix(t.text, t.header, 0.05)
+                };
+                div()
+                    .id("cloud-workspace-agents")
+                    .debug_selector(|| "cloud-workspace-agents".into())
+                    .role(Role::Button)
+                    .aria_label(format!("{label} · {who}"))
+                    .h(px(theme::control_compact()))
+                    .max_w(px(210.))
+                    .px(px(7.))
+                    .flex()
+                    .items_center()
+                    .gap(px(6.))
+                    .rounded(px(theme::metric::TOOLBAR_ACTION_RADIUS))
+                    .text_size(px(ty.meta))
+                    .line_height(px(ty.meta_line_height))
+                    .font_weight(FontWeight::MEDIUM)
+                    .text_color(t.text)
+                    .when(self.agents_panel, |d| d.bg(t.active))
+                    .when(!self.agents_panel, |d| d.bg(theme::alpha(t.text, 0.05)))
+                    .hover(|d| d.bg(t.active))
+                    .cursor(theme::clickable_cursor())
+                    .child(header_agent_stack(&active_faces, false, ring_ground, t))
+                    .child(div().size(px(6.)).flex_none().rounded_full().bg(t.success))
+                    .child(div().min_w_0().truncate().child(who))
+                    .on_click(press)
+                    .into_any_element()
+            }
+            presence => {
+                let asking = presence == Presence::Asking;
+                let group = "cloud-workspace-agents-entry";
+                let ring_ground = if self.agents_panel {
+                    t.selected
+                } else {
+                    t.header
+                };
+                let faces: Vec<(&str, Option<&str>, bool, bool)> = if asking {
+                    let mut list: Vec<(&str, Option<&str>, bool, bool)> = agents
+                        .requests
+                        .iter()
+                        .take(1)
+                        .map(|r| (r.name.as_str(), r.avatar.as_deref(), false, true))
+                        .collect();
+                    list.extend(header_stack_agents(&agents.agents).into_iter().map(|a| {
+                        (
+                            a.agent.name.as_str(),
+                            a.agent.avatar.as_deref(),
+                            a.active,
+                            false,
+                        )
+                    }));
+                    list
+                } else {
+                    header_stack_agents(&agents.agents)
+                        .into_iter()
+                        .map(|a| {
+                            (
+                                a.agent.name.as_str(),
+                                a.agent.avatar.as_deref(),
+                                a.active,
+                                false,
+                            )
+                        })
+                        .collect()
+                };
+                // At rest the logos are a greyscale watermark at half
+                // strength; the pointer brings them up a little, and an open
+                // list shows them in their own colours.
+                let quiet = !self.agents_panel;
+                let content: AnyElement = if faces.is_empty() {
+                    header_empty_slot(group, t).into_any_element()
+                } else {
+                    header_agent_stack(&faces, quiet, ring_ground, t)
+                        .when(quiet && !asking, |d| {
+                            d.opacity(0.5).group_hover(group, |d| d.opacity(0.85))
+                        })
+                        .into_any_element()
+                };
+                let mut button = div()
+                    .id("cloud-workspace-agents")
+                    .debug_selector(|| "cloud-workspace-agents".into())
+                    .group(group)
+                    .relative()
+                    .role(Role::Button)
+                    .aria_label(label)
+                    .h(px(theme::control_compact()))
+                    .min_w(px(theme::metric::TITLEBAR_TOOL_ACTION_WIDTH))
+                    .px(px(7.))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .rounded(px(theme::metric::TOOLBAR_ACTION_RADIUS))
+                    .when(self.agents_panel, |d| d.bg(t.selected))
+                    .when(disabled, |d| d.opacity(0.55))
+                    .when(!disabled, |d| {
+                        d.cursor(theme::clickable_cursor())
+                            .hover(|d| {
+                                d.bg(if self.agents_panel {
+                                    t.selected
+                                } else {
+                                    t.hover
+                                })
+                            })
+                            .tooltip(tooltip(label))
+                            .on_click(press)
+                    })
+                    .child(content);
+                if asking {
+                    button = button.child(
+                        div()
+                            .absolute()
+                            .top(px(5.))
+                            .right(px(5.))
+                            .size(px(7.))
+                            .rounded_full()
+                            .bg(t.accent)
+                            .border(px(1.5))
+                            .border_color(t.header),
+                    );
+                }
+                button.into_any_element()
             }
         };
-        let press = |opener: Opener| {
-            let host = self.weak.clone();
-            move |_: &ClickEvent, window: &mut Window, cx: &mut App| {
-                let _ = host.update(cx, |s, cx| s.press_agents(opener.clone(), window, cx));
-            }
-        };
-        let mut row = h_flex().gap(px(6.)).items_center();
-        for mark in &live {
-            let label = mark_label(mark);
-            row = row.child(
-                mark_button(
-                    SharedString::from(format!("cloud-workspace-agent:{}", mark.id)),
-                    label,
-                    t,
-                )
-                .relative()
-                .child(agent_mark(
-                    &mark.name,
-                    mark.avatar.as_deref(),
-                    Look {
-                        size,
-                        ground,
-                        active: mark.active,
-                        waiting: mark.waiting,
-                        header: true,
-                    },
-                    t,
-                ))
-                .child(measured(&faces, &mark.id))
-                .on_hover(hover(mark.id.clone()))
-                .on_click(press(Opener::Agent(mark.id.clone()))),
-            );
-        }
-        if !resting.is_empty() {
-            row = row.child(self.resting_stack(&resting, size, ground, cx));
-        }
-        if listed && agents.manageable {
-            row = row.child(self.invite_add_button(size, ground, cx));
-        }
-        if seat {
-            row = row.child(self.empty_seat(checking, cx));
-        }
         let anchor = self.agents_anchor.clone();
         let mut control = div()
             .relative()
             .flex()
             .flex_none()
             .items_center()
-            .mr(px(6.))
-            .child(row)
+            .child(entry)
             .child(
                 canvas(move |bounds, _, _| anchor.set(bounds), |_, _, _, _| {})
                     .absolute()
                     .size_full(),
             );
-        if let Some(card) = self.agent_card(cx) {
-            control = control.child(card);
+        if let Some(panel) = self.agents_panel(cx) {
+            control = control.child(panel);
         }
         if let Some(card) = self.request_card(cx) {
             control = control.child(card);
         }
         Some(control.into_any_element())
     }
-    /// `RestingAgents`: stacked like a pile of tokens with the first in
-    /// front, and a count past three. Each face still shows its own card.
-    fn resting_stack(&self, resting: &[Live], size: f32, ground: Rgba, cx: &App) -> AnyElement {
-        let t = cx.palette();
-        let stacked = &resting[..resting.len().min(VISIBLE_AGENT_LIMIT)];
-        let overflow = resting.len() - stacked.len();
-        let step = size * 0.28;
-        let width = size + step * (stacked.len().saturating_sub(1)) as f32;
-        let label = stack_label(resting);
-        let faces = self.agent_cards.faces.clone();
-        // Painted back to front, so the first covers the ones behind it.
-        let mut pile = div().relative().w(px(width)).h(px(size)).flex_none();
-        for (index, face) in stacked.iter().enumerate().rev() {
-            let selector = format!("cloud-workspace-agent-face:{}", face.id);
-            pile = pile.child(
-                div()
-                    .id(SharedString::from(selector.clone()))
-                    .debug_selector(move || selector.clone())
-                    .absolute()
-                    .top_0()
-                    .left(px(step * index as f32))
-                    .size(px(size))
-                    .rounded_full()
-                    // A ring of the Header's colour keeps each face apart.
-                    .shadow(vec![BoxShadow {
-                        color: ground.into(),
-                        offset: point(px(0.), px(0.)),
-                        blur_radius: px(0.),
-                        spread_radius: px(1.5),
-                        inset: false,
-                    }])
-                    .child(agent_mark(
-                        &face.name,
-                        face.avatar.as_deref(),
-                        Look {
-                            size,
-                            ground,
-                            active: false,
-                            waiting: false,
-                            header: true,
-                        },
-                        t,
-                    ))
-                    .child(measured(&faces, &face.id)),
-            );
-        }
-        // The faces overlap, so the card is for the one under the pointer
-        // that is in front, found in the pile's order; none past them.
-        let order: Vec<String> = stacked.iter().map(|face| face.id.clone()).collect();
-        let (follow, leave) = (self.weak.clone(), self.weak.clone());
-        let host = self.weak.clone();
-        mark_button("cloud-workspace-agent-stack".into(), label, t)
-            .on_mouse_move(move |event, _, cx| {
-                let face = order
-                    .iter()
-                    .find(|id| {
-                        faces
-                            .borrow()
-                            .get(*id)
-                            .is_some_and(|bounds| bounds.contains(&event.position))
-                    })
-                    .cloned();
-                let _ = follow.update(cx, |s, cx| s.hover_agent(face, cx));
-            })
-            .on_hover(move |hovered, _, cx| {
-                if !hovered {
-                    let _ = leave.update(cx, |s, cx| s.hover_agent(None, cx));
-                }
-            })
-            .gap(px(5.))
-            .child(pile)
-            .when(overflow > 0, |d| {
-                d.child(
-                    div()
-                        .mr(px(2.))
-                        .text_size(px(theme::ty().ui.caption))
-                        .text_color(t.muted)
-                        .child(tf("shell.projectReach.more", &[("count", overflow.into())])),
-                )
-            })
-            .on_click(move |_, window, cx| {
-                let _ = host.update(cx, |s, cx| s.press_agents(Opener::More, window, cx));
-            })
-            .into_any_element()
-    }
-    /// `InviteAgentAddButton`: subtle solid circular `+` beside present Agents
-    /// that opens the Agents dialog straight into its invite prompt steps.
-    fn invite_add_button(&self, size: f32, ground: Rgba, cx: &App) -> AnyElement {
-        let t = cx.palette();
-        let host = self.weak.clone();
-        let label = tr("cloud.share.agent.invite.title").to_string();
-        mark_button("cloud-workspace-agent-add".into(), label.clone(), t)
-            .tooltip(crate::ui::components::tooltip(label))
-            .justify_center()
-            .size(px(size))
-            .bg(theme::mix(t.text, ground, 0.08))
-            .shadow(vec![BoxShadow {
-                color: ground.into(),
-                offset: point(px(0.), px(0.)),
-                blur_radius: px(0.),
-                spread_radius: px(1.5),
-                inset: false,
-            }])
-            .hover(move |d| d.bg(theme::mix(t.text, ground, 0.14)).text_color(t.text))
-            .on_click(move |_, window, cx| {
-                let _ = host.update(cx, |s, cx| s.press_agents(Opener::Invite, window, cx));
-            })
-            .child(Icon::new("plus").with_size(px(12.)).stroke(2.))
-            .into_any_element()
-    }
-    /// `InviteAgentTool`: subtle solid `+ Invite agent` pill where the Agents
-    /// will be. While the server says whether this person may invite, it holds
-    /// its place without any dashed outline.
-    fn empty_seat(&self, checking: bool, cx: &App) -> AnyElement {
-        let t = cx.palette();
-        let ty = theme::ty().ui;
-        let host = self.weak.clone();
-        // The message is out: the seat says it waits, and still reopens the
-        // invite where it stands.
-        let waiting = !checking && self.agents.read(cx).waiting();
-        let label = tr(if checking {
-            "shell.workspaceSwitcher.location.checking"
-        } else {
-            "cloud.share.agent.invite.title"
-        });
-        mark_button(
-            "cloud-workspace-tool:invite-agent".into(),
-            label.to_string(),
-            t,
-        )
-        .tooltip(crate::ui::components::tooltip(label))
-        .px(px(10.))
-        .gap(px(5.))
-        .bg(theme::alpha(t.text, 0.07))
-        .text_size(px(ty.caption))
-        .font_weight(FontWeight::MEDIUM)
-        .when(checking, |d| d.opacity(0.7).cursor_default())
-        .when(!checking, |d| {
-            d.hover(|d| d.bg(t.active).text_color(t.text))
-                .on_click(move |_, window, cx| {
-                    let _ = host.update(cx, |s, cx| s.press_agents(Opener::Invite, window, cx));
-                })
-        })
-        .child(if checking || waiting {
-            Icon::new("loader-circle")
-                .with_size(px(12.))
-                .stroke(2.)
-                .spinning("cloud-agent-seat-checking")
-        } else {
-            Icon::new("plus").with_size(px(12.)).stroke(2.)
-        })
-        .child(div().line_height(px(16.)).child(tr(if waiting {
-            "native.agentInvite.headerWaiting"
-        } else {
-            "cloud.share.agent.invite.seat"
-        })))
-        .into_any_element()
-    }
-    /// A face was pointed at or left. The first card waits a moment, so
-    /// passing over the Header shows nothing; then it follows the pointer
-    /// from face to face at once.
-    pub(super) fn hover_agent(&mut self, face: Option<String>, cx: &mut Context<Self>) {
-        let suppressed =
-            self.dialog_open(DialogKey::Agents, cx) || !self.agents.read(cx).requests.is_empty();
-        let face = face.filter(|_| !suppressed);
-        let cards = &mut self.agent_cards;
-        // The pointer moving within the same face changes nothing.
-        if cards.hovered == face {
+
+    /// A press on the Agents entry. While a request waits it brings its
+    /// Deny into keyboard reach, without answering it; with nobody here yet
+    /// it goes straight to inviting; otherwise it opens or closes the list.
+    pub(super) fn press_agents_entry(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let agents = self.agents.read(cx);
+        if agents.manageable && !agents.requests.is_empty() {
+            self.deny_focus.focus(window, cx);
             return;
         }
-        cards.hovered = face.clone();
-        cards.timer = None;
-        match face {
-            Some(face) => {
-                if cards.shown.is_some() {
-                    cards.shown = Some(face);
-                    cx.notify();
-                } else {
-                    cards.timer = Some(cx.spawn(async move |this, cx| {
-                        cx.background_executor().timer(CARD_DELAY).await;
-                        let _ = this.update(cx, |s, cx| {
-                            s.agent_cards.shown = Some(face);
-                            cx.notify();
-                        });
-                    }));
-                }
-            }
-            _ => {
-                if cards.shown.take().is_some() {
-                    cx.notify();
-                }
-            }
+        if agents.agents.is_empty() {
+            self.press_agents(Opener::Invite, window, cx);
+            return;
         }
+        self.agents.update(cx, |a, cx| a.confirm_remove(None, cx));
+        self.agents_panel = !self.agents_panel;
+        self.computer_peek = false;
+        cx.notify();
     }
-    /// `CloudWorkspaceAgentCard`: an Agent at a glance under its mark —
-    /// when it last worked, then the Agent, how it got in and how long it
-    /// may stay. It only reads, so it never takes the pointer.
-    fn agent_card(&self, cx: &App) -> Option<AnyElement> {
-        let id = self.agent_cards.shown.as_ref()?;
-        let anchor = *self.agent_cards.faces.borrow().get(id)?;
+
+    /// Closes the Agents list, if it is open.
+    pub(super) fn close_agents_panel(&mut self, cx: &mut Context<Self>) -> bool {
+        if !self.agents_panel {
+            return false;
+        }
+        self.agents_panel = false;
+        self.agents.update(cx, |a, cx| a.confirm_remove(None, cx));
+        cx.notify();
+        true
+    }
+
+    /// `CloudWorkspaceAgentsPanel`: whoever works first, then everyone with
+    /// access, each with its avatar, name, recency and concise access detail.
+    /// Removing asks once, on the row. `Invite` turns to the invite dialog.
+    fn agents_panel(&self, cx: &App) -> Option<AnyElement> {
+        if !self.agents_panel {
+            return None;
+        }
         let agents = self.agents.read(cx);
         let t = cx.palette();
         let ty = theme::ty().ui;
         let now = crate::clock::now_ms() / 1000;
-        let CardFace {
-            name,
-            avatar,
-            live,
-            when,
-            facts,
-        } = card_face(agents, id, now)?;
-        let ground = t.menu_bg;
-        let card = SurfaceFrame::popover_card("cloud-agent-card")
-            .occlude(false)
-            .debug_selector(|| "cloud-agent-card".into())
-            .w(px(CARD_WIDTH))
+        let count = agents.agents.len();
+        let mut sorted: Vec<&WorkspaceAgent> = agents.agents.iter().collect();
+        sorted.sort_by_key(|a| !a.active);
+        let rows = sorted
+            .into_iter()
+            .map(|agent| self.panel_row(agents, agent, now, cx))
+            .collect::<Vec<_>>();
+        let invite = self.listener(|s, _: &ClickEvent, window, cx| {
+            s.agents_panel = false;
+            s.press_agents(Opener::Invite, window, cx);
+        });
+        let anchor = self.agents_anchor.clone();
+        let close = self.listener(move |s, event: &MouseDownEvent, _, cx| {
+            // A press on the entry itself toggles it instead.
+            if !anchor.get().contains(&event.position) {
+                s.close_agents_panel(cx);
+            }
+        });
+        let panel = SurfaceFrame::popover_card("cloud-agents-panel")
+            .debug_selector(|| "cloud-agents-panel".into())
+            .absorb_mouse_down()
+            .on_mouse_down_out(close)
+            .w(px(PANEL_WIDTH))
             .child(
                 h_flex()
-                    .gap(px(7.))
-                    .px(px(14.))
-                    .py(px(9.))
+                    .items_center()
+                    .justify_between()
+                    .pl(px(14.))
+                    .pr(px(10.))
+                    .py(px(10.))
                     .border_b_1()
                     .border_color(t.shell_divider)
-                    .text_size(px(ty.caption))
-                    .line_height(px(16.))
-                    .font_weight(FontWeight::MEDIUM)
-                    .text_color(if live { t.text } else { t.muted })
-                    .when(live, |d| {
-                        d.child(div().size(px(7.)).flex_none().rounded_full().bg(t.success))
-                    })
-                    .child(when),
-            )
-            .child(
-                h_flex()
-                    .gap(px(14.))
-                    .p(px(14.))
-                    .child(agent_mark(
-                        &name,
-                        avatar.as_deref(),
-                        Look {
-                            size: CARD_MARK,
-                            ground,
-                            active: live,
-                            waiting: false,
-                            header: false,
-                        },
-                        t,
-                    ))
                     .child(
-                        v_flex()
-                            .gap(px(1.))
+                        h_flex()
+                            .items_center()
+                            .gap(px(7.))
                             .min_w_0()
                             .child(
                                 div()
-                                    .truncate()
-                                    .text_size(px(ty.control))
-                                    .line_height(px(20.))
+                                    .text_size(px(ty.meta))
+                                    .line_height(px(18.))
                                     .font_weight(FontWeight::SEMIBOLD)
-                                    .child(name),
+                                    .text_color(t.text)
+                                    .child(tr("cloud.share.agent.title")),
                             )
-                            .children(facts.into_iter().enumerate().map(|(index, fact)| {
-                                div()
-                                    .text_size(px(ty.caption))
-                                    .line_height(px(17.))
-                                    .text_color(if index == 0 { t.muted } else { t.subtle })
-                                    .child(fact)
-                            })),
-                    ),
-            );
-        let center = anchor.center().x;
-        let left = (f32::from(center) - CARD_WIDTH / 2.).max(8.);
+                            .when(count > 0, |d| {
+                                d.child(
+                                    div()
+                                        .flex_none()
+                                        .h(px(18.))
+                                        .px(px(6.))
+                                        .flex()
+                                        .items_center()
+                                        .justify_center()
+                                        .rounded_full()
+                                        .bg(theme::alpha(t.text, 0.06))
+                                        .text_size(px(ty.micro))
+                                        .line_height(px(14.))
+                                        .font_weight(FontWeight::MEDIUM)
+                                        .text_color(t.subtle)
+                                        .child(count.to_string()),
+                                )
+                            }),
+                    )
+                    .when(agents.manageable, |d| {
+                        d.child(
+                            Button::new("cloud-agents-panel-invite")
+                                .debug_selector(|| "cloud-agents-panel-invite".into())
+                                .variant(ButtonVariant::Outline)
+                                .icon(Icon::new("plus").with_size(px(12.)).stroke(2.))
+                                .label(tr("native.agents.invite"))
+                                .h(px(24.))
+                                .px(px(8.))
+                                .gap(px(4.))
+                                .rounded(px(6.))
+                                .text_size(px(ty.caption))
+                                .font_weight(FontWeight::MEDIUM)
+                                .on_click(invite),
+                        )
+                    }),
+            )
+            .child(
+                v_flex()
+                    .id("cloud-agents-panel-list")
+                    .max_h(px(340.))
+                    .overflow_y_scroll()
+                    .p(px(6.))
+                    .gap(px(2.))
+                    .children(rows),
+            )
+            .when(agents.change_failed, |d| {
+                d.child(
+                    div()
+                        .px(px(14.))
+                        .pb(px(10.))
+                        .text_size(px(ty.micro))
+                        .line_height(px(15.))
+                        .text_color(t.danger)
+                        .child(tr("cloud.share.agent.changeFailed")),
+                )
+            });
+        let anchor = self.agents_anchor.get();
+        let left = (f32::from(anchor.right()) - PANEL_WIDTH).max(8.);
         Some(
             deferred(
                 Positioner::corner(Anchor::TopLeft, point(px(left), anchor.bottom() + px(6.)))
                     .margin(px(8.))
-                    .child(card),
+                    .occlude()
+                    .child(panel),
             )
-            .with_priority(gpui_kit::base::POPUP_PRIORITY + 1)
+            .with_priority(gpui_kit::base::POPUP_PRIORITY)
             .into_any_element(),
         )
     }
+
+    /// One Agent in the list: its real avatar mark (brand or creature), its
+    /// name and concise expiry/join metadata, and right-aligned recency that
+    /// cleanly yields to a subtle remove action on hover.
+    fn panel_row(
+        &self,
+        agents: &CloudAgents,
+        agent: &WorkspaceAgent,
+        now: i64,
+        cx: &App,
+    ) -> AnyElement {
+        let t = cx.palette();
+        let ty = theme::ty().ui;
+        let id = agent.agent.id.clone();
+        let face = row_face(agent, now);
+        let group = format!("cloud-agents-panel-row:{id}");
+        let avatar = agent_mark(
+            &agent.agent.name,
+            agent.agent.avatar.as_deref(),
+            Look {
+                size: ROW_MARK,
+                ground: t.menu_bg,
+                active: agent.active,
+                waiting: false,
+                header: false,
+            },
+            t,
+        );
+        let row = h_flex()
+            .id(SharedString::from(group.clone()))
+            .debug_selector({
+                let group = group.clone();
+                move || group
+            })
+            .group(group.clone())
+            .relative()
+            .items_center()
+            .gap(px(11.))
+            .px(px(8.))
+            .py(px(8.))
+            .rounded(px(8.))
+            .child(avatar);
+        if agents.confirming.as_deref() == Some(id.as_str()) {
+            let removing = agents.removing.as_deref() == Some(id.as_str());
+            let (keep, remove) = (self.agents.clone(), self.agents.clone());
+            let target = id.clone();
+            return row
+                .bg(theme::alpha(t.danger, 0.08))
+                .child(
+                    v_flex()
+                        .flex_1()
+                        .min_w_0()
+                        .gap(px(1.))
+                        .child(
+                            div()
+                                .truncate()
+                                .text_size(px(ty.meta))
+                                .line_height(px(17.))
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(t.text)
+                                .child(tf(
+                                    "native.agents.removeConfirm",
+                                    &[("name", face.name.clone().into())],
+                                )),
+                        )
+                        .child(
+                            div()
+                                .truncate()
+                                .text_size(px(ty.micro))
+                                .line_height(px(15.))
+                                .text_color(t.subtle)
+                                .child(tr("native.agents.removeDetail")),
+                        ),
+                )
+                .child(
+                    h_flex()
+                        .flex_none()
+                        .gap(px(4.))
+                        .child(
+                            Button::new(SharedString::from(format!(
+                                "cloud-agents-panel-keep:{id}"
+                            )))
+                            .variant(ButtonVariant::Ghost)
+                            .label(tr("cloud.share.agent.keep"))
+                            .h(px(24.))
+                            .px(px(8.))
+                            .rounded(px(6.))
+                            .text_size(px(ty.caption))
+                            .disabled(removing)
+                            .on_click(move |_, _, cx| {
+                                keep.update(cx, |a, cx| a.confirm_remove(None, cx))
+                            }),
+                        )
+                        .child(
+                            Button::new(SharedString::from(format!(
+                                "cloud-agents-panel-remove-confirm:{id}"
+                            )))
+                            .variant(ButtonVariant::SolidDanger)
+                            .label(tr("cloud.share.agent.remove"))
+                            .h(px(24.))
+                            .px(px(8.))
+                            .rounded(px(6.))
+                            .text_size(px(ty.caption))
+                            .disabled(removing)
+                            .on_click(move |_, _, cx| {
+                                remove.update(cx, |a, cx| a.remove(&target, cx))
+                            }),
+                        ),
+                )
+                .into_any_element();
+        }
+        let watch = (face.live && self.screen.read(cx).entry_available(cx)).then(|| {
+            let host = self.weak.clone();
+            div()
+                .id(SharedString::from(format!("cloud-agents-panel-watch:{id}")))
+                .debug_selector({
+                    let id = id.clone();
+                    move || format!("cloud-agents-panel-watch:{id}")
+                })
+                .flex_none()
+                .px(px(7.))
+                .h(px(22.))
+                .flex()
+                .items_center()
+                .rounded(px(5.))
+                .bg(theme::alpha(t.text, 0.06))
+                .text_size(px(ty.micro))
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(t.muted)
+                .cursor(theme::clickable_cursor())
+                .hover(|d| d.bg(theme::alpha(t.text, 0.12)).text_color(t.text))
+                .child(tr("native.agents.watch"))
+                .on_click(move |_, window, cx| {
+                    let _ = host.update(cx, |s, cx| {
+                        s.agents_panel = false;
+                        if !s.screen.read(cx).is_shown(cx) {
+                            s.toggle_computer(window, cx);
+                        }
+                        cx.notify();
+                    });
+                })
+        });
+        let remove = agents.manageable.then(|| {
+            let confirm = self.agents.clone();
+            let target = id.clone();
+            let label = format!("{} {}", tr("cloud.share.agent.remove"), face.name);
+            div()
+                .absolute()
+                .inset_0()
+                .flex()
+                .items_center()
+                .justify_end()
+                .opacity(0.)
+                .group_hover(group.clone(), |d| d.opacity(1.))
+                .child(
+                    div()
+                        .id(SharedString::from(format!(
+                            "cloud-agents-panel-remove:{id}"
+                        )))
+                        .debug_selector({
+                            let id = id.clone();
+                            move || format!("cloud-agents-panel-remove:{id}")
+                        })
+                        .size(px(24.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .rounded(px(6.))
+                        .text_color(t.subtle)
+                        .hover(|d| d.bg(theme::alpha(t.danger, 0.12)).text_color(t.danger))
+                        .cursor(theme::clickable_cursor())
+                        .tooltip(tooltip(label))
+                        .child(Icon::new("x").with_size(px(12.)).stroke(2.))
+                        .on_click(move |_, _, cx| {
+                            confirm.update(cx, |a, cx| a.confirm_remove(Some(target.clone()), cx))
+                        }),
+                )
+        });
+        let trailing = h_flex()
+            .flex_none()
+            .items_center()
+            .gap(px(6.))
+            .children(watch)
+            .child(
+                div()
+                    .relative()
+                    .min_w(px(24.))
+                    .min_h(px(24.))
+                    .flex()
+                    .items_center()
+                    .justify_end()
+                    .when(!face.when.is_empty(), |d| {
+                        d.child(
+                            div()
+                                .text_size(px(ty.micro))
+                                .line_height(px(15.))
+                                .text_color(if face.live { t.success } else { t.subtle })
+                                .when(face.live, |d| d.font_weight(FontWeight::MEDIUM))
+                                .when(agents.manageable, |d| {
+                                    d.group_hover(group.clone(), |d| d.opacity(0.))
+                                })
+                                .child(face.when.clone()),
+                        )
+                    })
+                    .children(remove),
+            );
+        row.hover(|d| d.bg(t.hover))
+            .child(
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .gap(px(2.))
+                    .child(
+                        div()
+                            .truncate()
+                            .text_size(px(ty.meta))
+                            .line_height(px(17.))
+                            .font_weight(FontWeight::MEDIUM)
+                            .text_color(t.text)
+                            .child(face.name),
+                    )
+                    .children(face.detail.map(|detail| {
+                        div()
+                            .truncate()
+                            .text_size(px(ty.micro))
+                            .line_height(px(15.))
+                            .text_color(theme::alpha(t.subtle, 0.88))
+                            .child(detail)
+                    })),
+            )
+            .child(trailing)
+            .into_any_element()
+    }
+
     /// `CloudWorkspaceAgentRequestCard`: the oldest request, below the
     /// Header until it is answered. Nothing dismisses it — no outside
     /// press, no Escape, no hover lifetime; the server's next list removes
@@ -777,8 +1262,9 @@ impl WindowCloud {
     /// Deny into keyboard reach.
     fn request_card(&self, cx: &App) -> Option<AnyElement> {
         let agents = self.agents.read(cx);
-        // The open dialog answers it instead, never a second overlay.
-        if !agents.manageable || self.dialog_open(DialogKey::Agents, cx) {
+        // The open dialog, or the empty project's start view, answers it
+        // instead: never a second place to say yes.
+        if !agents.manageable || agents.inline || self.dialog_open(DialogKey::Agents, cx) {
             return None;
         }
         let request = agents.requests.first()?;
@@ -925,20 +1411,20 @@ impl WindowCloud {
             .into_any_element(),
         )
     }
-    /// A mark, the stack or the seat: the Agents open straight into their
-    /// dialog. While a request waits, the press brings its Deny into
-    /// keyboard reach instead, without answering it.
+    /// The invite (or, from a capture, another opener): the Agents dialog.
+    /// While a request waits, the press brings its Deny into keyboard reach
+    /// instead, without answering it.
     pub(super) fn press_agents(
         &mut self,
         opener: Opener,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.hover_agent(None, cx);
         if !self.agents.read(cx).requests.is_empty() && self.agents.read(cx).manageable {
             self.deny_focus.focus(window, cx);
             return;
         }
+        self.agents_panel = false;
         self.show_popover(None, cx);
         self.agents.update(cx, |a, cx| a.open(opener, cx));
         if !self.dialog_open(DialogKey::Agents, cx) {
@@ -967,7 +1453,7 @@ impl WindowCloud {
         // A dialog open for one Project and identity ends with them: another
         // Project, account, sign-in or host never inherits it.
         let revoked = before.is_some() && self.agents.read(cx).scope_key() != before.as_deref();
-        // The Agent at work here: the screen's card unfolds to watch it.
+        // The Agent at work here: the Header's Computer button marks it.
         let operator = self
             .agents
             .read(cx)
@@ -977,18 +1463,41 @@ impl WindowCloud {
             .map(|a| SharedString::from(a.agent.name.clone()));
         self.screen.update(cx, |s, cx| s.set_operator(operator, cx));
         let agents = self.agents.read(cx);
+        let write_through = project
+            .as_deref()
+            .filter(|_| agents.known)
+            .and_then(|project_id| {
+                let scope = crate::features::cloud::HomeDetailsCache::current_scope(cx)?;
+                let mapped: Vec<crate::features::cloud::CachedProjectAgent> = agents
+                    .agents
+                    .iter()
+                    .map(|a| crate::features::cloud::CachedProjectAgent {
+                        id: a.agent.id.clone(),
+                        name: a.agent.name.clone(),
+                        avatar: a.agent.avatar.clone(),
+                        active: a.active,
+                        last_active_at: a.last_active_at.clone(),
+                    })
+                    .collect();
+                Some((scope, project_id.to_owned(), mapped))
+            });
         let listed = !agents.agents.is_empty() || !agents.requests.is_empty();
         let pending = agents.manageable && !agents.requests.is_empty();
         let gone =
             agents.project_name().is_none() || (!listed && !agents.manageable && agents.known);
+        if let Some((scope, project_id, mapped)) = write_through {
+            crate::features::cloud::global_home_details(cx).update(cx, |c, cx| {
+                c.record_cloud_agents(&scope, &project_id, mapped, cx);
+            });
+        }
         // An open dialog answers a request itself, where the Agent asks.
         if open && (gone || revoked) {
             self.close_dialog(DialogKey::Agents, cx);
         }
-        if pending || gone {
-            self.agent_cards.shown = None;
-            self.agent_cards.hovered = None;
-            self.agent_cards.timer = None;
+        // The list closes with its Project, and while a request waits on
+        // its own card.
+        if (pending || gone || revoked) && self.agents_panel {
+            self.agents_panel = false;
         }
     }
 }
@@ -1016,9 +1525,8 @@ mod tests {
         }
     }
 
-    /// `agentPresenceMotion`: a working Agent's Header mark hops, a resting
-    /// one or one in a list does not, and none hops for a person who asked
-    /// for less motion.
+    /// `agentPresenceMotion`: only a working Header mark would hop, and none
+    /// for a person who asked for less motion (lists and cards never hop).
     #[test]
     fn only_a_working_header_mark_hops_and_never_with_reduced_motion() {
         assert!(hops(true, true, false));
@@ -1027,11 +1535,10 @@ mod tests {
         assert!(!hops(true, false, false));
     }
 
-    /// `CloudWorkspaceAgentPeople`: only what is live stands on its own —
-    /// an Agent asking to join, then whoever is at work — at most three;
-    /// everyone else is one stack.
+    /// `CloudWorkspaceAgentsTool`: quiet while nobody works; who works, by
+    /// name or by count, while they do; an Agent asking to join first.
     #[test]
-    fn requests_lead_then_whoever_is_at_work_and_the_rest_rest() {
+    fn the_header_entry_says_who_works_and_who_asks() {
         let request = AgentRequest {
             id: "r".into(),
             name: "Codex".into(),
@@ -1040,71 +1547,33 @@ mod tests {
             requested_at: "2026-10-30T12:00:00Z".into(),
             expires_at: String::new(),
         };
-        let agents = [
-            agent("a", false),
-            agent("b", true),
-            agent("c", true),
-            agent("d", true),
-        ];
-        let (live, resting) = people(&agents, &[request]);
-        let ids = |marks: &[Live]| marks.iter().map(|m| m.id.clone()).collect::<Vec<_>>();
-        assert_eq!(ids(&live), ["r", "b", "c"]);
-        assert!(live[0].waiting);
-        // The one at work past three, then the ones at rest.
-        assert_eq!(ids(&resting), ["d", "a"]);
-        let (live, resting) = people(&[agent("a", false)], &[]);
-        assert!(live.is_empty());
-        assert_eq!(ids(&resting), ["a"]);
+        let quiet = [named("a", "Grok Bot", false), named("b", "Cursor", false)];
+        assert_eq!(presence(&quiet, &[], true), Presence::Quiet);
+        let one = [named("a", "Grok Bot", true), named("b", "Cursor", false)];
+        assert_eq!(
+            presence(&one, &[], true),
+            Presence::Working("Grok Bot".into())
+        );
+        let two = [named("a", "Grok Bot", true), named("b", "Cursor", true)];
+        assert_eq!(
+            presence(&two, &[], true),
+            Presence::Working("2 agents".into())
+        );
+        assert_eq!(
+            presence(&two, std::slice::from_ref(&request), true),
+            Presence::Asking
+        );
+        // Someone who may not answer a request sees who works instead.
+        assert_eq!(
+            presence(&one, &[request], false),
+            Presence::Working("Grok Bot".into())
+        );
     }
 
     fn named(id: &str, name: &str, active: bool) -> WorkspaceAgent {
         let mut agent = agent(id, active);
         agent.agent.name = name.into();
         agent
-    }
-
-    /// `CloudWorkspaceAgentPeople`'s names: a live mark says who and what
-    /// it is doing; the stack is named by all of them, as a sentence.
-    #[test]
-    fn each_mark_and_the_stack_are_named_as_a_person_reads_them() {
-        let request = AgentRequest {
-            id: "r1".into(),
-            name: "Claude Code".into(),
-            avatar: None,
-            admission: Admission::SignIn,
-            requested_at: "2026-10-30T12:00:00Z".into(),
-            expires_at: String::new(),
-        };
-        let (live, resting) = people(
-            &[
-                named("c1", "Quiet agent", false),
-                named("c2", "Busy agent", true),
-            ],
-            &[request],
-        );
-        let labels: Vec<_> = live.iter().map(mark_label).collect();
-        assert_eq!(
-            labels,
-            ["Claude Code · Wants to join", "Busy agent · Working now"]
-        );
-        assert_eq!(stack_label(&resting), "Quiet agent");
-        let (_, resting) = people(
-            &[named("c1", "秘书小陈", false), named("c2", "Codex", false)],
-            &[],
-        );
-        assert_eq!(stack_label(&resting), "秘书小陈 and Codex");
-        let five: Vec<_> = ["A", "B", "C", "D", "E"]
-            .iter()
-            .map(|n| named(n, n, false))
-            .collect();
-        let (_, resting) = people(&five, &[]);
-        assert_eq!(stack_label(&resting), "A, B, C, D, and E");
-        // Three faces in the stack, the rest a count.
-        assert_eq!(resting.len() - VISIBLE_AGENT_LIMIT, 2);
-        assert_eq!(
-            tf("shell.projectReach.more", &[("count", 2usize.into())]),
-            "+2"
-        );
     }
 
     /// `AgentAvatarMark`: the picture an Agent chose when it connected,
@@ -1125,13 +1594,12 @@ mod tests {
         );
     }
 
-    /// `CloudWorkspaceAgentCard`: when it last worked, then who it is, how
-    /// it got in and how long it may stay — or since when it is here when
-    /// its access does not end.
+    /// `CloudWorkspaceAgentsPanel`: concise row copy — live state or short
+    /// recency without boilerplate prefixes, and expiry/join metadata that
+    /// only tags link admission.
     #[test]
-    fn a_card_says_when_it_worked_who_it_is_and_how_it_got_in() {
+    fn a_panel_row_keeps_status_and_access_concise() {
         let now = 1_793_361_600; // 2026-10-30T12:00:00Z
-        let mut agents = CloudAgents::new();
         let mut working = named("c1", "Codex", true);
         working.agent.expires_at = Some("2026-11-29T12:00:00Z".into());
         let mut earlier = named("c2", "Grok Bot", false);
@@ -1140,21 +1608,27 @@ mod tests {
         earlier.agent.admission = Admission::Link;
         let mut idle = named("c3", "Cursor", false);
         idle.agent.connected_at = "2026-10-29T12:00:00Z".into();
-        agents.agents = vec![working, earlier, idle];
-        let face = card_face(&agents, "c1", now).unwrap();
+
+        let face = row_face(&working, now);
         assert!(face.live);
         assert_eq!(
             (face.name.as_str(), face.when.as_str()),
-            ("Codex", "Working now")
+            ("Codex", "Working")
         );
-        assert_eq!(face.facts, ["Approved by you", "Access ends Nov 29"]);
-        let face = card_face(&agents, "c2", now).unwrap();
+        assert_eq!(face.detail.as_deref(), Some("Ends Nov 29"));
+
+        let face = row_face(&earlier, now);
         assert!(!face.live);
-        assert_eq!(face.when, "Last worked 2 hours ago");
-        assert_eq!(face.facts, ["Joined with a link", "Here since Oct 30"]);
-        let face = card_face(&agents, "c3", now).unwrap();
+        assert_eq!(face.when, "2 hours ago");
+        assert_eq!(face.detail.as_deref(), Some("Via link · Since Oct 30"));
+
+        let face = row_face(&idle, now);
         assert_eq!(face.when, "No recent work");
-        assert_eq!(face.facts[1], "Here since Oct 29");
-        assert!(card_face(&agents, "gone", now).is_none());
+        assert_eq!(face.detail.as_deref(), Some("Since Oct 29"));
+
+        let roster = [idle, earlier, working];
+        let ordered = header_stack_agents(&roster);
+        let ids: Vec<&str> = ordered.iter().map(|a| a.agent.id.as_str()).collect();
+        assert_eq!(ids, ["c1", "c2", "c3"]);
     }
 }

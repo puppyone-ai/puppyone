@@ -30,7 +30,7 @@ use gpui_kit::{
 
 /// Numbers a machine set: readings, prices quoted.
 fn mono(text: impl Into<SharedString>) -> Div {
-    div().font_family(theme::MONO).child(text.into())
+    div().font_family(theme::mono()).child(text.into())
 }
 fn placeholder(id: &'static str, width: f32, height: f32) -> AnyElement {
     loading::placeholder(

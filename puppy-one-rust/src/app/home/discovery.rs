@@ -54,10 +54,8 @@ pub(in crate::app) struct HomeDiscovery {
     pub local_agents_generation: u64,
     /// Connected Cloud Agents across the personal Space's projects.
     pub cloud_agents: Vec<HomepageCloudAgent>,
-    /// Connected Cloud Agents per personal-space Cloud project id.
+    /// Connected Cloud Agents per Cloud project id.
     pub cloud_project_agents: HashMap<String, Vec<FolderAgentBadge>>,
-    pub cloud_details_key: String,
-    pub cloud_details_generation: u64,
     /// Keeps test-injected Cloud previews and Agent badges from being cleared.
     pub cloud_details_override: bool,
 }
@@ -166,10 +164,12 @@ impl Homepage {
             "p-issues".into(),
             agents
                 .iter()
-                .map(|(id, name)| FolderAgentBadge {
+                .enumerate()
+                .map(|(i, (id, name))| FolderAgentBadge {
                     id: (*id).into(),
                     name: (*name).into(),
                     avatar: None,
+                    active: i == 0,
                 })
                 .collect(),
         );
@@ -323,34 +323,15 @@ impl Homepage {
         cx.notify();
     }
 
-    /// Reads root file previews for visible Cloud projects and connected Agents
-    /// for personal-space Cloud projects on scope change or window focus only
-    /// (`useProjectPreviews` + `useHomepageCloudAgents`, never polling).
-    pub(in crate::app) fn refresh_cloud_home_details(
-        &mut self,
-        force: bool,
-        cx: &mut Context<Self>,
-    ) {
+    /// Hydrates cached Cloud folder previews & connected Agent badges into
+    /// `self.discovery` synchronously from the shared app-wide SWR cache.
+    pub(in crate::app) fn sync_cloud_details_from_cache(&mut self, cx: &mut Context<Self>) {
         if self.discovery.cloud_details_override {
             return;
         }
-        let enabled = self.session.home
-            && self.has_projects(cx)
-            && crate::features::flags::cloud_enabled(&self.preferences, cx);
-        let account_scope = crate::features::cloud::account::broker_and_binding(cx)
-            .filter(|_| enabled)
-            .map(|(_, b)| format!("{}:{}", b.environment.api(), b.user));
-        let Some(account_scope) = account_scope else {
-            if !self.discovery.cloud_details_key.is_empty() {
-                self.discovery.cloud_details_generation += 1;
-                self.discovery.cloud_details_key.clear();
-                self.discovery.cloud_agents.clear();
-                self.discovery.cloud_project_agents.clear();
-                self.discovery.cloud_previews.clear();
-            }
+        let Some(cache) = crate::features::cloud::read_home_details(cx) else {
             return;
         };
-        let items = self.project_items(cx);
         let personal_space = self
             .spaces
             .read(cx)
@@ -358,114 +339,292 @@ impl Homepage {
             .iter()
             .find(|space| space.is_default)
             .map(|space| space.id.clone());
-        let mut cloud_ids: Vec<String> = Vec::new();
-        let mut personal_ids: Vec<String> = Vec::new();
-        for item in &items {
-            if item.local_path.is_none()
-                && let Some(id) = &item.cloud_project
-            {
-                if !cloud_ids.contains(id) {
-                    cloud_ids.push(id.clone());
-                }
-                if personal_space.is_some()
+        let personal_ids: HashSet<String> = self
+            .project_items(cx)
+            .into_iter()
+            .filter(|item| {
+                item.local_path.is_none()
+                    && personal_space.is_some()
                     && item.cloud_organization == personal_space
-                    && !personal_ids.contains(id)
-                {
-                    personal_ids.push(id.clone());
+            })
+            .filter_map(|item| item.cloud_project)
+            .collect();
+
+        let mut next_previews: HashMap<String, Vec<ProjectAssetPreview>> = HashMap::new();
+        let mut next_project_agents: HashMap<String, Vec<FolderAgentBadge>> = HashMap::new();
+        let mut dedup_order: Vec<String> = Vec::new();
+        let mut dedup: HashMap<String, HomepageCloudAgent> = HashMap::new();
+
+        // Iterate in deterministic project order so `cloud_agents` ordering never jitters.
+        let mut project_ids: Vec<&String> = cache.projects().keys().collect();
+        project_ids.sort();
+        for project_id in project_ids {
+            let details = &cache.projects()[project_id];
+            if !details.previews.is_empty() {
+                next_previews.insert(
+                    project_id.clone(),
+                    super::previews::from_cached(&details.previews),
+                );
+            }
+            if !details.agents.is_empty() {
+                let is_personal = personal_ids.contains(project_id);
+                let mut badges = Vec::with_capacity(details.agents.len());
+                for agent in &details.agents {
+                    badges.push(FolderAgentBadge {
+                        id: agent.id.clone(),
+                        name: agent.name.clone(),
+                        avatar: agent.avatar.clone(),
+                        active: agent.active,
+                    });
+                    if is_personal {
+                        let key =
+                            format!("{}\0{}", agent.name, agent.avatar.as_deref().unwrap_or(""));
+                        if let Some(existing) = dedup.get_mut(&key) {
+                            existing.last_active_at = newer_iso_timestamp(
+                                existing.last_active_at.as_deref(),
+                                agent.last_active_at.as_deref(),
+                            );
+                        } else {
+                            dedup_order.push(key.clone());
+                            dedup.insert(
+                                key,
+                                HomepageCloudAgent {
+                                    id: agent.id.clone(),
+                                    name: agent.name.clone(),
+                                    avatar: agent.avatar.clone(),
+                                    last_active_at: agent.last_active_at.clone(),
+                                },
+                            );
+                        }
+                    }
                 }
+                next_project_agents.insert(project_id.clone(), badges);
             }
         }
-        let scope_key = format!(
-            "{account_scope}|{}|{}",
-            cloud_ids.join(","),
-            personal_ids.join(",")
-        );
-        if !force && self.discovery.cloud_details_key == scope_key {
+        let next_cloud_agents: Vec<HomepageCloudAgent> = dedup_order
+            .into_iter()
+            .filter_map(|k| dedup.remove(&k))
+            .collect();
+
+        let changed = self.discovery.cloud_previews != next_previews
+            || self.discovery.cloud_project_agents != next_project_agents
+            || self.discovery.cloud_agents != next_cloud_agents;
+        if changed {
+            self.discovery.cloud_previews = next_previews;
+            self.discovery.cloud_project_agents = next_project_agents;
+            self.discovery.cloud_agents = next_cloud_agents;
+            cx.notify();
+        }
+    }
+
+    /// Selects only the Cloud projects currently visible on Home so inactive
+    /// Spaces in Arc/Tabs mode incur zero network traffic until visited.
+    fn visible_cloud_targets(&self, cx: &App) -> Vec<(String, Option<i64>)> {
+        use crate::features::settings::HomeSpaceLayout;
+        let items = self.project_items(cx);
+        let mode = self
+            .preferences
+            .read(cx)
+            .state
+            .experimental
+            .home_space_layout;
+        let mut seen = HashSet::new();
+        let mut out = Vec::new();
+        let mut push_item = |item: &Item| {
+            if item.local_path.is_none()
+                && let Some(id) = &item.cloud_project
+                && seen.insert(id.clone())
+            {
+                out.push((id.clone(), item.modified));
+            }
+        };
+        if mode != HomeSpaceLayout::Classic {
+            let groups = self.project_groups_now(self.visible_projects(cx), cx);
+            let active = self.resolve_active_group(&groups);
+            if let Some(active_id) = active
+                && let Some(group) = groups.iter().find(|g| g.id == active_id)
+            {
+                for item in &group.items {
+                    push_item(item);
+                }
+            }
+            return out;
+        }
+        // Classic layout stacks all Spaces vertically: prioritize personal space first.
+        let personal_space = self
+            .spaces
+            .read(cx)
+            .spaces()
+            .iter()
+            .find(|space| space.is_default)
+            .map(|space| space.id.as_str());
+        for item in items.iter().filter(|i| {
+            personal_space.is_some() && i.cloud_organization.as_deref() == personal_space
+        }) {
+            push_item(item);
+        }
+        for item in &items {
+            push_item(item);
+        }
+        out
+    }
+
+    /// Stale-While-Revalidate + Space-scoped lazy loading for Cloud project
+    /// previews and connected Agents:
+    /// - Hydrates cached data immediately from `HomeDetailsCache` (0 ms).
+    /// - Only revalidates projects in the currently visible Space.
+    /// - Skips unchanged previews (version-keyed on `item.modified` + TTL) and
+    ///   respects Agent cooldowns even on window focus (`on_focus`).
+    /// - Deduplicates in-flight project ids and runs up to 4 concurrent
+    ///   work-stealing workers, streaming each project back incrementally.
+    pub(in crate::app) fn refresh_cloud_home_details(
+        &mut self,
+        on_focus: bool,
+        cx: &mut Context<Self>,
+    ) {
+        use crate::features::cloud::{
+            CachedProjectAgent, DETAILS_CONCURRENCY, home_details_now_millis as now_millis,
+        };
+        if self.discovery.cloud_details_override {
             return;
         }
+        let cache = crate::features::cloud::global_home_details(cx);
+        let enabled = self.session.home
+            && self.has_projects(cx)
+            && crate::features::flags::cloud_enabled(&self.preferences, cx);
+        let status = crate::features::cloud::account::status(cx);
+        let signed_out = status == Some(crate::cloud::auth::Status::SignedOut);
+        let offline = status == Some(crate::cloud::auth::Status::Offline);
+        let account_scope = crate::features::cloud::account::broker_and_binding(cx)
+            .filter(|_| enabled)
+            .map(|(_, b)| format!("{}:{}", b.environment.api(), b.user));
+
+        cache.update(cx, |c, cx| {
+            c.ensure_scope(account_scope.as_deref(), signed_out, offline, cx);
+        });
+        let Some(_) = account_scope else {
+            if !self.discovery.cloud_previews.is_empty()
+                || !self.discovery.cloud_project_agents.is_empty()
+                || !self.discovery.cloud_agents.is_empty()
+            {
+                self.discovery.cloud_agents.clear();
+                self.discovery.cloud_project_agents.clear();
+                self.discovery.cloud_previews.clear();
+                cx.notify();
+            }
+            return;
+        };
+
+        // Prune deleted Cloud projects once the catalog has a fresh listing.
+        let fresh_known: Option<HashSet<String>> = {
+            let cat = self.catalog.read(cx);
+            if cat.fresh
+                && let crate::features::cloud::CatalogState::Ready(entries) = &cat.state
+            {
+                Some(entries.iter().map(|e| e.id.clone()).collect())
+            } else {
+                None
+            }
+        };
+        if let Some(known) = fresh_known {
+            let refs: HashSet<&str> = known.iter().map(String::as_str).collect();
+            cache.update(cx, |c, cx| c.prune_to_catalog(&refs, cx));
+        }
+
+        // Paint cached previews & Agents immediately (SWR: 0 ms).
+        self.sync_cloud_details_from_cache(cx);
+        if offline {
+            return;
+        }
+
+        let targets = self.visible_cloud_targets(cx);
+        if targets.is_empty() {
+            return;
+        }
+
         let (Some(services), Some(agents_client)) = (
             crate::features::cloud::services_client(cx),
             crate::features::cloud::agents_client(cx),
         ) else {
             return;
         };
-        self.discovery.cloud_details_key = scope_key.clone();
-        self.discovery.cloud_details_generation += 1;
-        let generation = self.discovery.cloud_details_generation;
-        let task = cx.background_executor().spawn(async move {
-            let mut previews_map: HashMap<String, Vec<ProjectAssetPreview>> = HashMap::new();
-            for id in &cloud_ids {
-                if let Ok(entries) = services.list_root_entries(id) {
-                    let selected = super::previews::select_cloud_previews(&entries);
-                    if !selected.is_empty() {
-                        previews_map.insert(id.clone(), selected);
-                    }
-                }
-            }
-            let now_ms = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map(|d| d.as_millis() as i64)
-                .unwrap_or(0);
-            let mut dedup_order: Vec<String> = Vec::new();
-            let mut dedup: HashMap<String, HomepageCloudAgent> = HashMap::new();
-            let mut per_project: HashMap<String, Vec<FolderAgentBadge>> = HashMap::new();
-            for project_id in &personal_ids {
-                let Ok(inventory) = agents_client.links(project_id) else {
-                    continue;
-                };
-                let sessions = agents_client.sessions(project_id).ok();
-                let resolved = crate::workspace::cloud::agents::resolve(
-                    &inventory.connections,
-                    sessions.as_deref(),
-                    now_ms,
-                );
-                if resolved.is_empty() {
-                    continue;
-                }
-                let mut badges = Vec::with_capacity(resolved.len());
-                for ws_agent in resolved {
-                    let entry = HomepageCloudAgent {
-                        id: ws_agent.agent.id,
-                        name: ws_agent.agent.name,
-                        avatar: ws_agent.agent.avatar,
-                        last_active_at: ws_agent.last_active_at,
-                    };
-                    badges.push(FolderAgentBadge {
-                        id: entry.id.clone(),
-                        name: entry.name.clone(),
-                        avatar: entry.avatar.clone(),
-                    });
-                    let key = format!("{}\0{}", entry.name, entry.avatar.as_deref().unwrap_or(""));
-                    if let Some(existing) = dedup.get_mut(&key) {
-                        existing.last_active_at = newer_iso_timestamp(
-                            existing.last_active_at.as_deref(),
-                            entry.last_active_at.as_deref(),
-                        );
-                    } else {
-                        dedup_order.push(key.clone());
-                        dedup.insert(key, entry);
-                    }
-                }
-                per_project.insert(project_id.clone(), badges);
-            }
-            let cloud_agents: Vec<HomepageCloudAgent> = dedup_order
-                .into_iter()
-                .filter_map(|k| dedup.remove(&k))
-                .collect();
-            (previews_map, cloud_agents, per_project)
+
+        let now_ms = now_millis();
+        let (epoch, work) = cache.update(cx, |c, _| {
+            let epoch = c.epoch();
+            let work = c.plan_and_claim(&targets, now_ms, on_focus);
+            (epoch, work)
         });
+        if work.is_empty() {
+            return;
+        }
+
+        let (tx, rx) = async_channel::unbounded();
+        let workers = work.len().clamp(1, DETAILS_CONCURRENCY);
+        let queue = std::sync::Arc::new(std::sync::Mutex::new(work.into_iter()));
+        for _ in 0..workers {
+            let queue = queue.clone();
+            let tx = tx.clone();
+            let services = services.clone();
+            let agents_client = agents_client.clone();
+            cx.background_executor()
+                .spawn(async move {
+                    loop {
+                        let next = { queue.lock().unwrap().next() };
+                        let Some((project_id, modified, plan)) = next else {
+                            break;
+                        };
+                        let previews = if plan.fetch_previews {
+                            services.list_root_entries(&project_id).ok().map(|entries| {
+                                let selected = super::previews::select_cloud_previews(&entries);
+                                (super::previews::to_cached(&selected), modified)
+                            })
+                        } else {
+                            None
+                        };
+                        let agents = if plan.fetch_agents {
+                            agents_client.links(&project_id).ok().map(|inventory| {
+                                if inventory.connections.is_empty() {
+                                    return Vec::new();
+                                }
+                                let sessions = agents_client.sessions(&project_id).ok();
+                                let resolved = crate::workspace::cloud::agents::resolve(
+                                    &inventory.connections,
+                                    sessions.as_deref(),
+                                    now_millis(),
+                                );
+                                resolved
+                                    .into_iter()
+                                    .map(|ws_agent| CachedProjectAgent {
+                                        id: ws_agent.agent.id,
+                                        name: ws_agent.agent.name,
+                                        avatar: ws_agent.agent.avatar,
+                                        active: ws_agent.active,
+                                        last_active_at: ws_agent.last_active_at,
+                                    })
+                                    .collect()
+                            })
+                        } else {
+                            None
+                        };
+                        let _ = tx.send_blocking((project_id, plan, previews, agents));
+                    }
+                })
+                .detach();
+        }
+        drop(tx);
+
+        let cache_entity = cache.clone();
         cx.spawn(async move |this, cx| {
-            let (previews_map, cloud_agents, per_project) = task.await;
-            let _ = this.update(cx, |s, cx| {
-                if s.discovery.cloud_details_generation == generation
-                    && s.discovery.cloud_details_key == scope_key
-                {
-                    s.discovery.cloud_previews = previews_map;
-                    s.discovery.cloud_agents = cloud_agents;
-                    s.discovery.cloud_project_agents = per_project;
-                    cx.notify();
-                }
-            });
+            while let Ok((project_id, plan, previews, agents)) = rx.recv().await {
+                let finished_ms = now_millis();
+                cache_entity.update(cx, |c, cx| {
+                    c.finish_fetch(epoch, &project_id, plan, previews, agents, finished_ms, cx);
+                });
+                let _ = this.update(cx, |s, cx| {
+                    s.sync_cloud_details_from_cache(cx);
+                });
+            }
         })
         .detach();
     }

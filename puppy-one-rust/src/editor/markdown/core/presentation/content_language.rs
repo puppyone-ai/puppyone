@@ -1,10 +1,9 @@
 //! `markdownContentLanguage.ts` and the editor's language latch: the
 //! language a document is written in, which names the editing surface's
 //! `lang`. That picks the script fallback faces (Simplified versus
-//! Traditional Chinese, Japanese, Korean) and the reading weight: Han
-//! content uses the explicit Medium weight; Latin, Kana and Hangul use the
-//! normal reading weight. Do not freeze the entire app to the language of
-//! the sample document used to import theme tokens.
+//! Traditional Chinese, Japanese, Korean); every language reads at the one
+//! body weight. Do not freeze the entire app to the language of the sample
+//! document used to import theme tokens.
 
 /// `DOCUMENT_LANGUAGE_SAMPLE_LIMIT`, in UTF-16 units.
 const SAMPLE_LIMIT: usize = 12_000;
@@ -32,7 +31,8 @@ pub struct Resolution {
 }
 
 impl Resolution {
-    /// Han content reads at the explicit Medium weight.
+    /// Chinese content (the Han script cascades).
+    #[cfg(test)]
     pub fn han(&self) -> bool {
         self.language.starts_with("zh-")
     }
@@ -171,9 +171,9 @@ mod tests {
 
     /// `markdownContentLanguage.test.ts`: `prefers kana and hangul signals
     /// before the shared Han script`; `falls back to the interface language
-    /// when the document has no script signal` (the weight it implies).
+    /// when the document has no script signal`.
     #[test]
-    fn reading_weight_follows_content_then_interface_and_stays_latched() {
+    fn the_language_follows_content_then_interface_and_stays_latched() {
         assert!(!han("設計資料を更新する", "zh-CN"));
         assert_eq!(resolve("設計資料を更新する", "zh-CN", None).language, "ja");
         assert!(!han("문서 설계를 업데이트합니다", "en"));

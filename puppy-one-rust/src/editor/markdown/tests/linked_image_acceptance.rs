@@ -114,9 +114,6 @@ fn mount<'a>(
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
         }
-        cx.text_system()
-            .add_fonts(crate::editor::view::style::font_bytes())
-            .unwrap();
     });
     let source = source.to_owned();
     let (view, visual) = cx.add_window_view(move |_, cx| {

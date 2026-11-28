@@ -24,7 +24,7 @@ use crate::localization::t as tr;
 use crate::theme;
 use crate::theme::Theme;
 use crate::theme::metric;
-use crate::ui::appearance::ActiveAppearance;
+use crate::ui::{appearance::ActiveAppearance, scroll_edge};
 use gpui::{prelude::*, *};
 use std::path::{Path, PathBuf};
 
@@ -88,6 +88,7 @@ struct PaintedPreferences {
     cloud_workspace: bool,
     agent_file_activity_indicators: bool,
     explorer_pins: std::collections::BTreeMap<String, ExplorerPins>,
+    hidden_header: bool,
 }
 impl PaintedPreferences {
     fn of(store: &PreferencesStore) -> Self {
@@ -103,6 +104,7 @@ impl PaintedPreferences {
             cloud_workspace: p.experimental.cloud_workspace || p.experimental.computer_mode,
             agent_file_activity_indicators: p.agent_file_activity_indicators,
             explorer_pins: p.explorer_pins.clone(),
+            hidden_header: p.experimental.hidden_header,
         }
     }
 }
@@ -356,6 +358,10 @@ impl Render for Explorer {
         let pins = session.pins(cx);
         let pinned = !pins.files.is_empty();
         let folded = pinned && pins.files_collapsed;
+        let hidden_header = self.preferences.read(cx).state.experimental.hidden_header;
+        let show_status = (loading || empty) && operation_error.is_none() && !folded;
+        // Under pins or the empty/loading note, the tree starts below the top bar already.
+        let top_fade = !pinned && !show_status && hidden_header;
         let drop_files = self.takes_files(cx).then(|| {
             cx.listener(|s, paths: &ExternalPaths, _, cx| {
                 s.drop_external(paths.paths(), Path::new(""), cx)
@@ -417,43 +423,65 @@ impl Render for Explorer {
                     }),
                 )
                 .size_full()
-                // The fold line already separates the pins from the first file.
-                .pt(px(if pinned { 2. } else { 12. }))
+                // The fold line already separates the pins from the first file;
+                // when the empty/loading note sits above, `+ New` follows right
+                // underneath it instead of repeating top header padding.
+                .pt(px(if show_status {
+                    4.
+                } else if pinned {
+                    2.
+                } else if hidden_header {
+                    theme::HEADER + 12.
+                } else {
+                    12.
+                }))
                 .pb(px(6.))
                 .px(px(metric::SIDEBAR_ROW_LEFT_GAP))
                 .track_scroll(&scroll),
-            );
+            )
+            .when(top_fade, |d| d.child(self.tree_top_fade(t)));
         div()
             .size_full()
             .flex()
             .flex_col()
             .bg(t.sidebar)
-            .when(pinned, |d| d.child(self.pins_view(&pins, cx)))
+            .when(pinned, |d| {
+                d.child(
+                    div()
+                        .when(hidden_header, |d| d.pt(px(theme::HEADER)))
+                        .child(self.pins_view(&pins, cx)),
+                )
+            })
             .children(
                 operation_error
                     .clone()
                     .filter(|_| !folded)
                     .map(|error| self.operation_error_banner(error, empty, t, cx)),
             )
-            .when(
-                (loading || empty) && operation_error.is_none() && !folded,
-                |d| {
-                    d.child(
-                        div()
-                            .px(px(
-                                metric::SIDEBAR_ROW_LEFT_GAP + metric::TREE_ROW_CONTENT_LEFT
-                            ))
-                            .pt(px(12.))
-                            .text_size(px(theme::ty().left.meta))
-                            .text_color(t.subtle)
-                            .child(tr(if loading {
-                                "shared-ui.explorer.loadingWorkspace"
-                            } else {
-                                "shared-ui.explorer.emptyFolder"
-                            })),
-                    )
-                },
-            )
+            .when(show_status, |d| {
+                d.child(
+                    div()
+                        .when(!loading, |d| {
+                            d.debug_selector(|| "explorer-empty-note".into())
+                        })
+                        .px(px(
+                            metric::SIDEBAR_ROW_LEFT_GAP + metric::TREE_ROW_CONTENT_LEFT
+                        ))
+                        .pt(px(if hidden_header && !pinned {
+                            theme::HEADER + 12.
+                        } else {
+                            12.
+                        }))
+                        .pb(px(2.))
+                        .text_size(px(theme::ty().left.meta))
+                        .text_color(t.subtle)
+                        .child(tr(if loading {
+                            "shared-ui.explorer.loadingWorkspace"
+                        } else {
+                            "native.explorer.empty"
+                        })),
+                )
+            })
             // Folded away under the pins, the tree keeps its place.
             .child(
                 self.on_explorer_actions(tree, cx)
@@ -543,30 +571,14 @@ impl Explorer {
                         (state.base_handle.offset(), state.base_handle.max_offset());
                     bottom_fade(f32::from(offset.y), f32::from(max.y))
                 };
-                if fade <= 0. {
-                    return;
-                }
-                // linear-gradient(to top, sidebar 0%, sidebar/78% 46%, transparent 100%)
-                // at height 18px x fade and opacity fade. GPUI gradients have two stops,
-                // so the curve is two quads joined on a device-pixel row.
-                let scale = window.scale_factor();
-                let bottom = f32::from(bounds.bottom());
-                let top = bottom - metric::SIDEBAR_NAVIGATION_FADE_SIZE * fade;
-                let mid = ((bottom - (bottom - top) * 0.46) * scale).round() / scale;
-                let left = bounds.origin.x;
-                let width = bounds.size.width;
-                let band = |from: f32, to: f32, y0: f32, y1: f32| {
-                    fill(
-                        Bounds::new(point(left, px(y0)), size(width, px(y1 - y0))),
-                        linear_gradient(
-                            0.,
-                            linear_color_stop(theme::alpha(sidebar, from * fade), 0.),
-                            linear_color_stop(theme::alpha(sidebar, to * fade), 1.),
-                        ),
-                    )
-                };
-                window.paint_quad(band(1., 0.78, mid, bottom));
-                window.paint_quad(band(0.78, 0., top, mid));
+                scroll_edge::paint(
+                    window,
+                    bounds,
+                    scroll_edge::Edge::Bottom,
+                    sidebar,
+                    metric::SIDEBAR_NAVIGATION_FADE_SIZE,
+                    fade,
+                );
             },
         )
         .absolute()
@@ -575,18 +587,34 @@ impl Explorer {
         .bottom_0()
         .h(px(metric::SIDEBAR_NAVIGATION_FADE_SIZE))
     }
+    /// Without the Header (experimental) the sidebar top bar floats
+    /// transparently over the tree; rows scrolled up glide smoothly beneath a
+    /// bottom-transparent gradient scrim into `t.sidebar`.
+    fn tree_top_fade(&self, t: Theme) -> impl IntoElement {
+        let sidebar = t.sidebar;
+        canvas(
+            |_, _, _| {},
+            move |bounds, _, window, _| {
+                scroll_edge::paint_header_scrim(window, bounds, sidebar);
+            },
+        )
+        .absolute()
+        .left_0()
+        .right_0()
+        .top_0()
+        .h(px(scroll_edge::FLOATING_HEADER_SCRIM))
+    }
 }
 /// `useScrollEdgeState` bottom fade: the remaining scroll over a 24px distance,
 /// zero unless the list overflows by more than 1px. `offset_y` is GPUI's
 /// (non-positive) scroll offset, `max_y` the maximum scroll distance.
 pub(super) fn bottom_fade(offset_y: f32, max_y: f32) -> f32 {
-    const FADE_DISTANCE: f32 = 24.;
     const OVERFLOW_THRESHOLD: f32 = 1.;
     if max_y <= OVERFLOW_THRESHOLD {
         return 0.;
     }
     let scroll_top = (-offset_y).clamp(0., max_y);
-    ((max_y - scroll_top) / FADE_DISTANCE).clamp(0., 1.)
+    scroll_edge::strength(max_y - scroll_top)
 }
 
 #[cfg(test)]

@@ -480,6 +480,11 @@ fn experimental_settings(v: &Value) -> (Experimental, bool) {
         isolated_agent_sandboxes: on("enableIsolatedAgentSandboxes"),
         computer_mode: on("enableComputerMode"),
         editor_tabs_in_header: on("enableEditorTabsInHeader"),
+        // The product has no such experiment.
+        hidden_header: true,
+        home_space_layout: Default::default(),
+        hide_home_view_controls: true,
+        start_with_agent: false,
         host_devices: on("enableHostDevices"),
         markdown_block_drag: on("enableMarkdownBlockDrag"),
         other_app_imports: on("enableOtherAppImports")

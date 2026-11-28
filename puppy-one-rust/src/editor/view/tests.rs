@@ -50,7 +50,6 @@ fn setup<'a>(
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
         }
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
         bind_keys(cx);
     });
     let text = text.to_owned();
@@ -185,7 +184,6 @@ fn a_new_editor_lays_out_for_its_pane_on_its_first_frame(cx: &mut TestAppContext
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
         }
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
     });
     let long = "a paragraph long enough to wrap inside a narrow pane ".repeat(6);
     let text = format!("{long}\nshort\n{long}");
@@ -706,9 +704,11 @@ fn resizing_the_window_keeps_the_text_at_the_viewport_top(cx: &mut TestAppContex
             f32::from(l.caret(offset, false).row_top - l.bounds.top())
         })
     };
+    // The first character of the top row (what the view anchors): a later
+    // one on that row may wrap to the next row at another width.
     let offset = view.read_with(cx, |v, _| {
         let l = v.caches.layout.as_ref().unwrap();
-        l.offset_at(point(l.bounds.left() + px(200.), l.bounds.top() + px(2.)))
+        l.offset_at(point(l.bounds.left() + px(1.), l.bounds.top() + px(2.)))
             .0
     });
     let row = row_of(&view, cx, offset);

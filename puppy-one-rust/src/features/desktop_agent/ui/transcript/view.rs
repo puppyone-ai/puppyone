@@ -25,11 +25,13 @@ use gpui_kit::component::Sizable as _;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-/// `--agent-content-max`, transcript padding and the 12px gutter.
+/// `--agent-content-max`, transcript padding and outer bleed gutter (`INSET` 6
+/// + `CONTENT_INSET` 10 puts every row's text & icons on one 16pt left line).
 pub(super) const CONTENT_MAX: f32 = 900.;
 pub(super) const PAD_TOP: f32 = 12.;
 pub(super) const PAD_BOTTOM: f32 = 24.;
-pub(super) const INSET: f32 = 12.;
+pub(super) const INSET: f32 = 6.;
+pub(super) const CONTENT_INSET: f32 = 10.;
 
 /// What the transcript shows of its conversation: the projection, the
 /// submission still on its way, and what the live tail says.

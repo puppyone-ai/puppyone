@@ -75,7 +75,8 @@ impl Workbench {
             Icon::new("ellipsis").small().stroke(1.9),
         )
         .label(label)
-        .with_size(px(header_layout::COMPACT))
+        .w(px(header_layout::COMPACT))
+        .h(px(theme::control_compact()))
         .color(t.muted)
         .rounded(px(theme::metric::TOOLBAR_ACTION_RADIUS));
         let mut popover = PopoverMenu::new(ElementId::NamedInteger("overflow-menu".into(), group))

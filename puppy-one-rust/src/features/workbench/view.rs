@@ -3,7 +3,12 @@
 use super::*;
 
 impl Workbench {
-    pub(super) fn group(&mut self, id: Id, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn group(
+        &mut self,
+        id: Id,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         let t = cx.palette();
         let g = self.project().unwrap().layout.groups[&id].clone();
         let width = self
@@ -68,7 +73,7 @@ impl Workbench {
             Some(Content::Item { item, .. }) => {
                 div().size_full().child(item.view()).into_any_element()
             }
-            _ => match self.host.clone() {
+            Some(Content::Launcher) => match self.host.clone() {
                 Some(host) => {
                     let context = LauncherContext {
                         group: id,
@@ -78,10 +83,11 @@ impl Workbench {
                         can_terminal: self.can_create(ItemKind::Terminal),
                         chat_limit: self.at_limit(ItemKind::Chat),
                     };
-                    host.launcher(context, cx)
+                    host.launcher(context, window, cx)
                 }
                 None => div().into_any_element(),
             },
+            None => div().size_full().bg(t.auxiliary()).into_any_element(),
         };
         let group = v_flex()
             .id(("group", id))
@@ -193,9 +199,14 @@ impl Workbench {
             .into_any_element()
     }
 
-    pub(super) fn node(&mut self, node: &Node, cx: &mut Context<Self>) -> AnyElement {
+    pub(super) fn node(
+        &mut self,
+        node: &Node,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> AnyElement {
         match node {
-            Node::Group(id) => self.group(*id, cx),
+            Node::Group(id) => self.group(*id, window, cx),
             Node::Split {
                 id,
                 axis,
@@ -206,8 +217,8 @@ impl Workbench {
                 let id = *id;
                 let axis = *axis;
                 let t = cx.palette();
-                let a = self.node(first, cx);
-                let b = self.node(second, cx);
+                let a = self.node(first, window, cx);
+                let b = self.node(second, window, cx);
                 let entity = cx.entity();
                 let horizontal = axis == Axis::Horizontal;
                 // `grid-template-*: (100% - 1px) × ratio | 1px | rest`.
@@ -469,7 +480,7 @@ impl Render for Workbench {
                 .child(crate::localization::t("workspace.restoring.message"))
                 .into_any_element()
         } else if let Some(tree) = tree {
-            self.node(&tree, cx)
+            self.node(&tree, window, cx)
         } else {
             div()
                 .p(px(24.))

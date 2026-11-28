@@ -11,7 +11,7 @@ mod mermaid;
 mod parse;
 mod table;
 
-use super::agent_rich_text::{CODE_FAMILY, CODE_PAD, ChipGeometry, RichText};
+use super::agent_rich_text::{CODE_PAD, ChipGeometry, RichText};
 use crate::ui::components::Icon;
 use crate::{theme, theme::Theme};
 use gpui::{prelude::*, *};
@@ -154,7 +154,7 @@ fn flow(children: &[Block], cx: &mut Context<'_>, path: &str) -> Div {
 
 fn text_style(size: f32, line_height: f32, color: Rgba) -> TextStyleRefinement {
     TextStyleRefinement {
-        font_family: Some("Geist".into()),
+        font_family: Some(crate::theme::sans().into()),
         font_fallbacks: Some(crate::ui::fonts::fallbacks(
             crate::typography::fonts::Category::Sans,
         )),

@@ -20,36 +20,26 @@ use crate::{
 use gpui::{prelude::*, *};
 use gpui_kit::base::h_flex;
 
-/// Composes the title bar frame around `leading`, optional `tabs`, and `actions`.
-pub fn render_frame(
-    leading: Vec<AnyElement>,
-    tabs: Option<AnyElement>,
-    actions: Vec<AnyElement>,
-    window: &mut Window,
-    cx: &mut App,
-) -> Div {
-    let t = cx.palette();
-    let conventions = Conventions::current();
-    let leading_inset = match conventions.window_controls_side {
+/// Leading inset from `rail` (the pane's left edge in window coordinates):
+/// keeps macOS traffic lights clear and matches the normal Header on every OS.
+pub fn leading_inset(rail: f32) -> f32 {
+    match Conventions::current().window_controls_side {
         WindowControlsSide::Leading => {
-            metric::TITLEBAR_NATIVE_CONTROLS_INSET + metric::TITLEBAR_CONTENT_START
+            (metric::TITLEBAR_NATIVE_CONTROLS_INSET + metric::TITLEBAR_CONTENT_START - rail)
+                .max(metric::TITLEBAR_CONTENT_START)
         }
         WindowControlsSide::Trailing => metric::TITLEBAR_TRAILING_CONTROLS_LEADING_START,
-    };
-    let in_window_menu = app_menu::render(cx);
-    let trailing_controls = window_controls::render(window, cx);
-    let has_trailing_controls = trailing_controls.is_some();
+    }
+}
 
-    let with_tabs = tabs.is_some();
-    let drag = div()
-        .id("header-drag")
+/// Empty title-bar space that moves, zooms and opens the window menu.
+pub fn drag_area(id: &'static str) -> Stateful<Div> {
+    let conventions = Conventions::current();
+    div()
+        .id(id)
         .window_control_area(WindowControlArea::Drag)
-        .when(!with_tabs, |d| d.flex_1())
-        .when(with_tabs, |d| {
-            d.w(px(metric::TITLEBAR_DRAG_MIN_WIDTH)).flex_shrink_0()
-        })
+        .cursor(CursorStyle::Arrow)
         .h_full()
-        .min_w(px(metric::TITLEBAR_DRAG_MIN_WIDTH))
         // On Windows, leaving `WindowControlArea::Drag` (`HTCAPTION`) free of
         // mouse-down handlers lets `DefWindowProcW` handle native window drag,
         // Aero Snap, double-click maximize/restore toggle, and right-click
@@ -65,20 +55,49 @@ pub fn render_frame(
             .on_mouse_down(MouseButton::Right, |e, window, _| {
                 window.show_window_menu(e.position);
             })
-        });
+        })
+}
+
+/// Composes the title bar frame around `leading`, optional `tabs`, and
+/// `actions`.
+pub fn render_frame(
+    leading: Vec<AnyElement>,
+    tabs: Option<AnyElement>,
+    actions: Vec<AnyElement>,
+    transparent: bool,
+    window: &mut Window,
+    cx: &mut App,
+) -> Div {
+    let t = cx.palette();
+    let in_window_menu = app_menu::render(cx);
+    let trailing_controls = window_controls::render(window, cx);
+    let has_trailing_controls = trailing_controls.is_some();
+
+    let with_tabs = tabs.is_some();
+    let drag = drag_area("header-drag")
+        .when(!with_tabs, |d| d.flex_1())
+        .when(with_tabs, |d| {
+            d.w(px(metric::TITLEBAR_DRAG_MIN_WIDTH)).flex_shrink_0()
+        })
+        .min_w(px(metric::TITLEBAR_DRAG_MIN_WIDTH));
 
     div()
         .size_full()
         .flex()
         .items_center()
-        .bg(t.header)
-        .border_b_1()
-        .border_color(t.shell_divider)
+        .map(|mut d| {
+            d.style().border_widths.bottom = Some(px(metric::SHELL_DIVIDER_WIDTH).into());
+            d
+        })
+        .when(!transparent, |d| {
+            d.bg(t.header).border_color(t.shell_divider)
+        })
+        .when(transparent, |d| d.border_color(transparent_black()))
         .child(
             h_flex()
                 .h_full()
                 .min_w_0()
-                .pl(px(leading_inset))
+                .pl(px(leading_inset(0.)))
                 .gap(px(2.))
                 .children(in_window_menu)
                 .children(leading),

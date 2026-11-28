@@ -599,3 +599,73 @@ fn distinguishes_a_missing_runtime_from_an_installed_runtime_without_rpc_support
         assert_eq!(unsupported["compatibility"], "unavailable");
     });
 }
+
+#[test]
+fn bootstrap_session_inspects_and_starts_or_resumes_on_one_pi_process() {
+    run_local(async {
+        // 1. Create path: single Pi process (without --no-session) handles both inspection and live session.
+        let create_fixture = fixture();
+        assert!(create_fixture.adapter.implements("bootstrapSession"));
+        let created = create_fixture
+            .adapter
+            .bootstrap_session(json!({
+                "kind": "create",
+                "model": "openai-codex/gpt-5.6-sol",
+                "effort": "high",
+            }))
+            .await
+            .unwrap();
+        assert_eq!(create_fixture.clients.borrow().len(), 1);
+        assert!(create_fixture.client(0).options.args.is_empty());
+        assert_eq!(
+            created["inspection"]["models"][0]["model"],
+            "openai-codex/gpt-5.6-sol"
+        );
+        assert_eq!(
+            created["providerSession"]["providerSessionId"],
+            "pi-session"
+        );
+        assert!(!create_fixture.client(0).closed.get());
+        create_fixture.adapter.dispose().await.unwrap();
+        assert!(create_fixture.client(0).closed.get());
+
+        // 2. Resume path: single Pi process with --session <threadId>.
+        let resume_fixture = fixture();
+        let resumed = resume_fixture
+            .adapter
+            .bootstrap_session(json!({
+                "kind": "resume",
+                "threadId": "pi-session",
+                "model": "openai-codex/gpt-5.6-sol",
+            }))
+            .await
+            .unwrap();
+        assert_eq!(resume_fixture.clients.borrow().len(), 1);
+        assert_eq!(
+            resume_fixture.client(0).options.args,
+            vec!["--session".to_string(), "pi-session".to_string()]
+        );
+        assert_eq!(
+            resumed["providerSession"]["providerSessionId"],
+            "pi-session"
+        );
+        resume_fixture.adapter.dispose().await.unwrap();
+
+        // 3. Resume with mismatched native session id fails cleanly with AGENT_PROVIDER_SESSION_UNAVAILABLE.
+        let mismatch_fixture = fixture();
+        let err = mismatch_fixture
+            .adapter
+            .bootstrap_session(json!({
+                "kind": "resume",
+                "threadId": "different-session",
+            }))
+            .await
+            .unwrap_err();
+        assert_eq!(
+            err.code.as_deref(),
+            Some("AGENT_PROVIDER_SESSION_UNAVAILABLE")
+        );
+        assert!(mismatch_fixture.client(0).closed.get());
+        mismatch_fixture.adapter.dispose().await.unwrap();
+    });
+}

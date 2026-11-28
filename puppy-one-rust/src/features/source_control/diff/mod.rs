@@ -265,7 +265,6 @@ fn card_row(row: &Row, cx: &RowContext) -> AnyElement {
                     .py(px(14.))
                     .text_size(px(theme::ty().ui.meta))
                     .line_height(relative(theme::NORMAL_LINE_HEIGHT))
-                    .font_family(theme::SANS_ITALIC)
                     .italic()
                     .text_color(p.t.subtle)
                     .child(text.clone()),

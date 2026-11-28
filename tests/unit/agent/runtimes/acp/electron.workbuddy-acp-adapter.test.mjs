@@ -173,6 +173,98 @@ describe("WorkBuddy ACP runtime", () => {
     await adapter.dispose();
   });
 
+  it("treats userInfo without a usable access token as unauthenticated", async () => {
+    const connection = new FakeWorkBuddyConnection({ authenticated: false });
+    const baseRequest = connection.request;
+    connection.request = vi.fn(async (method, params, options) => {
+      if (method === "_codebuddy.ai/getUserInfo") {
+        return { userInfo: { userId: "workbuddy-user", userName: "", authType: "local" } };
+      }
+      return baseRequest(method, params, options);
+    });
+    const adapter = new WorkBuddyAcpAdapter({
+      channel: WORKBUDDY_CHINA_CHANNEL,
+      runtimeDescriptor: WORKBUDDY_CHINA_RUNTIME_DESCRIPTOR,
+      readiness: {
+        executablePath: "/Applications/WorkBuddy.app/Contents/Resources/cli/bin/codebuddy",
+        environment: { HOME: "/Users/test", PATH: "/usr/bin" },
+        version: "2.176.0",
+      },
+      workspaceRoot: "/workspace",
+      connectionFactory: () => connection,
+      fileSystemFactory: () => ({ readTextFile: vi.fn(), writeTextFile: vi.fn() }),
+      projectInstructionLoader: vi.fn(async () => ({ source: null, text: "", bytes: 0 })),
+    });
+
+    await adapter.bootstrapSession({ kind: "create" });
+
+    expect(connection.request.mock.calls.map(([method]) => method)).toEqual([
+      "initialize",
+      "_codebuddy.ai/getUserInfo",
+      "authenticate",
+      "session/new",
+    ]);
+    await adapter.dispose();
+  });
+
+  it("surfaces WorkBuddy refusal metadata as provider.error and turn.failed", async () => {
+    const connection = new FakeWorkBuddyConnection({ authenticated: true });
+    const baseRequest = connection.request;
+    connection.request = vi.fn(async (method, params, options) => {
+      if (method === "session/prompt") {
+        return {
+          stopReason: "refusal",
+          _meta: {
+            "codebuddy.ai/errorMessage": JSON.stringify({
+              code: -32000,
+              message: "Authentication required. Please use /login command to sign in to your account",
+              data: { category: "auth", statusCode: 401 },
+            }),
+          },
+        };
+      }
+      return baseRequest(method, params, options);
+    });
+    const events = [];
+    const adapter = new WorkBuddyAcpAdapter({
+      channel: WORKBUDDY_CHINA_CHANNEL,
+      runtimeDescriptor: WORKBUDDY_CHINA_RUNTIME_DESCRIPTOR,
+      readiness: {
+        executablePath: "/Applications/WorkBuddy.app/Contents/Resources/cli/bin/codebuddy",
+        environment: { HOME: "/Users/test", PATH: "/usr/bin" },
+        version: "2.176.0",
+      },
+      workspaceRoot: "/workspace",
+      onEvent: (event) => events.push(event),
+      connectionFactory: () => connection,
+      fileSystemFactory: () => ({ readTextFile: vi.fn(), writeTextFile: vi.fn() }),
+      projectInstructionLoader: vi.fn(async () => ({ source: null, text: "", bytes: 0 })),
+    });
+
+    await adapter.bootstrapSession({ kind: "create" });
+    await adapter.startTurn({ prompt: "hello" });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(events).toContainEqual(expect.objectContaining({
+      type: "provider.error",
+      payload: expect.objectContaining({
+        code: "AUTHENTICATION_REQUIRED",
+        message: expect.stringContaining("Authentication required"),
+        recoverable: true,
+        diagnostic: expect.stringContaining("category=auth"),
+      }),
+    }));
+    expect(events).toContainEqual(expect.objectContaining({
+      type: "turn.failed",
+      payload: expect.objectContaining({
+        status: "failed",
+        message: expect.stringContaining("Authentication required"),
+      }),
+    }));
+    expect(events.some((event) => event.type === "turn.completed")).toBe(false);
+    await adapter.dispose();
+  });
+
   it("uses a side-effect-limited version and ACP help probe", async () => {
     const discover = vi.fn(async (options) => {
       expect(options.installationId).toBe("workbuddy-international");
@@ -297,7 +389,9 @@ class FakeWorkBuddyConnection extends EventEmitter {
         ],
       };
       if (method === "_codebuddy.ai/getUserInfo") {
-        return authenticated ? { userInfo: { userId: "workbuddy-user", userName: "WorkBuddy User" } } : {};
+        return authenticated
+          ? { userInfo: { userId: "workbuddy-user", userName: "WorkBuddy User", accessToken: "workbuddy-access-token" } }
+          : {};
       }
       if (method === "authenticate") return {};
       if (method === "session/new") return { sessionId: "workbuddy-session" };

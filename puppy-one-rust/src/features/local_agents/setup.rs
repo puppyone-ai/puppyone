@@ -1120,7 +1120,7 @@ impl Render for ActivationDialog {
                 div()
                     .min_w_0()
                     .text_size(px(m.ui.body_large))
-                    // Geist's normal line height (hhea 1005 + 295).
+                    // The product's normal line height.
                     .line_height(px(m.ui.body_large * 1.3))
                     .font_weight(FontWeight::MEDIUM)
                     .text_color(t.text)

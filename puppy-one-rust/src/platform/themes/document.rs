@@ -204,9 +204,8 @@ fn variables(host: Host, document: &Document, dark: bool, scale: &str) -> HashMa
     let pairs = |decls: &'static Declarations| decls.iter().map(|(k, v)| (k, v));
     let mode = usize::from(dark);
     let scoped = defaults(host);
-    let mut vars: HashMap<String, String> = palette::SEMANTIC_ALIASES
-        .iter()
-        .map(|(k, v)| ((*k).to_owned(), (*v).to_owned()))
+    let mut vars: HashMap<String, String> = palette::semantic_aliases()
+        .map(|(k, v)| (k.to_owned(), v))
         .collect();
     extend(&mut vars, &scoped.root);
     let (light, dark_blocks) = palette::neutral();

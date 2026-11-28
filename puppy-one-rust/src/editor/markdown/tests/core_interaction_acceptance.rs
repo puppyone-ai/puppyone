@@ -34,7 +34,6 @@ use crate::{
             extension::{
                 DecorateInput, EditIntent, EditorExtension, LinkAction, config_transaction,
             },
-            style,
         },
     },
     render_service::{self, Kind as RenderKind, MAX_SOURCE_BYTES, Request, State as RenderState},
@@ -1360,7 +1359,6 @@ fn read_only_allows_view_commands_and_blocks_document_edits(cx: &mut TestAppCont
         if cx.try_global::<gpui_kit::component::Theme>().is_none() {
             gpui_kit::init(cx);
         }
-        cx.text_system().add_fonts(style::font_bytes()).unwrap();
         bind_keys(cx);
     });
 
@@ -1577,11 +1575,21 @@ fn the_documents_script_names_the_surface_language(cx: &mut TestAppContext) {
         })
     };
     use crate::ui::fonts::test_support::take_asked;
+    // Capture Frame 1 directly — do not discard the initial paint.
+    take_asked();
     let (view, cx) = setup(cx, "# 計畫\n\n- 使用者訪談集齊十個\n- 修復編輯器問題");
     assert_eq!(language(&view, cx).as_deref(), Some("zh-Hant"));
-    // Built, laid out and painted, every text of the editor takes the
-    // document language's script cascade.
-    take_asked();
+    if view.read_with(cx, |v, _| v.layout().is_none()) {
+        cx.update(|w, cx| {
+            w.draw(cx).clear(cx);
+        });
+    }
+    assert_eq!(
+        take_asked(),
+        [Some("zh-Hant".into())],
+        "Frame 1 must already use the document language's script cascade (never None)"
+    );
+    // Subsequent repaints keep the same script cascade.
     view.update(cx, |_, cx| cx.notify());
     cx.update(|w, cx| {
         w.draw(cx).clear(cx);
@@ -1598,11 +1606,117 @@ fn the_documents_script_names_the_surface_language(cx: &mut TestAppContext) {
         Some("zh-Hant"),
         "an edit keeps the language"
     );
+    take_asked();
     let (view, cx) = setup(cx, "# 计划\n\n- 用户访谈集齐十个\n- 修复编辑器问题");
     assert_eq!(language(&view, cx).as_deref(), Some("zh-Hans"));
+    if view.read_with(cx, |v, _| v.layout().is_none()) {
+        cx.update(|w, cx| {
+            w.draw(cx).clear(cx);
+        });
+    }
+    assert_eq!(take_asked(), [Some("zh-Hans".into())]);
     let (view, cx) = setup(cx, "# Release notes");
     let interface = crate::editor::markdown::core::presentation::content_language::normalize(
         &crate::localization::current().code,
     );
     assert_eq!(language(&view, cx), Some(interface));
+}
+
+/// Opening a Markdown document whose script differs from the interface locale
+/// must resolve its typography and geometry on Frame 1 so Frame 2 produces
+/// zero layout shift (0.0px drift across every block and leaf).
+#[gpui::test]
+fn opening_markdown_has_zero_first_frame_layout_shift(cx: &mut TestAppContext) {
+    use crate::ui::fonts::test_support::take_asked;
+
+    let prev_locale = crate::localization::current().code.to_owned();
+    cx.update(|cx| {
+        if cx.try_global::<gpui_kit::component::Theme>().is_none() {
+            gpui_kit::init(cx);
+        }
+        crate::editor::view::bind_keys(cx);
+        crate::localization::set_current("en");
+        crate::ui::fonts::install(cx);
+    });
+
+    let doc = "# 架构设计与首帧稳定方案\n\n这是一段较长的**中文与 English 混排**段落，包含 `inline_code` 与自动换行，用来确保首帧与次帧在字体回退、行高和折行位置上完全一致，不会发生任何跳动。\n\n- 第一项：用户访谈集齐十个样本\n- 第二项：修复首帧渲染跳变问题\n\n| 模块 | 状态 |\n| --- | --- |\n| 字体解析 | 已对齐 |\n| 测量缓存 | 已隔离 |\n\n```rust\nlet stable = true;\n```\n";
+
+    take_asked();
+    let (view, cx) = cx.add_window_view(move |_, cx| {
+        crate::editor::view::EditorView::new(
+            doc,
+            Box::new(super::MarkdownExtension::new(
+                true,
+                crate::typography::Scale::Medium,
+            )),
+            cx,
+        )
+    });
+
+    // Draw Frame 1 explicitly if `add_window_view` has not yet produced a layout.
+    if view.read_with(cx, |v, _| v.layout().is_none()) {
+        cx.update(|w, cx| {
+            w.draw(cx).clear(cx);
+        });
+    }
+
+    assert_eq!(
+        take_asked(),
+        [Some("zh-Hans".into())],
+        "Frame 1 must shape and paint solely with zh-Hans, never falling back to interface None"
+    );
+
+    let snapshot = |cx: &mut gpui::VisualTestContext| {
+        view.read_with(cx, |v, _| {
+            let l = v.layout().expect("layout must exist after draw");
+            let blocks: Vec<_> = l
+                .blocks
+                .iter()
+                .map(|b| (b.source.clone(), b.bounds))
+                .collect();
+            let leaves: Vec<_> = l
+                .leaves
+                .iter()
+                .map(|leaf| {
+                    (
+                        leaf.source().clone(),
+                        leaf.entry.rows,
+                        leaf.geometry.bounds(),
+                    )
+                })
+                .collect();
+            (l.height, l.scroll, blocks, leaves)
+        })
+    };
+
+    let (h1, s1, blocks1, leaves1) = snapshot(cx);
+    assert!(!blocks1.is_empty(), "Frame 1 must lay out blocks");
+    assert!(!leaves1.is_empty(), "Frame 1 must lay out text leaves");
+
+    // Force Frame 2 and verify zero pixel drift across every block and leaf.
+    view.update(cx, |_, cx| cx.notify());
+    cx.update(|w, cx| {
+        w.draw(cx).clear(cx);
+    });
+
+    assert_eq!(take_asked(), [Some("zh-Hans".into())]);
+    let (h2, s2, blocks2, leaves2) = snapshot(cx);
+    assert_eq!(
+        h1, h2,
+        "document height shifted between Frame 1 and Frame 2"
+    );
+    assert_eq!(s1, s2, "scroll offset shifted between Frame 1 and Frame 2");
+    assert_eq!(
+        blocks1, blocks2,
+        "block bounds shifted between Frame 1 and Frame 2"
+    );
+    assert_eq!(
+        leaves1, leaves2,
+        "leaf bounds or row counts shifted between Frame 1 and Frame 2"
+    );
+
+    cx.update(|_, cx| {
+        crate::localization::set_current(&prev_locale);
+        crate::ui::fonts::install(cx);
+    });
 }

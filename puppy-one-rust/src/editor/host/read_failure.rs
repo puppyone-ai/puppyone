@@ -11,18 +11,31 @@ use crate::{
     ui::{
         appearance::ActiveAppearance as _,
         components::{Button, ButtonVariant},
+        loading::{LoaderSize, LoadingMark, Tone},
     },
 };
 use gpui::{prelude::*, *};
 
-/// `role="status"` with the loading words, and no visible text.
+/// Centered loading mark for a pane whose file is being read, announced as
+/// `role="status"`.
 pub(super) fn loading() -> AnyElement {
     div()
         .id("editor-loading")
+        .debug_selector(|| "editor-loading".into())
         .role(Role::Status)
         .aria_label(t("editor.loadingFile"))
         .absolute()
         .size_full()
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(
+            LoadingMark::new("editor-loading-mark")
+                .area()
+                .size(LoaderSize::Md)
+                .tone(Tone::Neutral)
+                .silent(),
+        )
         .test_support()
         .into_any_element()
 }

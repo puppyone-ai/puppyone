@@ -225,6 +225,10 @@ impl WorkbenchItem for AgentChatItem {
         });
     }
 
+    fn focus(&self, window: &mut Window, cx: &mut App) {
+        self.panel.update(cx, |p, cx| p.focus_composer(window, cx));
+    }
+
     /// The panel's `onPresentationChange`, `onOpenFile`, `onOpenAccount`,
     /// `onOpenModelConnections` and its routing preference writes.
     fn watch(&self, cx: &mut Context<Workbench>) -> Subscription {

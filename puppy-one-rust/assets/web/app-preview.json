@@ -1,10 +1,10 @@
 {
-  "sourceCommit": "686d41c49ffd80734617e3b66061e615b5848e7b",
+  "sourceCommit": "5e87974efcfae0c9a83801ccc9add2f2deceb395",
   "entry": "tools/app-preview-entry.tsx",
   "entryHash": "110acfbe261a2eed8dd353077f9d29661492b72190b532c7b76798df0c22045a",
   "outputs": {
     "app-preview.js": "5693c21237743489319de2d88a633d0bc019eb8f0fb3ef606f6191476737e059",
-    "app-preview.css": "9b4163f7556949c0fe0e9c94742a27cc2d3c7f1a001ca9b344cc9891b415f4c0"
+    "app-preview.css": "bec5d850c9403b1ca27456fd95ce38738295f4ca50ccbf42d0fed6be7438b9a4"
   },
   "sourceHashes": {
     "locales/manifest.json": "89f4c41fb37190504c04f185cdfe5732f82342c4414f9daf33028cb9fe6898d8",

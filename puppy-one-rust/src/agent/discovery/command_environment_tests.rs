@@ -223,3 +223,143 @@ fn windows_persistent_path_is_refreshed_without_competing_case_variants() {
         assert_eq!(calls.get(), 2);
     });
 }
+
+#[test]
+fn cached_command_environment_deduplicates_concurrent_reads_and_reuses_within_ttl() {
+    run_local(async {
+        let now = Rc::new(Cell::new(1_000i64));
+        let calls = Rc::new(Cell::new(0usize));
+        let counted = calls.clone();
+        let loader: ReadEnvironment = Rc::new(move |_, _, _, _| {
+            let n = counted.replace(counted.get() + 1) + 1;
+            Box::pin(async move {
+                tokio::task::yield_now().await;
+                Ok(EnvironmentSnapshot {
+                    environment: env(&[("PATH", &format!("/bin/{n}"))]),
+                    complete: true,
+                    source: "shell-environment".into(),
+                    reason_code: None,
+                })
+            })
+        });
+        let clock = now.clone();
+        let cache = CachedCommandEnvironment::new(
+            Some(loader),
+            Some(Rc::new(move || clock.get())),
+            Some(500),
+        );
+        let read = || cache.read(EnvMap::new(), PathBuf::from("/home"), "darwin".into(), None);
+
+        // 3 concurrent callers share 1 single-flight probe.
+        let (a, b, c) = futures_util::future::join3(read(), read(), read()).await;
+        assert_eq!(a.unwrap().environment["PATH"], "/bin/1");
+        assert_eq!(b.unwrap().environment["PATH"], "/bin/1");
+        assert_eq!(c.unwrap().environment["PATH"], "/bin/1");
+        assert_eq!(calls.get(), 1);
+
+        // Still fresh before TTL expires.
+        now.set(1_499);
+        assert_eq!(read().await.unwrap().environment["PATH"], "/bin/1");
+        assert_eq!(calls.get(), 1);
+
+        // Expired at TTL boundary -> re-probes once.
+        now.set(1_500);
+        assert_eq!(read().await.unwrap().environment["PATH"], "/bin/2");
+        assert_eq!(calls.get(), 2);
+    });
+}
+
+#[test]
+fn cached_command_environment_never_caches_incomplete_snapshots_and_retries() {
+    run_local(async {
+        let calls = Rc::new(Cell::new(0usize));
+        let counted = calls.clone();
+        let loader: ReadEnvironment = Rc::new(move |_, _, _, _| {
+            let first = counted.replace(counted.get() + 1) == 0;
+            Box::pin(async move {
+                if first {
+                    Ok(EnvironmentSnapshot {
+                        environment: env(&[("PATH", "/inherited")]),
+                        complete: false,
+                        source: "inherited-environment".into(),
+                        reason_code: Some("environment-unavailable".into()),
+                    })
+                } else {
+                    Ok(EnvironmentSnapshot {
+                        environment: env(&[("PATH", "/shell")]),
+                        complete: true,
+                        source: "shell-environment".into(),
+                        reason_code: None,
+                    })
+                }
+            })
+        });
+        let cache = CachedCommandEnvironment::new(Some(loader), None, Some(60_000));
+        let first = cache
+            .read(EnvMap::new(), PathBuf::from("/home"), "darwin".into(), None)
+            .await
+            .unwrap();
+        assert!(!first.complete);
+        let second = cache
+            .read(EnvMap::new(), PathBuf::from("/home"), "darwin".into(), None)
+            .await
+            .unwrap();
+        assert!(second.complete);
+        assert_eq!(second.environment["PATH"], "/shell");
+        assert_eq!(calls.get(), 2);
+    });
+}
+
+#[test]
+fn cached_command_environment_invalidation_fences_stale_in_flight_reads() {
+    run_local(async {
+        let gate = Rc::new(RefCell::new(None::<tokio::sync::oneshot::Sender<()>>));
+        let gate_ref = gate.clone();
+        let calls = Rc::new(Cell::new(0usize));
+        let counted = calls.clone();
+        let loader: ReadEnvironment = Rc::new(move |_, _, _, _| {
+            let n = counted.replace(counted.get() + 1) + 1;
+            let gate_ref = gate_ref.clone();
+            Box::pin(async move {
+                if n == 1 {
+                    let (tx, rx) = tokio::sync::oneshot::channel();
+                    *gate_ref.borrow_mut() = Some(tx);
+                    let _ = rx.await;
+                }
+                Ok(EnvironmentSnapshot {
+                    environment: env(&[("PATH", &format!("/gen/{n}"))]),
+                    complete: true,
+                    source: "shell-environment".into(),
+                    reason_code: None,
+                })
+            })
+        });
+        let cache = CachedCommandEnvironment::new(Some(loader), None, Some(60_000));
+        let stale_task = {
+            let cache = cache.clone();
+            tokio::task::spawn_local(async move {
+                cache
+                    .read(EnvMap::new(), PathBuf::from("/home"), "darwin".into(), None)
+                    .await
+            })
+        };
+        tokio::task::yield_now().await;
+        cache.invalidate();
+        let fresh = cache
+            .read(EnvMap::new(), PathBuf::from("/home"), "darwin".into(), None)
+            .await
+            .unwrap();
+        assert_eq!(fresh.environment["PATH"], "/gen/2");
+        if let Some(tx) = gate.borrow_mut().take() {
+            let _ = tx.send(());
+        }
+        let _ = stale_task.await.unwrap().unwrap();
+        // Stale gen-1 read must NOT overwrite gen-2 cache.
+        let after = cache
+            .read(EnvMap::new(), PathBuf::from("/home"), "darwin".into(), None)
+            .await
+            .unwrap();
+        assert_eq!(after.environment["PATH"], "/gen/2");
+        assert_eq!(calls.get(), 2);
+    });
+}
