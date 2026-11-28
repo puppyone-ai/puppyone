@@ -177,9 +177,15 @@ fn the_right_sidebar_waits_in_its_column_while_a_project_opens(cx: &mut TestAppC
         .expect("the right sidebar's column waits");
     assert!((f32::from(waiting.origin.x) - column.x).abs() < 0.5);
     assert!((f32::from(waiting.size.width) - column.w).abs() < 0.5);
+    // Windows draws its window controls in a row atop the right column.
+    let controls = if cfg!(target_os = "windows") {
+        crate::theme::HEADER
+    } else {
+        0.
+    };
     assert_eq!(
         f32::from(waiting.origin.y),
-        0.,
+        controls,
         "from the top without a Header"
     );
     assert!(cx.debug_bounds("right-sash").is_some(), "its edge stays");
